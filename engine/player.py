@@ -1,0 +1,66 @@
+import enum
+from typing import Optional
+
+from pygame import Rect
+
+from pytmx import TiledObject
+
+
+class Orientation(enum.Enum):
+    LEFT = enum.auto()
+    RIGHT = enum.auto()
+
+
+class Player:
+    def __init__(self) -> None:
+        self._next_pos = Rect(0, 0, 0, 0)
+        self.orientation = Orientation.LEFT
+        self._object: Optional[TiledObject] = None
+        self.left_animation: list[int] = []
+        self.right_animation: list[int] = []
+        self.animation_speed = 3
+        self.animation_tick = 0
+
+    @property
+    def tiled_object(self) -> TiledObject:
+        return self._object
+
+    @tiled_object.setter
+    def tiled_object(self, obj: TiledObject) -> None:
+        self._object = obj
+        self._next_pos.topleft = obj.rect.topleft
+        self._next_pos.size = obj.rect.size
+
+    @property
+    def rect(self) -> Rect: return self._object.rect
+
+    @property
+    def next_rect(self) -> Rect:
+        self._next_pos.topleft = self._object.rect.topleft
+        return self._next_pos
+
+    def animate_walk(self) -> None:
+        self.animation_tick += 1
+        stage = self.animation_tick // self.animation_speed
+        if stage > 1:
+            self.animation_tick = 0
+            stage = 0
+        animation_list = self.left_animation if self.orientation == Orientation.LEFT else self.right_animation
+        self._object.gid = animation_list[stage]
+
+    def stop_walk(self) -> None:
+        self.animation_tick = 0
+        animation_list = self.left_animation if self.orientation == Orientation.LEFT else self.right_animation
+        self._object.gid = animation_list[0]
+
+    def turn_left(self) -> None:
+        if self.orientation != Orientation.LEFT:
+            self.orientation = Orientation.LEFT
+            self._object.gid = self.left_animation[0]
+            self.animation_tick = 0
+
+    def turn_right(self) -> None:
+        if self.orientation != Orientation.RIGHT:
+            self.orientation = Orientation.RIGHT
+            self._object.gid = self.right_animation[0]
+            self.animation_tick = 0

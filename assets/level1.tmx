@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.8" tiledversion="1.8.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="24">
+<map version="1.8" tiledversion="1.8.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="27">
  <tileset firstgid="1" source="tilemap/tileset-tiles.tsx"/>
+ <tileset firstgid="181" source="tilemap/tileset-characters.tsx"/>
  <group id="6" name="group_1">
   <properties>
-   <property name="viewport" value="0, 0, 1024, 300"/>
+   <property name="viewport" value="10, 10, 1004, 288"/>
   </properties>
   <layer id="2" name="background_1" width="64" height="16">
    <data encoding="base64">
@@ -30,6 +31,7 @@
 show_next_level_part()</property>
     </properties>
    </object>
+   <object id="24" name="player" gid="2147483829" x="18" y="216" width="24" height="24"/>
   </objectgroup>
   <layer id="3" name="foreground_1" width="64" height="16">
    <data encoding="base64">
@@ -44,7 +46,7 @@ show_next_level_part()</property>
  </group>
  <group id="8" name="group_2" visible="0">
   <properties>
-   <property name="viewport" value="0, 330, 1024, 300"/>
+   <property name="viewport" value="10, 330, 1004, 288"/>
   </properties>
   <layer id="10" name="background_2" width="64" height="16">
    <data encoding="base64">
@@ -71,6 +73,7 @@ show_next_level_part()</property>
    <object id="20" gid="152" x="198.333" y="109" width="18" height="18"/>
    <object id="21" gid="152" x="147" y="143" width="18" height="18"/>
    <object id="22" gid="152" x="87" y="183.667" width="18" height="18"/>
+   <object id="26" name="player" gid="181" x="1116.67" y="24" width="24" height="24"/>
   </objectgroup>
   <layer id="11" name="foreground_2" width="64" height="16">
    <data encoding="base64">

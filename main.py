@@ -1,7 +1,8 @@
 import pygame
 from pygame import Rect
 
-from game.game_context import GameContext
+from engine.engine import Engine
+from engine.game_context import GameContext
 
 from engine.level import Level
 from game.debug import Debug
@@ -20,6 +21,9 @@ framerate = 60
 level = Level.load_level("assets/level1.tmx")
 
 game_context = GameContext(level)
+engine = Engine(game_context)
+engine.init_level()
+engine.set_level_part(1)
 
 
 debug = Debug(frameclock, framerate)
@@ -45,22 +49,16 @@ while not leave:
                 if event.key == pygame.K_k and event.mod & pygame.KMOD_LCTRL:
                     debug.debug_key_expected = True
 
-    last_keys = current_keys
+    previous_keys = current_keys
     current_keys = pygame.key.get_pressed()
 
-    if current_keys[pygame.K_LEFT]: xo = (xo - 1) if xo > 0 else xo
-    if current_keys[pygame.K_RIGHT]: xo = (xo + 1) if xo < 1024 else xo
-    if current_keys[pygame.K_UP]: yo = (yo - 1) if yo > 0 else yo
-    if current_keys[pygame.K_DOWN]: yo = (yo + 1) if yo < 1024 else yo
+    engine.process_keys(previous_keys, current_keys)
 
     elapsed_ms = frameclock.tick(60)
 
     screen.fill((0, 0, 0))
 
-    old_clip = screen.get_clip()
-    screen.set_clip(level_rect)
-    level.draw(screen, xo, yo)
-    screen.set_clip(old_clip)
+    engine.draw(screen)
     debug.draw(screen)
 
     pygame.display.flip()

@@ -35,6 +35,8 @@ from xml.etree import ElementTree
 import json
 from copy import deepcopy
 
+from pygame import Rect
+
 # for type hinting
 try:
     import pygame
@@ -589,14 +591,19 @@ class TiledMap(TiledElement):
 
         # ***         do not change this load order!         *** #
         # ***    gid mapping errors will occur if changed    *** #
-        for group_node in node.findall("./map/group"):
-            self.add_layer(TiledGroupLayer(self, group_node))
+        for group_node in node.findall("./group"):
+            group_layer = TiledGroupLayer(self, group_node)
+            self.add_layer(group_layer)
 
             for subnode in group_node.findall(".layer"):
-                self.add_layer(TiledTileLayer(self, subnode))
+                layer = TiledTileLayer(self, subnode)
+                self.add_layer(layer)
+                group_layer.layers.append(layer)
 
             for subnode in group_node.findall(".imagelayer"):
-                self.add_layer(TiledImageLayer(self, subnode))
+                layer = TiledImageLayer(self, subnode)
+                self.add_layer(layer)
+                group_layer.layers.append(layer)
 
             # this will only find objectgroup layers, not including tile colliders
             for subnode in group_node.findall(".objectgroup"):
@@ -605,6 +612,21 @@ class TiledMap(TiledElement):
                 for obj in objectgroup:
                     self.objects_by_id[obj.id] = obj
                     self.objects_by_name[obj.name] = obj
+                group_layer.layers.append(objectgroup)
+
+        for subnode in node.findall("./layer"):
+            self.add_layer(TiledTileLayer(self, subnode))
+
+        for subnode in node.findall("./imagelayer"):
+            self.add_layer(TiledImageLayer(self, subnode))
+
+        # this will only find objectgroup layers, not including tile colliders
+        for subnode in node.findall("./objectgroup"):
+            objectgroup = TiledObjectGroup(self, subnode, self.custom_types)
+            self.add_layer(objectgroup)
+            for obj in objectgroup:
+                self.objects_by_id[obj.id] = obj
+                self.objects_by_name[obj.name] = obj
 
         for subnode in node.findall(".//tileset"):
             self.add_tileset(TiledTileset(self, subnode))
@@ -714,6 +736,53 @@ class TiledMap(TiledElement):
                 loader = self.image_loader(path, colorkey)
                 image = loader()
                 self.images[real_gid] = image
+
+    def update_images(self):
+        if len(self.images) < self.maxgid:
+            self.images += [None] * (self.maxgid - len(self.images))
+
+            # iterate through tilesets to get source images
+            for ts in self.tilesets:
+
+                # skip tilesets without a source
+                if ts.source is None:
+                    continue
+
+                path = os.path.join(os.path.dirname(self.filename), ts.source)
+                colorkey = getattr(ts, "trans", None)
+                loader = self.image_loader(path, colorkey, tileset=ts)
+
+                p = product(
+                    range(
+                        ts.margin,
+                        ts.height + ts.margin - ts.tileheight + 1,
+                        ts.tileheight + ts.spacing,
+                    ),
+                    range(
+                        ts.margin,
+                        ts.width + ts.margin - ts.tilewidth + 1,
+                        ts.tilewidth + ts.spacing,
+                    ),
+                )
+
+                # iterate through the tiles
+                for real_gid, (y, x) in enumerate(p, ts.firstgid):
+                    rect = (x, y, ts.tilewidth, ts.tileheight)
+                    gids = self.map_gid(real_gid)
+
+                    # gids is None if the tile is never used
+                    # but give another chance to load the gid anyway
+                    if gids is None:
+                        if self.load_all_tiles or real_gid in self.optional_gids:
+                            # TODO: handle flags? - might never be an issue, though
+                            gids = [self.register_gid(real_gid, flags=0)]
+
+                    if gids:
+                        # flags might rotate/flip the image, so let the loader
+                        # handle that here
+                        for gid, flags in gids:
+                            if self.images[gid] is None:
+                                self.images[gid] = loader(rect, flags)
 
     def get_tile_image(self, x: int, y: int, layer: int):
         """Return the tile image for this location.
@@ -1333,6 +1402,7 @@ class TiledGroupLayer(TiledElement):
         self.name = None
         self.visible = 1
         self.parse_xml(node)
+        self.layers = []
 
     def parse_xml(self, node) -> "TiledGroupLayer":
         """
@@ -1498,10 +1568,7 @@ class TiledObject(TiledElement):
         self.id = 0
         self.name = None
         self.type = None
-        self.x = 0
-        self.y = 0
-        self.width = 0
-        self.height = 0
+        self.rect = Rect(0, 0, 0, 0)
         self.rotation = 0
         self.gid = 0
         self.visible = 1
@@ -1510,6 +1577,30 @@ class TiledObject(TiledElement):
         self.custom_types = custom_types
 
         self.parse_xml(node)
+
+    @property
+    def x(self) -> float: return self.rect.x
+
+    @x.setter
+    def x(self, v: float) -> None: self.rect.x = v
+
+    @property
+    def y(self) -> float: return self.rect.y
+
+    @y.setter
+    def y(self, v: float) -> None: self.rect.y = v
+
+    @property
+    def width(self) -> float: return self.rect.width
+
+    @width.setter
+    def width(self, v: float) -> None: self.rect.width = v
+
+    @property
+    def height(self) -> float: return self.rect.height
+
+    @height.setter
+    def height(self, v: float) -> None: self.rect.height = v
 
     @property
     def image(self):
