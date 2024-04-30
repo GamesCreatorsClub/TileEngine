@@ -1,5 +1,5 @@
 import enum
-from typing import Optional
+from typing import Optional, Union
 
 from pygame import Rect
 
@@ -21,6 +21,18 @@ class Player:
         self.animation_speed = 3
         self.animation_tick = 0
 
+        self.vx = 0
+        self.vy = 0
+        self.hit_velocity = 0
+        self.jump_treshold = 10
+        self.jump = 0
+        self.player_speed = 2
+        self.on_the_ground = True
+
+        self.save_previous_positions = False
+        self.previous_positions_length = 400
+        self.previous_positions = []
+
     @property
     def tiled_object(self) -> TiledObject:
         return self._object
@@ -33,6 +45,16 @@ class Player:
 
     @property
     def rect(self) -> Rect: return self._object.rect
+
+    def move_to(self, pos: tuple[Union[int, float], Union[int, float]]) -> Rect:
+        rect = self.rect
+        rect.topleft = pos
+
+        if self.save_previous_positions:
+            if len(self.previous_positions) > self.previous_positions_length:
+                del self.previous_positions[:-self.previous_positions_length]
+            self.previous_positions.append(pos)
+        return rect
 
     @property
     def next_rect(self) -> Rect:

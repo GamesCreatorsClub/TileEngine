@@ -26,6 +26,8 @@ class Level:
         self.foreground_layer: Optional[TiledTileLayer] = None
         self.over_layer: Optional[TiledTileLayer] = None
         self.objects_layer: Optional[TiledObjectGroup] = None
+        self.width = tiled_map.width * self.tile_width
+        self.height = tiled_map.height * self.tile_height
 
         self.offscreen_surface: Optional[Surface] = None
         self.last_x_offset = -1
@@ -87,9 +89,13 @@ class Level:
             if player_object is None:
                 raise ValueError("Missing player object")
 
+            player.orientation = Orientation.LEFT
             player.tiled_object = player_object
             original_tiled_gid = self.map.tiledgidmap[player_object.gid]
             decoded_tiled_gid, flags = pytmx.pytmx.decode_gid(original_tiled_gid)
+            for _, f in self.map.gidmap[original_tiled_gid]:
+                if f.flipped_horizontally:
+                    player.orientation = Orientation.RIGHT
 
             def image_gid(original_tiled_gid: int, tile_flags: pytmx.TileFlags) -> int:
                 gid_flag_tuple = original_tiled_gid, tile_flags
@@ -115,7 +121,6 @@ class Level:
                     player.right_animation.append(gid)
 
             self.map.update_images()
-            player.orientation = Orientation.RIGHT if flags.flipped_horizontally else Orientation.LEFT
 
         else:
             raise ValueError("Object layer cannot be None")

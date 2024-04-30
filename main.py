@@ -26,7 +26,7 @@ engine.init_level()
 engine.set_level_part(1)
 
 
-debug = Debug(frameclock, framerate)
+debug = Debug(engine, frameclock, framerate)
 
 
 xo = 0

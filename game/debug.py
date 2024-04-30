@@ -5,10 +5,12 @@ from pygame import Surface, Rect
 from pygame.time import Clock
 
 from engine import level
+from engine.engine import Engine
 
 
 class Debug:
-    def __init__(self, frameclock: Clock, framerate: int, back_buffer_secs: float = 3.0) -> None:
+    def __init__(self, engine: Engine, frameclock: Clock, framerate: int, back_buffer_secs: float = 3.0) -> None:
+        self.engine = engine
         self.frameclock = frameclock
         self.framerate = framerate
         self._frame_start = 0.0
@@ -23,6 +25,9 @@ class Debug:
         self.debug_key_expected = False
         self.debug_font_small = pygame.font.SysFont("Comic Sans MS", 30)
         self.debug_font_big = pygame.font.SysFont("Comic Sans MS", 60)
+        self.show_player = False
+
+        self._show_jumps = False
 
         self.input_expected_text = self.debug_font_big.render("Input:", True, self.debug_colour_main)
 
@@ -33,9 +38,22 @@ class Debug:
         if key == pygame.K_u: self.show_utilisation = not self.show_utilisation
         elif key == pygame.K_f: self.show_fps = not self.show_fps
         elif key == pygame.K_o: level.offscreen_rendering = not level.offscreen_rendering
+        elif key == pygame.K_p: self.show_player = not self.show_player
+        elif key == pygame.K_j:
+            self.show_jumps = not self.show_jumps
         else:
             return False
         return True
+
+    @property
+    def show_jumps(self) -> bool: return self._show_jumps
+
+    @show_jumps.setter
+    def show_jumps(self, v: bool) -> None:
+        self._show_jumps = v
+        self.engine.game_context.player.save_previous_positions = v
+        if not v:
+            del self.engine.game_context.player.previous_positions[:]
 
     def draw(self, screen: Surface) -> None:
         screen_rect = screen.get_rect()
@@ -58,6 +76,13 @@ class Debug:
             fps = self.frameclock.get_fps()
             screen.blit(self.debug_font_small.render(f"{fps:3.1f} fps", True, self.debug_colour_main), (screen_rect.right - 90, 0))
 
+        if self.show_player:
+            fps = self.frameclock.get_fps()
+            player = self.engine.game_context.player
+            screen.blit(
+                self.debug_font_small.render(f"P: {player.vx:3.1f},{player.vy:3.1f} {player.hit_velocity:3.1f} {'_' if player.on_the_ground else ' '}", True, self.debug_colour_main),
+                (200, 0))
+
         if self.show_utilisation:
             pygame.draw.rect(screen,
                              self.debug_colour_main,
@@ -76,3 +101,12 @@ class Debug:
         #                       self.utilisation_rect.bottom - self._back_buffer[i - i] + 1),
         #                      (self.utilisation_rect.x + 2 + i,
         #                       self.utilisation_rect.bottom - self._back_buffer[i] + 1))
+
+        if self._show_jumps:
+            if len(self.engine.game_context.player.previous_positions) > 1:
+                xo = self.engine.xo
+                yo = self.engine.yo
+                positions = [
+                    (x - xo, y - yo) for x, y in self.engine.game_context.player.previous_positions
+                ]
+                pygame.draw.lines(screen, (255, 255, 255), False, positions, width=2)
