@@ -3,6 +3,7 @@ from typing import Optional, Union
 
 from pygame import Rect
 
+from game.utils import int_tuple
 from pytmx import TiledObject
 
 
@@ -13,6 +14,8 @@ class Orientation(enum.Enum):
 
 class Player:
     def __init__(self) -> None:
+        self.coins = 0
+
         self._next_pos = Rect(0, 0, 0, 0)
         self.orientation = Orientation.LEFT
         self._object: Optional[TiledObject] = None
@@ -46,15 +49,21 @@ class Player:
     @property
     def rect(self) -> Rect: return self._object.rect
 
-    def move_to(self, pos: tuple[Union[int, float], Union[int, float]]) -> Rect:
+    def move_to(self, pos: tuple[Union[int, float], Union[int, float]]) -> bool:
         rect = self.rect
+        old_pos = int_tuple(rect.topleft)
+        new_pos = int_tuple(pos)
         rect.topleft = pos
 
         if self.save_previous_positions:
             if len(self.previous_positions) > self.previous_positions_length:
                 del self.previous_positions[:-self.previous_positions_length]
-            self.previous_positions.append(pos)
-        return rect
+            if old_pos != new_pos:
+                self.previous_positions.append(new_pos)
+                return True
+        elif old_pos != new_pos:
+            return True
+        return False
 
     @property
     def next_rect(self) -> Rect:

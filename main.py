@@ -3,8 +3,8 @@ from pygame import Rect
 
 from engine.engine import Engine
 from engine.game_context import GameContext
-
 from engine.level import Level
+
 from game.debug import Debug
 
 screen_size = (1024, 640)
@@ -18,13 +18,18 @@ screen = pygame.display.set_mode(screen_size)
 frameclock = pygame.time.Clock()
 framerate = 60
 
-level = Level.load_level("assets/level1.tmx")
+levels = Level.load_levels("assets/level1.tmx")
+first_level = levels[0]
 
-game_context = GameContext(level)
-engine = Engine(game_context)
-engine.init_level()
-engine.set_level_part(1)
+engine = Engine()
 
+game_context = GameContext(engine)
+game_context.all_levels = {
+    i + 1: l for i, l in enumerate(levels)
+}
+game_context.set_level(first_level)
+
+first_level.start(game_context.player)
 
 debug = Debug(engine, frameclock, framerate)
 

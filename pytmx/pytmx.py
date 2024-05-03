@@ -53,6 +53,7 @@ __all__ = (
     "TiledTileLayer",
     "TiledClassType",
     "TiledTileset",
+    "TiledGroupLayer",
     "convert_to_bool",
     "resolve_to_class",
     "parse_properties",

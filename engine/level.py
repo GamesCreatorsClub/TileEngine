@@ -6,49 +6,58 @@ from pygame import Surface, Rect
 import pytmx.pytmx
 from engine.player import Player, Orientation
 from game.utils import clip
-from pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, load_pygame
-from pytmx.pytmx import TiledGroupLayer
+from pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, load_pygame
 
 offscreen_rendering = False
 
 
 class Level:
-    def __init__(self, tiled_map: TiledMap) -> None:
+    @classmethod
+    def load_levels(cls, filename: str) -> list['Level']:
+        tmx_data = load_pygame(filename)
+
+        return [Level(tmx_data, i + 1) for i, l in enumerate([l for l in tmx_data.layers if l.name.startswith("group_")])]
+
+    def __init__(self, tiled_map: TiledMap, part_no: int) -> None:
         self.map = tiled_map
-        self.viewport: Optional[Rect] = None
-        self._level_part = 1
         self.tile_width = tiled_map.tilewidth
         self.tile_height = tiled_map.tileheight
-        self.layers: list[Union[TiledTileLayer, TiledObjectGroup]] = tiled_map.layers
+        self.width = tiled_map.width * self.tile_width
+        self.height = tiled_map.height * self.tile_height
+
+        self.map_rect = Rect(0, 0, 0, 0)
+        self.map_rect.width = tiled_map.width * tiled_map.tilewidth
+        self.map_rect.height = tiled_map.height * tiled_map.tileheight
+
+        self.part_no = part_no
+
+        self.viewport: Optional[Rect] = None
+        self.x_offset = 0
+        self.y_offset = 0
+
+        self.layers: list[Union[TiledTileLayer, TiledObjectGroup]] = []
         self.group: Optional[TiledGroupLayer] = None
         self.background_layer: Optional[TiledTileLayer] = None
         self.main_layer: Optional[TiledTileLayer] = None
         self.foreground_layer: Optional[TiledTileLayer] = None
         self.over_layer: Optional[TiledTileLayer] = None
         self.objects_layer: Optional[TiledObjectGroup] = None
-        self.width = tiled_map.width * self.tile_width
-        self.height = tiled_map.height * self.tile_height
+
+        self.objects: dict[TiledObject, Rect] = {}
+        self.player_object: Optional[TiledObject] = None
+        self.player_orientation = Orientation.RIGHT
+        self.player_left_animation: list[int] = []
+        self.player_right_animation: list[int] = []
 
         self.offscreen_surface: Optional[Surface] = None
-        self.last_x_offset = -1
-        self.last_y_offset = -1
 
-    @classmethod
-    def load_level(cls, filename: str) -> 'Level':
-        tmx_data = load_pygame(filename)
+        self.invalidated = True
 
-        return Level(tmx_data)
-
-    @property
-    def level_part(self) -> int:
-        return self._level_part
-
-    def set_level_part(self, part: int, player: Player) -> None:
-        self._level_part = part
-
+        # initialise level
+        # def init(self) -> None:
         self.group = next((
             layer for layer in self.map.layers
-            if isinstance(layer, TiledGroupLayer) and layer.name.endswith(f"_{part}")
+            if isinstance(layer, TiledGroupLayer) and layer.name.endswith(f"_{self.part_no}")
         ))
 
         self.viewport = Rect(*(int(v.strip()) for v in self.group.properties["viewport"].split(",")))
@@ -58,7 +67,7 @@ class Level:
 
         layers = [
             layer for layer in self.group.layers
-            if (isinstance(layer, TiledTileLayer) or isinstance(layer, TiledObjectGroup)) and layer.name.endswith(f"_{part}")
+            if (isinstance(layer, TiledTileLayer) or isinstance(layer, TiledObjectGroup)) and layer.name.endswith(f"_{self.part_no}")
         ]
         self.background_layer = None
         self.main_layer = None
@@ -77,6 +86,7 @@ class Level:
                 self.over_layer = layer
             elif layer.name.startswith("object"):
                 self.objects_layer = layer
+                self.objects = {o: o.rect for o in self.objects_layer if o.name != "player"}
 
         if self.background_layer is not None:
             self.layers.append(self.background_layer)
@@ -85,17 +95,20 @@ class Level:
 
         if self.objects_layer is not None:
             self.layers.append(self.objects_layer)
-            player_object = next((o for o in self.objects_layer if o.name == "player"), None)
-            if player_object is None:
+            self.player_object = next((o for o in self.objects_layer if o.name == "player"), None)
+            if self.player_object is None:
                 raise ValueError("Missing player object")
 
-            player.orientation = Orientation.LEFT
-            player.tiled_object = player_object
-            original_tiled_gid = self.map.tiledgidmap[player_object.gid]
-            decoded_tiled_gid, flags = pytmx.pytmx.decode_gid(original_tiled_gid)
+            self.player_object.visible = False
+            self.update_map_position(self.player_object.rect)
+
+            original_tiled_gid = self.map.tiledgidmap[self.player_object.gid]
+            # # decoded_tiled_gid, flags = pytmx.pytmx.decode_gid(original_tiled_gid)
+
+            self.player_orientation = Orientation.LEFT
             for _, f in self.map.gidmap[original_tiled_gid]:
                 if f.flipped_horizontally:
-                    player.orientation = Orientation.RIGHT
+                    self.player_orientation = Orientation.RIGHT
 
             def image_gid(original_tiled_gid: int, tile_flags: pytmx.TileFlags) -> int:
                 gid_flag_tuple = original_tiled_gid, tile_flags
@@ -109,16 +122,16 @@ class Level:
                 gid = image_gid(original_tiled_gid, tile_flags)
 
                 if orientation == Orientation.LEFT:
-                    player.left_animation = [gid]
+                    self.player_left_animation = [gid]
                 else:
-                    player.right_animation = [gid]
+                    self.player_right_animation = [gid]
 
                 gid = image_gid(original_tiled_gid + 1, tile_flags)
 
                 if orientation == Orientation.LEFT:
-                    player.left_animation.append(gid)
+                    self.player_left_animation.append(gid)
                 else:
-                    player.right_animation.append(gid)
+                    self.player_right_animation.append(gid)
 
             self.map.update_images()
 
@@ -130,31 +143,67 @@ class Level:
         if self.over_layer is not None:
             self.layers.append(self.over_layer)
 
-        return
+    def __eq__(self, other) -> bool:
+        return self.map.filename == other.map.filename and self.part_no == other.part_no
 
-    def draw(self, surface: Surface, x_offset: int, y_offset: int) -> None:
+    def start(self, player: Player) -> None:
+        player.tiled_object = self.player_object
+        player.orientation = self.player_orientation
+        player.left_animation = self.player_left_animation
+        player.right_animation = self.player_right_animation
+        self.player_object.visible = True
+
+    def stop(self) -> None:
+        self.player_object.visible = False
+
+    def remove_object(self, obj: TiledObject) -> None:
+        if obj in self.objects:
+            del self.objects[obj]
+            self.objects_layer.remove(obj)
+
+    def draw(self, surface: Surface) -> None:
 
         with clip(surface, self.viewport) as clip_rect:
-            xo = clip_rect.x - x_offset
-            yo = clip_rect.y - y_offset
+            if offscreen_rendering:
+                xo = -self.x_offset
+                yo = -self.y_offset
+            else:
+                xo = clip_rect.x - self.x_offset
+                yo = clip_rect.y - self.y_offset
 
             def render_all(surface: Surface) -> None:
+                tile_width = self.tile_width
+                tile_height = self.tile_height
                 for layer in self.layers:
                     if isinstance(layer, TiledObjectGroup):
                         for obj in layer:
-                            if obj.image:
+                            if obj.image and obj.visible:
                                 surface.blit(obj.image, (obj.x + xo, obj.y + yo))
                     else:
                         for x, y, image in layer.tiles():
-                            surface.blit(image, (x * self.tile_width + xo, y * self.tile_height + yo))
+                            surface.blit(image, (x * tile_width + xo, y * tile_height + yo))
 
             if offscreen_rendering:
-                if self.last_x_offset != x_offset or self.last_y_offset != y_offset:
-                    self.last_x_offset = x_offset
-                    self.last_y_offset = y_offset
-
+                if self.invalidated:  # self.last_x_offset != x_offset or self.last_y_offset != y_offset:
+                    self.invalidated = False
                     self.offscreen_surface.fill((0, 224, 0))
                     render_all(self.offscreen_surface)
-                surface.blit(self.offscreen_surface, (0, 0))
+                surface.blit(self.offscreen_surface, self.viewport.topleft)
             else:
                 render_all(surface)
+
+    def update_map_position(self, player_rect: Rect) -> None:
+        def place(screen_half: int, player_pos: float, map_width: int) -> int:
+            player_pos = int(player_pos)
+            offset = player_pos - screen_half
+            if offset < 0: offset = 0
+            if offset + 2 * screen_half > map_width: offset = map_width - 2 * screen_half
+            return offset
+
+        xo = place(self.viewport.width // 2, player_rect.x, self.map_rect.width)
+        yo = place(self.viewport.height // 2, player_rect.y, self.map_rect.height)
+        if xo != self.x_offset or yo != self.y_offset:
+            self.invalidated = True
+
+        self.x_offset = xo
+        self.y_offset = yo
