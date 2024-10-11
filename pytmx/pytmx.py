@@ -1576,6 +1576,7 @@ class TiledObject(TiledElement):
         self.closed = True
         self.template = None
         self.custom_types = custom_types
+        self.collisions = set()
 
         self.parse_xml(node)
 

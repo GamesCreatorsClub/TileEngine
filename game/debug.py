@@ -37,7 +37,6 @@ class Debug:
     def process_key(self, key: int, _mod: int) -> bool:
         if key == pygame.K_u: self.show_utilisation = not self.show_utilisation
         elif key == pygame.K_f: self.show_fps = not self.show_fps
-        elif key == pygame.K_o: level.offscreen_rendering = not level.offscreen_rendering
         elif key == pygame.K_p: self.show_player = not self.show_player
         elif key == pygame.K_j:
             self.show_jumps = not self.show_jumps
@@ -51,9 +50,9 @@ class Debug:
     @show_jumps.setter
     def show_jumps(self, v: bool) -> None:
         self._show_jumps = v
-        self.engine.game_context.player.save_previous_positions = v
+        self.engine.player.save_previous_positions = v
         if not v:
-            del self.engine.game_context.player.previous_positions[:]
+            del self.engine.player.previous_positions[:]
 
     def draw(self, screen: Surface) -> None:
         screen_rect = screen.get_rect()
@@ -77,8 +76,7 @@ class Debug:
             screen.blit(self.debug_font_small.render(f"{fps:3.1f} fps", True, self.debug_colour_main), (screen_rect.right - 90, 0))
 
         if self.show_player:
-            fps = self.frameclock.get_fps()
-            player = self.engine.game_context.player
+            player = self.engine.player
             screen.blit(
                 self.debug_font_small.render(f"P: {player.vx:3.1f},{player.vy:3.1f} {player.hit_velocity:3.1f} {'_' if player.on_the_ground else ' '}", True, self.debug_colour_main),
                 (200, 0))
@@ -94,19 +92,12 @@ class Debug:
             points.append((self.utilisation_rect.right, self.utilisation_rect.bottom))
             points.append((self.utilisation_rect.left, self.utilisation_rect.bottom + 1))
             pygame.draw.polygon(screen, self.debug_colour_main, points)
-        # for i in range(1, self._back_buffer_len):
-        #     pygame.draw.line(screen,
-        #                      self.debug_colour,
-        #                      (self.utilisation_rect.x + 1 + i,
-        #                       self.utilisation_rect.bottom - self._back_buffer[i - i] + 1),
-        #                      (self.utilisation_rect.x + 2 + i,
-        #                       self.utilisation_rect.bottom - self._back_buffer[i] + 1))
 
         if self._show_jumps:
-            if len(self.engine.game_context.player.previous_positions) > 1:
+            if len(self.engine.player.previous_positions) > 1:
                 xo = self.engine.xo
                 yo = self.engine.yo
                 positions = [
-                    (x - xo, y - yo) for x, y in self.engine.game_context.player.previous_positions
+                    (x - xo, y - yo) for x, y in self.engine.player.previous_positions
                 ]
                 pygame.draw.lines(screen, (255, 255, 255), False, positions, width=2)

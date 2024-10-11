@@ -9,21 +9,25 @@
  <tile id="34">
   <properties>
    <property name="animated_id" type="int" value="35"/>
+   <property name="drop" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="35">
   <properties>
    <property name="animated_id" type="int" value="34"/>
+   <property name="drop" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="54">
   <properties>
    <property name="animated_id" type="int" value="55"/>
+   <property name="drop" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="55">
   <properties>
    <property name="animated_id" type="int" value="54"/>
+   <property name="drop" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="68">
@@ -46,11 +50,13 @@
  <tile id="75">
   <properties>
    <property name="animated_id" type="int" value="74"/>
+   <property name="level_end" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="111">
   <properties>
    <property name="animated_id" type="int" value="112"/>
+   <property name="level_end" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="112">

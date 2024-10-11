@@ -35,6 +35,7 @@ class Player:
         self.save_previous_positions = False
         self.previous_positions_length = 400
         self.previous_positions = []
+        self.collisions = set()
 
     @property
     def tiled_object(self) -> TiledObject:

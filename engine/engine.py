@@ -6,11 +6,13 @@ from pygame.key import ScancodeWrapper
 
 from engine.level import Level
 from engine.player import Player
+from engine.transitions.level_transition import LevelTransition
+from engine.transitions.render_direct import RenderDirect
 
 
 class Engine:
     def __init__(self) -> None:
-        self.visible_levels = []
+        self.visible_levels: dict[Level, LevelTransition] = {}
         self.player: Optional[Player] = None
         self.level: Optional[Level] = None
         self.xo = 0
@@ -24,22 +26,26 @@ class Engine:
     def current_level(self, level: Level) -> None:
         self.level = level
         if self.level not in self.visible_levels:
-            self.visible_levels.append(self.level)
+            self.visible_levels[level] = RenderDirect(level)
 
-    def show_level(self, level: Level) -> None:
+    def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None) -> None:
         if level not in self.visible_levels:
-            self.visible_levels.append(level)
+            if level_transition is None:
+                level_transition = RenderDirect(level)
+            self.visible_levels[level] = level_transition
 
     def draw(self, surface: Surface) -> None:
-        for level in self.visible_levels:
-            if level == self.current_level:
-                level.draw(surface)
-            else:
-                level.draw(surface)  # TOOD add calculation of level's xo/yo offset. Do the same above
+        for level_transition in [lt for lt in self.visible_levels.values()]:
+            replacement = level_transition.draw(surface)
+            if replacement is not None:
+                if replacement.remove:
+                    del self.visible_levels[level_transition.level]
+                else:
+                    self.visible_levels[level_transition.level] = replacement
 
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         player = self.player
-        player_moved = False
+        player_moved_horizotanlly = False
         if current_keys[pygame.K_LEFT] and current_keys[pygame.K_RIGHT]:
             player.vx = 0
         elif current_keys[pygame.K_LEFT]:
@@ -53,7 +59,7 @@ class Engine:
             player.vx = 0
 
         if player.vx != 0:
-            player_moved = self.move_player(player.vx, 0)
+            player_moved_horizotanlly = self.move_player(player.vx, 0)
 
         if current_keys[pygame.K_UP] and current_keys[pygame.K_DOWN]:
             player.jump = 0
@@ -68,18 +74,20 @@ class Engine:
 
         player.vy = player.vy + 2  # 2 is gravity
 
-        can_move_vertically = self.move_player(0, player.vy)
-        if can_move_vertically and player.vy < 0:
-            player.on_the_ground = False
+        player_moved_vertically = self.move_player(0, player.vy)
+        if player_moved_vertically:
+            if player.vy < 0:
+                player.on_the_ground = False
         elif player.vy > 0:
-            player.on_the_ground = not can_move_vertically
-            if not can_move_vertically:
+            player.on_the_ground = not player_moved_vertically
+            if not player_moved_vertically:
                 player.hit_velocity = player.vy
                 player.vy = 0
-        player_moved = player_moved or (player.vy > 0.1) or (player.vy < -0.1)
+        player_moved = player_moved_horizotanlly or player_moved_vertically
 
         if player_moved:
             self.player.animate_walk()
             self.level.update_map_position(self.player.rect)
+            self.level.invalidated = True
         else:
             self.player.stop_walk()

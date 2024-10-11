@@ -8,7 +8,7 @@ from engine.player import Player, Orientation
 from game.utils import clip
 from pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, load_pygame
 
-offscreen_rendering = False
+offscreen_rendering = True
 
 
 class Level:
@@ -36,7 +36,6 @@ class Level:
         self.y_offset = 0
 
         self.layers: list[Union[TiledTileLayer, TiledObjectGroup]] = []
-        self.group: Optional[TiledGroupLayer] = None
         self.background_layer: Optional[TiledTileLayer] = None
         self.main_layer: Optional[TiledTileLayer] = None
         self.foreground_layer: Optional[TiledTileLayer] = None
@@ -49,8 +48,6 @@ class Level:
         self.player_left_animation: list[int] = []
         self.player_right_animation: list[int] = []
 
-        self.offscreen_surface: Optional[Surface] = None
-
         self.invalidated = True
 
         # initialise level
@@ -61,7 +58,7 @@ class Level:
         ))
 
         self.viewport = Rect(*(int(v.strip()) for v in self.group.properties["viewport"].split(",")))
-        self.offscreen_surface = Surface(self.viewport.size, pygame.HWSURFACE)
+        self.offscreen_surface = Surface(self.viewport.size, pygame.HWSURFACE).convert_alpha()
 
         del self.layers[:]
 
@@ -146,6 +143,9 @@ class Level:
     def __eq__(self, other) -> bool:
         return self.map.filename == other.map.filename and self.part_no == other.part_no
 
+    def __hash__(self) -> int:
+        return self.map.filename.__hash__() ^ self.part_no
+
     def start(self, player: Player) -> None:
         player.tiled_object = self.player_object
         player.orientation = self.player_orientation
@@ -161,36 +161,28 @@ class Level:
             del self.objects[obj]
             self.objects_layer.remove(obj)
 
-    def draw(self, surface: Surface) -> None:
-
-        with clip(surface, self.viewport) as clip_rect:
-            if offscreen_rendering:
-                xo = -self.x_offset
-                yo = -self.y_offset
+    def render_to(self, surface: Surface, xo: int, yo: int) -> None:
+        tile_width = self.tile_width
+        tile_height = self.tile_height
+        for layer in self.layers:
+            if isinstance(layer, TiledObjectGroup):
+                for obj in layer:
+                    if obj.image and obj.visible:
+                        surface.blit(obj.image, (obj.x + xo, obj.y + yo))
             else:
-                xo = clip_rect.x - self.x_offset
-                yo = clip_rect.y - self.y_offset
+                for x, y, image in layer.tiles():
+                    surface.blit(image, (x * tile_width + xo, y * tile_height + yo))
 
-            def render_all(surface: Surface) -> None:
-                tile_width = self.tile_width
-                tile_height = self.tile_height
-                for layer in self.layers:
-                    if isinstance(layer, TiledObjectGroup):
-                        for obj in layer:
-                            if obj.image and obj.visible:
-                                surface.blit(obj.image, (obj.x + xo, obj.y + yo))
-                    else:
-                        for x, y, image in layer.tiles():
-                            surface.blit(image, (x * tile_width + xo, y * tile_height + yo))
-
-            if offscreen_rendering:
-                if self.invalidated:  # self.last_x_offset != x_offset or self.last_y_offset != y_offset:
+    def draw(self, surface: Surface) -> None:
+        with clip(surface, self.viewport) as clip_rect:
+            if offscreen_rendering[0]:
+                if self.invalidated:
                     self.invalidated = False
                     self.offscreen_surface.fill((0, 224, 0))
-                    render_all(self.offscreen_surface)
+                    self.render_to(self.offscreen_surface, -self.x_offset, -self.y_offset)
                 surface.blit(self.offscreen_surface, self.viewport.topleft)
             else:
-                render_all(surface)
+                self.render_to(surface, clip_rect.x - self.x_offset, clip_rect.y - self.y_offset)
 
     def update_map_position(self, player_rect: Rect) -> None:
         def place(screen_half: int, player_pos: float, map_width: int) -> int:
