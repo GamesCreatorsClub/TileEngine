@@ -3,7 +3,7 @@ from typing import Optional
 import pygame
 from pygame import Surface, Rect
 
-from engine.level import Level, offscreen_rendering
+from engine.level import Level
 from engine.transitions.level_transition import LevelTransition
 from engine.transitions.render_direct import RenderDirect
 from engine.utils import clip

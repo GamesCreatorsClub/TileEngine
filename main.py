@@ -18,7 +18,7 @@ screen = pygame.display.set_mode(screen_size)
 frameclock = pygame.time.Clock()
 framerate = 60
 
-levels = Level.load_levels("assets/level_1and2_combined.tmx")
+levels = Level.load_levels("assets/level1.tmx", "assets/level2.tmx")
 first_level = levels[0]
 
 engine = Engine()
