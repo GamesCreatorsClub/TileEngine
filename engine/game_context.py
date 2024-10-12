@@ -1,15 +1,18 @@
 import importlib
-from typing import Optional, Union, cast, Generator, Any, Callable
+from typing import Optional, Union, cast, Callable
 
-from pygame import Rect
+import pygame
+from pygame import Rect, Surface
+from pygame.key import ScancodeWrapper
 
 from engine.collision_result import CollisionResult
-from engine.engine import Engine
 from engine.level import Level
 from engine.level_context import LevelContext
 from engine.player import Player
 from engine.transitions.fade_in import FadeIn
+from engine.transitions.level_transition import LevelTransition
 from engine.transitions.move_viewport import MoveViewport
+from engine.transitions.render_direct import RenderDirect
 from engine.utils import is_close
 from pytmx import TiledObject
 
@@ -22,12 +25,10 @@ def in_context(function: Callable) -> Callable:
 class GameContext:
     closure_objects = {}
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self) -> None:
+        self.visible_levels: dict[Level, LevelTransition] = {}
         self.player = Player()
         self.player_collision = CollisionResult()
-        self.engine = engine
-        self.engine.player = self.player
-        self.engine.move_player = self.move_player
         self.level_no = 1
         self.level: Optional[Level] = None
         self.currently_colliding_object = None
@@ -35,14 +36,14 @@ class GameContext:
 
         self.current_level_context: Optional[LevelContext] = None
 
-        # closure_objects_1 = {k[2:]: getattr(self, k) for k in dir(self) if k.startswith("l_")}
-        # closure_objects = {name[2:]: method for name, method in GameContext.__dict__.items() if hasattr(method, "context_object")}
+        self.xo = 0
+        self.yo = 0
+
         closure_objects = {name: getattr(self, name) for name in dir(GameContext) if hasattr(getattr(self, name), "context_object")}
         self.base_closure = {
             "Rect": Rect,
             "Player": Player,
             "MoveViewport": MoveViewport,
-            "engine": engine,
             "context": self,
             **closure_objects
         }
@@ -51,7 +52,10 @@ class GameContext:
 
     def set_level(self, level: Level) -> None:
         self.level = level
-        self.engine.current_level = level
+
+        if self.level not in self.visible_levels:
+            self.visible_levels[level] = RenderDirect(level)
+
         module_name = ".".join(self.level.level_context_class_str.split(".")[:-1])
         class_name = self.level.level_context_class_str.split(".")[-1]
 
@@ -64,34 +68,69 @@ class GameContext:
             **{name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")}
         }
 
-    def gids_for_rect(self, rect: Rect) -> list[int]:
-        main_layer = self.level.main_layer
-        level_map = self.level.map
-        t_w = level_map.tilewidth
-        t_h = level_map.tileheight
+    def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None) -> None:
+        if level not in self.visible_levels:
+            if level_transition is None:
+                level_transition = RenderDirect(level)
+            self.visible_levels[level] = level_transition
 
-        t_col = rect.x // t_w
-        t_row = rect.y // t_h
-        start_col = t_col
+    def draw(self, surface: Surface) -> None:
+        for level_transition in [lt for lt in self.visible_levels.values()]:
+            replacement = level_transition.draw(surface)
+            if replacement is not None:
+                if replacement.remove:
+                    del self.visible_levels[level_transition.level]
+                else:
+                    self.visible_levels[level_transition.level] = replacement
 
-        t_x = t_col * t_w
-        t_y = t_row * t_h
+    def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
+        player = self.player
+        player_moved_horizotanlly = False
+        if current_keys[pygame.K_LEFT] and current_keys[pygame.K_RIGHT]:
+            player.vx = 0
+        elif current_keys[pygame.K_LEFT]:
+            self.player.turn_left()
+            player.vx = -player.player_speed
+            # player_moved = self.move_player(-player.player_speed, 0)
+        elif current_keys[pygame.K_RIGHT]:
+            self.player.turn_right()
+            player.vx = player.player_speed
+        else:
+            player.vx = 0
 
-        res = []
-        try:
-            while t_y + t_h >= rect.y and t_y < rect.bottom:
-                while t_x + t_w > rect.x and t_x < rect.right:
-                    res.append(main_layer.data[t_row][t_col])
-                    t_col += 1
-                    t_x = t_col * t_w
-                t_col = start_col
-                t_row += 1
-                t_x = t_col * t_w
-                t_y = t_row * t_h
-        except IndexError as e:
-            raise IndexError(f"[{t_row}][{t_col}]", e)
+        if player.vx != 0:
+            player_moved_horizotanlly = self.move_player(player.vx, 0)
 
-        return res
+        if current_keys[pygame.K_UP] and current_keys[pygame.K_DOWN]:
+            player.jump = 0
+        elif current_keys[pygame.K_UP]:
+            if (player.jump == 0 and player.on_the_ground) or 0 < player.jump <= player.jump_treshold:
+                player.jump += 1
+                player.vy += -5 + 4 * player.jump / player.jump_treshold
+        elif current_keys[pygame.K_DOWN]:
+            player.jump = 0
+        else:
+            player.jump = 0
+
+        player.vy = player.vy + 2  # 2 is gravity
+
+        player_moved_vertically = self.move_player(0, player.vy)
+        if player_moved_vertically:
+            if player.vy < 0:
+                player.on_the_ground = False
+        elif player.vy > 0:
+            player.on_the_ground = not player_moved_vertically
+            if not player_moved_vertically:
+                player.hit_velocity = player.vy
+                player.vy = 0
+        player_moved = player_moved_horizotanlly or player_moved_vertically
+
+        if player_moved:
+            self.player.animate_walk()
+            self.level.update_map_position(self.player.rect)
+            self.level.invalidated = True
+        else:
+            self.player.stop_walk()
 
     def check_next_position(
             self,
@@ -231,13 +270,12 @@ class GameContext:
     def show_next_level(self) -> None:
         level = self.all_levels[self.level_no + 1]
         self.remove_object(self.currently_colliding_object)
-        self.engine.show_level(level, FadeIn(level))
+        self.show_level(level, FadeIn(level))
 
     @in_context
     def next_level(self) -> None:
         self.level.player_object.visible = False
         self.level.invalidated = True
         next_level = self.all_levels[self.level_no + 1]
-        self.level = next_level
-        self.engine.current_level = next_level
+        self.set_level(next_level)
         next_level.start(self.player)

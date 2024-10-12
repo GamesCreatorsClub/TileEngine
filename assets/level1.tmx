@@ -50,7 +50,7 @@ add_coins(1)</property>
   </object>
   <object id="28" name="move_level" x="504" y="0" width="360" height="288">
    <properties>
-    <property name="on_enter" value="engine.visible_levels[context.level] = MoveViewport(context.level, Rect(10, 10, 1004, 288), 120)"/>
+    <property name="on_enter" value="context.visible_levels[context.level] = MoveViewport(context.level, Rect(10, 10, 1004, 288), 120)"/>
    </properties>
   </object>
  </objectgroup>

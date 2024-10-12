@@ -4,13 +4,12 @@ import pygame.draw
 from pygame import Surface, Rect
 from pygame.time import Clock
 
-from engine import level
-from engine.engine import Engine
+from engine.game_context import GameContext
 
 
 class Debug:
-    def __init__(self, engine: Engine, frameclock: Clock, framerate: int, back_buffer_secs: float = 3.0) -> None:
-        self.engine = engine
+    def __init__(self, game_context: GameContext, frameclock: Clock, framerate: int, back_buffer_secs: float = 3.0) -> None:
+        self.game_context = game_context
         self.frameclock = frameclock
         self.framerate = framerate
         self._frame_start = 0.0
@@ -50,9 +49,9 @@ class Debug:
     @show_jumps.setter
     def show_jumps(self, v: bool) -> None:
         self._show_jumps = v
-        self.engine.player.save_previous_positions = v
+        self.game_context.player.save_previous_positions = v
         if not v:
-            del self.engine.player.previous_positions[:]
+            del self.game_context.player.previous_positions[:]
 
     def draw(self, screen: Surface) -> None:
         screen_rect = screen.get_rect()
@@ -76,7 +75,7 @@ class Debug:
             screen.blit(self.debug_font_small.render(f"{fps:3.1f} fps", True, self.debug_colour_main), (screen_rect.right - 90, 0))
 
         if self.show_player:
-            player = self.engine.player
+            player = self.game_context.player
             screen.blit(
                 self.debug_font_small.render(f"P: {player.vx:3.1f},{player.vy:3.1f} {player.hit_velocity:3.1f} {'_' if player.on_the_ground else ' '}", True, self.debug_colour_main),
                 (200, 0))
@@ -94,10 +93,10 @@ class Debug:
             pygame.draw.polygon(screen, self.debug_colour_main, points)
 
         if self._show_jumps:
-            if len(self.engine.player.previous_positions) > 1:
-                xo = self.engine.xo
-                yo = self.engine.yo
+            if len(self.game_context.player.previous_positions) > 1:
+                xo = self.game_context.xo
+                yo = self.game_context.yo
                 positions = [
-                    (x - xo, y - yo) for x, y in self.engine.player.previous_positions
+                    (x - xo, y - yo) for x, y in self.game_context.player.previous_positions
                 ]
                 pygame.draw.lines(screen, (255, 255, 255), False, positions, width=2)

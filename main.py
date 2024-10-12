@@ -1,7 +1,6 @@
 import pygame
 from pygame import Rect
 
-from engine.engine import Engine
 from engine.game_context import GameContext
 from engine.level import Level
 
@@ -21,9 +20,8 @@ framerate = 60
 levels = Level.load_levels("assets/level1.tmx", "assets/level2.tmx")
 first_level = levels[0]
 
-engine = Engine()
 
-game_context = GameContext(engine)
+game_context = GameContext()
 game_context.all_levels = {
     i + 1: l for i, l in enumerate(levels)
 }
@@ -31,7 +29,7 @@ game_context.set_level(first_level)
 
 first_level.start(game_context.player)
 
-debug = Debug(engine, frameclock, framerate)
+debug = Debug(game_context, frameclock, framerate)
 
 
 xo = 0
@@ -57,13 +55,13 @@ while not leave:
     previous_keys = current_keys
     current_keys = pygame.key.get_pressed()
 
-    engine.process_keys(previous_keys, current_keys)
+    game_context.process_keys(previous_keys, current_keys)
 
     elapsed_ms = frameclock.tick(60)
 
     screen.fill((0, 0, 0))
 
-    engine.draw(screen)
+    game_context.draw(screen)
     debug.draw(screen)
 
     pygame.display.flip()
