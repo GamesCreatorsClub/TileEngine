@@ -56,6 +56,8 @@ class Level:
 
         self.invalidated = True
 
+        self.level_context_class_str = tiled_map.properties["level_context"] if "level_context" in tiled_map.properties else None
+
         # initialise level
         # def init(self) -> None:
         self.group = next((

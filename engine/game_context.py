@@ -1,3 +1,4 @@
+import importlib
 from typing import Optional, Union, cast, Generator, Any, Callable
 
 from pygame import Rect
@@ -5,6 +6,7 @@ from pygame import Rect
 from engine.collision_result import CollisionResult
 from engine.engine import Engine
 from engine.level import Level
+from engine.level_context import LevelContext
 from engine.player import Player
 from engine.transitions.fade_in import FadeIn
 from engine.transitions.move_viewport import MoveViewport
@@ -31,10 +33,12 @@ class GameContext:
         self.currently_colliding_object = None
         self.all_levels = {}
 
+        self.current_level_context: Optional[LevelContext] = None
+
         # closure_objects_1 = {k[2:]: getattr(self, k) for k in dir(self) if k.startswith("l_")}
         # closure_objects = {name[2:]: method for name, method in GameContext.__dict__.items() if hasattr(method, "context_object")}
         closure_objects = {name: getattr(self, name) for name in dir(GameContext) if hasattr(getattr(self, name), "context_object")}
-        self.closure = {
+        self.base_closure = {
             "Rect": Rect,
             "Player": Player,
             "MoveViewport": MoveViewport,
@@ -43,9 +47,22 @@ class GameContext:
             **closure_objects
         }
 
+        self.closure = self.base_closure
+
     def set_level(self, level: Level) -> None:
         self.level = level
         self.engine.current_level = level
+        module_name = ".".join(self.level.level_context_class_str.split(".")[:-1])
+        class_name = self.level.level_context_class_str.split(".")[-1]
+
+        module = importlib.import_module(module_name)
+        class_ = getattr(module, class_name)
+        level.level_context = class_(self)
+
+        self.closure = {
+            **self.base_closure,
+            **{name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")}
+        }
 
     def gids_for_rect(self, rect: Rect) -> list[int]:
         main_layer = self.level.main_layer
@@ -211,12 +228,7 @@ class GameContext:
         self.remove_object(self.currently_colliding_object)
 
     @in_context
-    def add_coins(self, coins: int) -> None:
-        print(f"Adding {coins} coins")
-        self.player.coins += coins
-
-    @in_context
-    def show_next_level_part(self) -> None:
+    def show_next_level(self) -> None:
         level = self.all_levels[self.level_no + 1]
         self.remove_object(self.currently_colliding_object)
         self.engine.show_level(level, FadeIn(level))

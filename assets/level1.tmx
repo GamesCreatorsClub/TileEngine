@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="44">
+<map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="45">
  <properties>
-  <property name="level_context" value="SideScrollerGameContext"/>
+  <property name="level_context" value="game.SideScrollerGameContext"/>
   <property name="viewport" value="220, 180, 604, 288"/>
  </properties>
  <tileset firstgid="1" source="tilemap/tileset-tiles.tsx"/>
@@ -39,7 +39,7 @@ add_coins(1)</property>
    <properties>
     <property name="on_collision">if is_player(this):
     remove_collided_object()
-    show_next_level_part()</property>
+    show_next_level()</property>
    </properties>
   </object>
   <object id="24" name="player" gid="2147483829" x="18" y="216" width="24" height="24"/>

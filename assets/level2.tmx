@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="44">
  <properties>
-  <property name="level_context" value="SideScrollerGameContext"/>
+  <property name="level_context" value="game.SideScrollerGameContext"/>
   <property name="viewport" value="10, 330, 1004, 288"/>
  </properties>
  <tileset firstgid="1" source="tilemap/tileset-tiles.tsx"/>
