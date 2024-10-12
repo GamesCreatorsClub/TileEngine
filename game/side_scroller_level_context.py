@@ -1,7 +1,11 @@
+from typing import Union
+
 import pygame
 from pygame.key import ScancodeWrapper
+from pytmx import TiledObject
 
 from engine.game_context import GameContext
+from engine.player import Player
 
 
 class SideScrollerGameContext(GameContext):
@@ -24,7 +28,7 @@ class SideScrollerGameContext(GameContext):
             player.vx = 0
 
         if player.vx != 0:
-            player_moved_horizotanlly = self.move_player(player.vx, 0)
+            player_moved_horizotanlly = self.move_object(player, player.vx, 0, test_collisions=True)
 
         if current_keys[pygame.K_UP] and current_keys[pygame.K_DOWN]:
             player.jump = 0
@@ -39,7 +43,7 @@ class SideScrollerGameContext(GameContext):
 
         player.vy = player.vy + 2  # 2 is gravity
 
-        player_moved_vertically = self.move_player(0, player.vy)
+        player_moved_vertically = self.move_object(player, 0, player.vy, test_collisions=True)
         if player_moved_vertically:
             if player.vy < 0:
                 player.on_the_ground = False
@@ -49,6 +53,7 @@ class SideScrollerGameContext(GameContext):
                 player.hit_velocity = player.vy
                 player.vy = 0
         player_moved = player_moved_horizotanlly or player_moved_vertically
+        # player_moved = player_moved_horizotanlly
 
         if player_moved:
             self.player.animate_walk()

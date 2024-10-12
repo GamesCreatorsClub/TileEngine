@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="45">
+<map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="47">
  <properties>
   <property name="level_context" value="game.G24ImpossibleLevelContext"/>
   <property name="viewport" value="220, 180, 604, 288"/>
@@ -51,6 +51,23 @@ add_coins(1)</property>
   <object id="28" name="move_level" x="504" y="0" width="360" height="288">
    <properties>
     <property name="on_enter" value="context.visible_levels[context.level] = MoveViewport(context.level, Rect(10, 10, 1004, 288), 120)"/>
+   </properties>
+  </object>
+  <object id="46" name="blocky" gid="193" x="108" y="198" width="24" height="24">
+   <properties>
+    <property name="on_enter">
+if this.next_rect.x &lt; obj.rect.x:
+    context.move_object(obj, 1, 0)
+    # context.move_object(obj, max(2, this.next_rect.right - obj.rect.x), 0)
+else:
+    context.move_object(obj, -1, 0)
+    # context.move_object(obj, min(-2, this.next_rect.x - obj.rect.right), 0)
+
+# gravity
+context.move_object(obj, 0, 2)
+
+
+prevent_colliding()</property>
    </properties>
   </object>
  </objectgroup>

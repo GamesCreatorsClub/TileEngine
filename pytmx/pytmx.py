@@ -30,12 +30,14 @@ from collections import defaultdict, namedtuple
 from itertools import chain, product
 from math import cos, radians, sin
 from operator import attrgetter
-from typing import List, Tuple, Optional, Sequence, Union, Dict, Iterable
+from typing import List, Tuple, Optional, Sequence, Union, Dict, Iterable, Any
 from xml.etree import ElementTree
 import json
 from copy import deepcopy
 
 from pygame import Rect
+
+from engine.collision_result import CollisionResult
 
 # for type hinting
 try:
@@ -94,15 +96,9 @@ else:
     PointLike = Union[Tuple[int, int], Point]
 
 
-def default_image_loader(filename: str, flags, **kwargs):
+def default_image_loader(filename: str, _flags, **_kwargs):
     """This default image loader just returns filename, rect, and any flags.
     Suitable for loading a map without the images.
-
-    Args:
-        filename (str): The file's name.
-        flags (???): ???
-        **kwargs: Additional kwargs.
-
     Returns:
         Tuple[str, ???, ???]: A tuple of the file name, rect, and flags.
 
@@ -1570,6 +1566,8 @@ class TiledObject(TiledElement):
         self.name = None
         self.type = None
         self.rect = Rect(0, 0, 0, 0)
+        self.next_rect = Rect(0, 0, 0, 0)
+        self.collision_result: Optional[CollisionResult] = None
         self.rotation = 0
         self.gid = 0
         self.visible = 1

@@ -4,6 +4,7 @@ import pygame
 from pygame import Surface, Rect
 
 import pytmx.pytmx
+from engine.collision_result import CollisionResult
 from engine.player import Player, Orientation
 from engine.utils import clip
 from pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, load_pygame
@@ -208,3 +209,35 @@ class Level:
 
         self.x_offset = xo
         self.y_offset = yo
+
+    def collect_collided(self, rect: Rect, collision_result: CollisionResult) -> 'CollisionResult':
+        collision_result.total = 0
+
+        main_layer = self.main_layer
+        level_map = self.map
+        t_w = level_map.tilewidth
+        t_h = level_map.tileheight
+
+        t_col = rect.x // t_w
+        t_row = rect.y // t_h
+        start_col = t_col
+
+        t_x = t_col * t_w
+        t_y = t_row * t_h
+
+        try:
+            while t_y + t_h >= rect.y and t_y < rect.bottom:
+                while t_x + t_w > rect.x and t_x < rect.right:
+                    collision_result.rects[collision_result.total].update(t_x, t_y, t_w, t_h)
+                    collision_result.gids[collision_result.total] = main_layer.data[t_row][t_col]
+                    collision_result.total += 1
+                    t_col += 1
+                    t_x = t_col * t_w
+                t_col = start_col
+                t_row += 1
+                t_x = t_col * t_w
+                t_y = t_row * t_h
+        except IndexError as e:
+            raise IndexError(f"[{t_row}][{t_col}]", e)
+
+        return collision_result

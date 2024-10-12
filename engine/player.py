@@ -3,6 +3,7 @@ from typing import Optional, Union
 
 from pygame import Rect
 
+from engine.collision_result import CollisionResult
 from engine.utils import int_tuple
 from pytmx import TiledObject
 
@@ -16,7 +17,8 @@ class Player:
     def __init__(self) -> None:
         self.coins = 0
 
-        self._next_pos = Rect(0, 0, 0, 0)
+        self.next_rect = Rect(0, 0, 0, 0)
+        self.collision_result = CollisionResult()
         self.orientation = Orientation.LEFT
         self._object: Optional[TiledObject] = None
         self.left_animation: list[int] = []
@@ -36,6 +38,7 @@ class Player:
         self.previous_positions_length = 400
         self.previous_positions = []
         self.collisions = set()
+        self.properties = {}
 
     @property
     def tiled_object(self) -> TiledObject:
@@ -44,8 +47,7 @@ class Player:
     @tiled_object.setter
     def tiled_object(self, obj: TiledObject) -> None:
         self._object = obj
-        self._next_pos.topleft = obj.rect.topleft
-        self._next_pos.size = obj.rect.size
+        self.next_rect.update(obj.rect)
 
     @property
     def rect(self) -> Rect: return self._object.rect
@@ -65,11 +67,6 @@ class Player:
         elif old_pos != new_pos:
             return True
         return False
-
-    @property
-    def next_rect(self) -> Rect:
-        self._next_pos.topleft = self._object.rect.topleft
-        return self._next_pos
 
     def animate_walk(self) -> None:
         self.animation_tick += 1
