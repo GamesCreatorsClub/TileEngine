@@ -1,1 +1,1 @@
-from game.side_scroller_level_context import SideScrollerGameContext
+from game.g24_impossible_level_context import G24ImpossibleLevelContext

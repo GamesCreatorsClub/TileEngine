@@ -1,7 +1,7 @@
 import importlib
+from abc import ABC, abstractmethod
 from typing import Optional, Union, cast, Callable
 
-import pygame
 from pygame import Rect, Surface
 from pygame.key import ScancodeWrapper
 
@@ -22,7 +22,7 @@ def in_context(function: Callable) -> Callable:
     return function
 
 
-class GameContext:
+class GameContext(ABC):
     closure_objects = {}
 
     def __init__(self) -> None:
@@ -36,9 +36,6 @@ class GameContext:
 
         self.current_level_context: Optional[LevelContext] = None
 
-        self.xo = 0
-        self.yo = 0
-
         closure_objects = {name: getattr(self, name) for name in dir(GameContext) if hasattr(getattr(self, name), "context_object")}
         self.base_closure = {
             "Rect": Rect,
@@ -49,6 +46,10 @@ class GameContext:
         }
 
         self.closure = self.base_closure
+
+    @abstractmethod
+    def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
+        pass
 
     def set_level(self, level: Level) -> None:
         self.level = level
@@ -82,55 +83,6 @@ class GameContext:
                     del self.visible_levels[level_transition.level]
                 else:
                     self.visible_levels[level_transition.level] = replacement
-
-    def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
-        player = self.player
-        player_moved_horizotanlly = False
-        if current_keys[pygame.K_LEFT] and current_keys[pygame.K_RIGHT]:
-            player.vx = 0
-        elif current_keys[pygame.K_LEFT]:
-            self.player.turn_left()
-            player.vx = -player.player_speed
-            # player_moved = self.move_player(-player.player_speed, 0)
-        elif current_keys[pygame.K_RIGHT]:
-            self.player.turn_right()
-            player.vx = player.player_speed
-        else:
-            player.vx = 0
-
-        if player.vx != 0:
-            player_moved_horizotanlly = self.move_player(player.vx, 0)
-
-        if current_keys[pygame.K_UP] and current_keys[pygame.K_DOWN]:
-            player.jump = 0
-        elif current_keys[pygame.K_UP]:
-            if (player.jump == 0 and player.on_the_ground) or 0 < player.jump <= player.jump_treshold:
-                player.jump += 1
-                player.vy += -5 + 4 * player.jump / player.jump_treshold
-        elif current_keys[pygame.K_DOWN]:
-            player.jump = 0
-        else:
-            player.jump = 0
-
-        player.vy = player.vy + 2  # 2 is gravity
-
-        player_moved_vertically = self.move_player(0, player.vy)
-        if player_moved_vertically:
-            if player.vy < 0:
-                player.on_the_ground = False
-        elif player.vy > 0:
-            player.on_the_ground = not player_moved_vertically
-            if not player_moved_vertically:
-                player.hit_velocity = player.vy
-                player.vy = 0
-        player_moved = player_moved_horizotanlly or player_moved_vertically
-
-        if player_moved:
-            self.player.animate_walk()
-            self.level.update_map_position(self.player.rect)
-            self.level.invalidated = True
-        else:
-            self.player.stop_walk()
 
     def check_next_position(
             self,

@@ -94,8 +94,9 @@ class Debug:
 
         if self._show_jumps:
             if len(self.game_context.player.previous_positions) > 1:
-                xo = self.game_context.xo
-                yo = self.game_context.yo
+                level = self.game_context.level
+                xo = level.x_offset - level.viewport.x
+                yo = level.y_offset - level.viewport.y
                 positions = [
                     (x - xo, y - yo) for x, y in self.game_context.player.previous_positions
                 ]

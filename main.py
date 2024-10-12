@@ -5,6 +5,7 @@ from engine.game_context import GameContext
 from engine.level import Level
 
 from engine.debug import (Debug)
+from game.side_scroller_level_context import SideScrollerGameContext
 
 screen_size = (1024, 640)
 
@@ -21,7 +22,7 @@ levels = Level.load_levels("assets/level1.tmx", "assets/level2.tmx")
 first_level = levels[0]
 
 
-game_context = GameContext()
+game_context = SideScrollerGameContext()
 game_context.all_levels = {
     i + 1: l for i, l in enumerate(levels)
 }
@@ -31,9 +32,6 @@ first_level.start(game_context.player)
 
 debug = Debug(game_context, frameclock, framerate)
 
-
-xo = 0
-yo = 0
 
 current_keys = pygame.key.get_pressed()
 level_rect = Rect(20, 20, screen_size[0] - 40, 260)
