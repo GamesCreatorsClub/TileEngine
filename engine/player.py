@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 from pygame import Rect
 
-from game.utils import int_tuple
+from engine.utils import int_tuple
 from pytmx import TiledObject
 
 

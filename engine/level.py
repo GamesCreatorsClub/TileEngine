@@ -5,7 +5,7 @@ from pygame import Surface, Rect
 
 import pytmx.pytmx
 from engine.player import Player, Orientation
-from game.utils import clip
+from engine.utils import clip
 from pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, load_pygame
 
 offscreen_rendering = True
@@ -13,12 +13,18 @@ offscreen_rendering = True
 
 class Level:
     @classmethod
-    def load_levels(cls, filename: str) -> list['Level']:
-        tmx_data = load_pygame(filename)
+    def load_levels(cls, *filenames: str) -> list['Level']:
+        def load_file(filename: str) -> list['Level']:
+            tmx_data = load_pygame(filename)
 
-        return [Level(tmx_data, i + 1) for i, l in enumerate([l for l in tmx_data.layers if l.name.startswith("group_")])]
+            if tmx_data.layers[0].name.startswith("group_"):
+                return [Level(tmx_data, i + 1) for i, l in enumerate([l for l in tmx_data.layers if l.name.startswith("group_")])]
 
-    def __init__(self, tiled_map: TiledMap, part_no: int) -> None:
+            return [Level(tmx_data)]
+
+        return [l for filename in filenames for l in load_file(filename)]
+
+    def __init__(self, tiled_map: TiledMap, part_no: Optional[int] = None) -> None:
         self.map = tiled_map
         self.tile_width = tiled_map.tilewidth
         self.tile_height = tiled_map.tileheight
@@ -54,17 +60,18 @@ class Level:
         # def init(self) -> None:
         self.group = next((
             layer for layer in self.map.layers
-            if isinstance(layer, TiledGroupLayer) and layer.name.endswith(f"_{self.part_no}")
-        ))
+            if self.part_no is not None and isinstance(layer, TiledGroupLayer) and layer.name.endswith(f"_{self.part_no}")
+        ), tiled_map)
 
         self.viewport = Rect(*(int(v.strip()) for v in self.group.properties["viewport"].split(",")))
+
         self.offscreen_surface = Surface(self.viewport.size, pygame.HWSURFACE).convert_alpha()
 
         del self.layers[:]
 
         layers = [
             layer for layer in self.group.layers
-            if (isinstance(layer, TiledTileLayer) or isinstance(layer, TiledObjectGroup)) and layer.name.endswith(f"_{self.part_no}")
+            if self.part_no is None or (isinstance(layer, TiledTileLayer) or isinstance(layer, TiledObjectGroup)) and layer.name.endswith(f"_{self.part_no}")
         ]
         self.background_layer = None
         self.main_layer = None
@@ -144,7 +151,7 @@ class Level:
         return self.map.filename == other.map.filename and self.part_no == other.part_no
 
     def __hash__(self) -> int:
-        return self.map.filename.__hash__() ^ self.part_no
+        return self.map.filename.__hash__() ^ (self.part_no if self.part_no is not None else 0)
 
     def start(self, player: Player) -> None:
         player.tiled_object = self.player_object
@@ -175,7 +182,7 @@ class Level:
 
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.viewport) as clip_rect:
-            if offscreen_rendering[0]:
+            if offscreen_rendering:
                 if self.invalidated:
                     self.invalidated = False
                     self.offscreen_surface.fill((0, 224, 0))

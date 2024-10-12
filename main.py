@@ -5,7 +5,7 @@ from engine.engine import Engine
 from engine.game_context import GameContext
 from engine.level import Level
 
-from game.debug import Debug
+from engine.debug import (Debug)
 
 screen_size = (1024, 640)
 
@@ -18,7 +18,7 @@ screen = pygame.display.set_mode(screen_size)
 frameclock = pygame.time.Clock()
 framerate = 60
 
-levels = Level.load_levels("assets/level1.tmx")
+levels = Level.load_levels("assets/level_1and2_combined.tmx")
 first_level = levels[0]
 
 engine = Engine()

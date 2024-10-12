@@ -6,7 +6,7 @@ from pygame import Surface, Rect
 from engine.level import Level, offscreen_rendering
 from engine.transitions.level_transition import LevelTransition
 from engine.transitions.render_direct import RenderDirect
-from game.utils import clip
+from engine.utils import clip
 
 
 class MoveViewport(LevelTransition):

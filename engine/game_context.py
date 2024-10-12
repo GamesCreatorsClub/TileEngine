@@ -2,12 +2,13 @@ from typing import Optional, Union, cast, Generator, Any, Callable
 
 from pygame import Rect
 
+from engine.collision_result import CollisionResult
 from engine.engine import Engine
 from engine.level import Level
 from engine.player import Player
 from engine.transitions.fade_in import FadeIn
 from engine.transitions.move_viewport import MoveViewport
-from game.utils import is_close
+from engine.utils import is_close
 from pytmx import TiledObject
 
 
@@ -21,6 +22,7 @@ class GameContext:
 
     def __init__(self, engine: Engine) -> None:
         self.player = Player()
+        self.player_collision = CollisionResult()
         self.engine = engine
         self.engine.player = self.player
         self.engine.move_player = self.move_player
@@ -78,22 +80,18 @@ class GameContext:
             self,
             current_rect: Rect,
             next_rect: Rect,
-            dx: float, dy: float) -> tuple[tuple[Union[int, float], Union[int, float]], Union[None, tuple[int]]]:
-
-        def select_collided_rects(gids: list[int]) -> Generator[int, Any, None]:
-            return (g for g in gids if g > 0)
-
-        next_rect.x += dx
-        next_rect.y += dy
+            dx: float, dy: float) -> tuple[tuple[Union[int, float], Union[int, float]], Optional[CollisionResult]]:
 
         level = self.level
-        if next_rect.x >= 0 and next_rect.y >= 0 and \
-                next_rect.right < level.width and \
-                next_rect.top < level.height:
+        level_map = level.map
 
-            gids = self.gids_for_rect(next_rect)
-            if next(select_collided_rects(gids), 0) == 0:
-                return next_rect.topleft, None
+        next_rect.x = min(max(0, next_rect.x + dx), level.width - level_map.tilewidth)
+        next_rect.y = min(max(0, next_rect.y + dy), level.width - level_map.tilewidth)
+
+        cr = self.player_collision.collect(next_rect, level)
+
+        if not cr.has_collided_gids():
+            return next_rect.topleft, None
 
         lx = current_rect.x
         ly = current_rect.y
@@ -101,7 +99,6 @@ class GameContext:
         ry = next_rect.y
         r = Rect((0, 0), next_rect.size)
         changed = False
-        collided_background = []
         while not is_close(lx, rx, ly, ry):
             changed = True
             mx = rx + (lx - rx) / 2
@@ -109,16 +106,9 @@ class GameContext:
             r.x = mx
             r.y = my
 
-            middle_collides = not (next_rect.x >= 0 and next_rect.y >= 0 and
-                                   next_rect.right < level.width and
-                                   next_rect.top < level.height)
+            cr.collect(r, level)
 
-            if not middle_collides:
-                gids = self.gids_for_rect(r)
-                collided_background = select_collided_rects(gids)
-                middle_collides = next(collided_background, 0) != 0
-
-            if middle_collides:
+            if cr.has_collided_gids():
                 rx = mx
                 ry = my
             else:
@@ -128,14 +118,15 @@ class GameContext:
         if changed and (int(next_rect.x) != int(lx) or int(next_rect.y) != int(ly)):
             next_rect.x = lx
             next_rect.y = ly
-            return next_rect.topleft, tuple(collided_background)
-        return next_rect.topleft, tuple()
+            return next_rect.topleft, cr
+
+        return next_rect.topleft, None
 
     def move_player(self, dx: float, dy: float) -> bool:
         player = self.player
         next_rect = player.next_rect
 
-        next_pos, collided_tiles = self.check_next_position(player.rect, player.next_rect, dx, dy)
+        next_pos, collided_result = self.check_next_position(player.rect, player.next_rect, dx, dy)
 
         next_rect.topleft = next_pos
 
@@ -169,20 +160,19 @@ class GameContext:
 
         player_has_moved = self.player.move_to(next_rect.topleft) if player_has_moved else False
 
-        if collided_tiles is None:
+        if collided_result is None:
             return player_has_moved
 
         tiled_map = self.level.map
-        drop_tile_id = next((g for g in collided_tiles if g in tiled_map.tile_properties and "drop" in tiled_map.tile_properties[g]), 0)
-        if drop_tile_id != 0:
+        _, drop_rect = next(((g, r) for g, r in collided_result.collided_rects() if g in tiled_map.tile_properties and "drop" in tiled_map.tile_properties[g]), (0, None))
+        if drop_rect:
             self.player.vy = 2
             next_rect.y += self.player.vy
-            if (next_rect.x + self.player.rect.width // 2) % tiled_map.tilewidth < tiled_map.tilewidth // 2:
-                next_rect.x += 1
+            next_rect.x += (drop_rect.midtop[0] - next_rect.midtop[0])
 
             return self.player.move_to(next_rect.topleft)
 
-        return False
+        return player_has_moved
 
     def on_collision(self, this: Union[Player, TiledObject], obj: TiledObject) -> Optional[bool]:
         self.currently_colliding_object = obj
