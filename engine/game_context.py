@@ -44,6 +44,7 @@ class GameContext(ABC):
             "Player": Player,
             "MoveViewport": MoveViewport,
             "context": self,
+            "player": self.player,
             **closure_objects
         }
 
@@ -187,15 +188,26 @@ class GameContext(ABC):
             return object_has_moved
 
         tiled_map = self.level.map
-        _, drop_rect = next(((g, r) for g, r in collided_result.collided_rects() if g in tiled_map.tile_properties and "drop" in tiled_map.tile_properties[g]), (0, None))
-        if drop_rect:
-            self.player.vy = 2
-            next_rect.y += self.player.vy
-            next_rect.x += (drop_rect.midtop[0] - next_rect.midtop[0])
+        g, tile_rect = next(((g, r) for g, r in collided_result.collided_rects() if g in tiled_map.tile_properties and "on_collision" in tiled_map.tile_properties[g]), (0, None))
+        if tile_rect:
+            if tile_rect:
+                self.on_tile_collision(tiled_map.tile_properties[g], tile_rect, obj, next_rect)
 
-            return self.player.move_to(next_rect.topleft)
+            if obj == self.player:
+                return self.player.move_to(next_rect.topleft)
+
+            obj.x = next_rect.x
+            obj.y = next_rect.y
+            return True
 
         return object_has_moved
+
+    def on_tile_collision(self, tile, tile_rect: Rect, obj: Union[Player, TiledObject], next_rect: Rect) -> None:
+        try:
+            scriptlet = tile["on_collision"]
+            exec(scriptlet, self.closure, {"obj": obj, "next_rect": next_rect, "tile": tile, "tile_rect": tile_rect})
+        finally:
+            self.currently_colliding_object = None
 
     def on_collision(self, this: Union[Player, TiledObject], obj: TiledObject) -> None:
         self.currently_colliding_object = obj

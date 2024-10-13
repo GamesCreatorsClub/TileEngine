@@ -11,3 +11,7 @@ class G24ImpossibleLevelContext(LevelContext):
     def add_coins(self, coins: int) -> None:
         print(f"Adding {coins} coin{'s' if coins > 1 else ''}")
         self.game_context.player.coins += coins
+
+    @in_context
+    def hurt_player(self, amount: int) -> None:
+        print(f"Player is hurt for {amount}")

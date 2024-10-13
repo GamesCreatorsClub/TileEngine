@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.8" tiledversion="1.8.2" name="tileset-tiles" tilewidth="18" tileheight="18" tilecount="180" columns="20">
+<tileset version="1.9" tiledversion="1.9.2" name="tileset-tiles" tilewidth="18" tileheight="18" tilecount="180" columns="20">
  <image source="tilemap_packed.png" width="360" height="162"/>
  <tile id="25">
   <objectgroup draworder="index" id="2">
@@ -9,30 +9,48 @@
  <tile id="34">
   <properties>
    <property name="animated_id" type="int" value="35"/>
-   <property name="drop" type="bool" value="true"/>
+   <property name="on_collision">if obj == player:
+    player.vy = 2
+    next_rect.y += player.vy
+    next_rect.x += (tile_rect.midtop[0] - next_rect.midtop[0])
+</property>
   </properties>
  </tile>
  <tile id="35">
   <properties>
    <property name="animated_id" type="int" value="34"/>
-   <property name="drop" type="bool" value="true"/>
+   <property name="on_collision">if obj == player:
+    player.vy = 2
+    next_rect.y += player.vy
+    next_rect.x += (tile_rect.midtop[0] - next_rect.midtop[0])
+</property>
   </properties>
  </tile>
  <tile id="54">
   <properties>
    <property name="animated_id" type="int" value="55"/>
-   <property name="drop" type="bool" value="true"/>
+   <property name="on_collision">if obj == player:
+    player.vy = 2
+    next_rect.y += player.vy
+    next_rect.x += (tile_rect.midtop[0] - next_rect.midtop[0])
+</property>
   </properties>
  </tile>
  <tile id="55">
   <properties>
    <property name="animated_id" type="int" value="54"/>
-   <property name="drop" type="bool" value="true"/>
+   <property name="on_collision">if obj == player:
+    player.vy = 2
+    next_rect.y += player.vy
+    next_rect.x += (tile_rect.midtop[0] - next_rect.midtop[0])
+</property>
   </properties>
  </tile>
  <tile id="68">
   <properties>
-   <property name="on_collision" value="hurt_player(1)"/>
+   <property name="on_collision">hurt_player(1)
+next_rect.x = player.rect.x + 3 * (player.rect.x - next_rect.x)
+next_rect.y = player.rect.y + 3 * (player.rect.y - next_rect.y)</property>
   </properties>
   <objectgroup draworder="index" id="2">
    <object id="1" x="0" y="8.96356" width="17.7814" height="9.10931">
@@ -50,7 +68,6 @@
  <tile id="75">
   <properties>
    <property name="animated_id" type="int" value="74"/>
-   <property name="level_end" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="111">
