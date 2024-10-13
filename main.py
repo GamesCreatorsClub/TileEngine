@@ -1,7 +1,6 @@
 import pygame
 from pygame import Rect
 
-from engine.game_context import GameContext
 from engine.level import Level
 
 from engine.debug import (Debug)

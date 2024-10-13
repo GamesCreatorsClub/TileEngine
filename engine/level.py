@@ -3,11 +3,12 @@ from typing import Union, Optional
 import pygame
 from pygame import Surface, Rect
 
-import pytmx.pytmx
+# import pytmx
 from engine.collision_result import CollisionResult
 from engine.player import Player, Orientation
 from engine.utils import clip
-from pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, load_pygame
+from engine.pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, TileFlags
+from engine.util_pygame import load_pygame
 
 offscreen_rendering = True
 
@@ -117,7 +118,7 @@ class Level:
                 if f.flipped_horizontally:
                     self.player_orientation = Orientation.RIGHT
 
-            def image_gid(original_tiled_gid: int, tile_flags: pytmx.TileFlags) -> int:
+            def image_gid(original_tiled_gid: int, tile_flags: TileFlags) -> int:
                 gid_flag_tuple = original_tiled_gid, tile_flags
                 if gid_flag_tuple not in self.map.imagemap:
                     return self.map.register_gid(original_tiled_gid, tile_flags)
@@ -125,7 +126,7 @@ class Level:
                 gid, _ = self.map.imagemap[gid_flag_tuple]
                 return gid
 
-            for tile_flags, orientation in [(pytmx.TileFlags(0, 0, 0), Orientation.LEFT), (pytmx.TileFlags(1, 0, 0), Orientation.RIGHT)]:
+            for tile_flags, orientation in [(TileFlags(0, 0, 0), Orientation.LEFT), (TileFlags(1, 0, 0), Orientation.RIGHT)]:
                 gid = image_gid(original_tiled_gid, tile_flags)
 
                 if orientation == Orientation.LEFT:

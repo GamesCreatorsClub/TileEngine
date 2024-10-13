@@ -2,7 +2,7 @@ from typing import Optional
 
 from pygame import Surface
 
-from engine.level import Level, offscreen_rendering
+from engine.level import Level
 from engine.transitions.level_transition import LevelTransition
 from engine.utils import clip
 

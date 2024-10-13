@@ -14,7 +14,7 @@ from engine.transitions.level_transition import LevelTransition
 from engine.transitions.move_viewport import MoveViewport
 from engine.transitions.render_direct import RenderDirect
 from engine.utils import is_close
-from pytmx import TiledObject
+from engine.pytmx import TiledObject
 
 
 def in_context(function: Callable) -> Callable:

@@ -21,8 +21,9 @@ import itertools
 import logging
 from typing import Optional, Union, List
 
-import pytmx
-from pytmx.pytmx import ColorLike, PointLike
+from pygame import Rect
+
+from engine.pytmx import ColorLike, PointLike, TiledMap, TileFlags
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ __all__ = ["load_pygame", "pygame_image_loader", "simplify", "build_rects"]
 
 def handle_transformation(
     tile: pygame.Surface,
-    flags: pytmx.TileFlags,
+    flags: TileFlags,
 ) -> pygame.Surface:
     """
     Transform tile according to the flags and return a new one
@@ -92,7 +93,7 @@ def smart_convert(
         try:
             # count the number of pixels in the tile that are not transparent
             px = pygame.mask.from_surface(original, threshold).count()
-        except:
+        except Exception:
             # pygame_sdl2 will fail because the mask module is not included
             # in this case, just convert_alpha and return it
             return original.convert_alpha()
@@ -130,7 +131,7 @@ def pygame_image_loader(filename: str, colorkey: Optional[ColorLike], **kwargs):
     pixelalpha = kwargs.get("pixelalpha", True)
     image = pygame.image.load(filename)
 
-    def load_image(rect=None, flags=None):
+    def load_image(rect: Optional[Rect] = None, flags: Optional[TileFlags] = None) -> pygame.Surface:
         if rect:
             try:
                 tile = image.subsurface(rect)
@@ -153,7 +154,7 @@ def load_pygame(
     filename: str,
     *args,
     **kwargs,
-) -> pytmx.TiledMap:
+) -> TiledMap:
     """Load a TMX file, images, and return a TiledMap class
 
     PYGAME USERS: Use me.
@@ -180,11 +181,11 @@ def load_pygame(
 
     """
     kwargs["image_loader"] = pygame_image_loader
-    return pytmx.TiledMap(filename, *args, **kwargs)
+    return TiledMap(filename, *args, **kwargs)
 
 
 def build_rects(
-    tmxmap: pytmx.TiledMap,
+    tmxmap: TiledMap,
     layer: Union[int, str],
     tileset: Optional[Union[int, str]],
     real_gid: Optional[int],
@@ -236,6 +237,7 @@ def build_rects(
             logger.debug(msg.format(real_gid))
             raise ValueError
 
+    layer_data = None
     if isinstance(layer, int):
         layer_data = tmxmap.get_layer_data(layer)
     elif isinstance(layer, str):

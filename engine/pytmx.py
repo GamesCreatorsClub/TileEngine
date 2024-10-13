@@ -30,9 +30,8 @@ from collections import defaultdict, namedtuple
 from itertools import chain, product
 from math import cos, radians, sin
 from operator import attrgetter
-from typing import List, Tuple, Optional, Sequence, Union, Dict, Iterable, Any
+from typing import List, Tuple, Optional, Sequence, Union, Dict, Iterable, Callable, cast
 from xml.etree import ElementTree
-import json
 from copy import deepcopy
 
 from pygame import Rect
@@ -46,6 +45,8 @@ except ImportError:
     pygame = None
 
 __all__ = (
+    "ColorLike",
+    "PointLike",
     "TileFlags",
     "TiledElement",
     "TiledImageLayer",
@@ -88,6 +89,8 @@ TileFlags = namedtuple("TileFlags", flag_names)
 empty_flags = TileFlags(False, False, False)
 ColorLike = Union[Tuple[int, int, int, int], Tuple[int, int, int], int, str]
 MapPoint = Tuple[int, int, int]
+# str, Optional[ColorLike]
+ImageLoaderType = Callable[..., Callable[[Optional[Rect], Optional[TileFlags]], pygame.Surface]]
 
 # need a more graceful way to handle annotations for optional dependencies
 if pygame:
@@ -147,7 +150,7 @@ def reshape_data(
         List[List[int]]: 2D nested list object.
 
     """
-    return [gids[i : i + width] for i in range(0, len(gids), width)]
+    return [gids[i: i + width] for i in range(0, len(gids), width)]
 
 
 def unpack_gids(
@@ -333,6 +336,7 @@ def parse_properties(node: ElementTree.Element, customs: dict = None) -> Dict:
 
     Args:
         node (ElementTree.Element): Etree element to inspect.
+        customs: custom values
 
     Returns:
         Dict: Dictionary of the properties, as set in the Tiled editor.
@@ -475,8 +479,7 @@ class TiledMap(TiledElement):
     def __init__(
         self,
         filename: Optional[str] = None,
-        custom_property_filename: Optional[List[str]] = None,
-        image_loader=default_image_loader,
+        image_loader: ImageLoaderType = default_image_loader,
         **kwargs,
     ) -> None:
         """Load new Tiled map from a .tmx file.
@@ -492,8 +495,7 @@ class TiledMap(TiledElement):
         """
         TiledElement.__init__(self)
         self.filename = filename
-        self.custom_property_filename = custom_property_filename
-        self.image_loader = image_loader
+        self.image_loader: ImageLoaderType = image_loader
 
         # optional keyword arguments checked here
         self.optional_gids = kwargs.get("optional_gids", set())
@@ -503,23 +505,23 @@ class TiledMap(TiledElement):
         # allow duplicate names to be parsed and loaded
         TiledElement.allow_duplicate_names = kwargs.get("allow_duplicate_names", False)
 
-        self.layers = list()  # all layers in proper order
-        self.tilesets = list()  # TiledTileset objects
-        self.tile_properties = dict()  # tiles that have properties
-        self.layernames = dict()
-        self.objects_by_id = dict()
-        self.objects_by_name = dict()
+        self.layers: list[LayerType] = list()  # all layers in proper order
+        self.tilesets: list[TiledTileset] = list()  # TiledTileset objects
+        self.tile_properties: dict = dict()  # tiles that have properties
+        self.layernames: dict = dict()
+        self.objects_by_id: dict = dict()
+        self.objects_by_name: dict = dict()
 
         # only used tiles are actually loaded, so there will be a difference
         # between the GIDs in the Tiled map data (tmx) and the data in this
         # object and the layers.  This dictionary keeps track of that.
         self.gidmap = defaultdict(list)
-        self.imagemap = dict()  # mapping of gid and trans flags to real gids
-        self.tiledgidmap = dict()  # mapping of tiledgid to pytmx gid
+        self.imagemap: dict = dict()  # mapping of gid and trans flags to real gids
+        self.tiledgidmap: dict = dict()  # mapping of tiledgid to pytmx gid
         self.maxgid = 1
 
         # should be filled in by a loader function
-        self.images = list()
+        self.images: list = list()
 
         # defaults from the TMX specification
         self.version = "0.0"
@@ -541,8 +543,8 @@ class TiledMap(TiledElement):
         # initialize the gid mapping
         self.imagemap[(0, 0)] = 0
 
-        if custom_property_filename:
-            self.parse_json(json.load(open(custom_property_filename)))
+        # if custom_property_filename:
+        #     self.parse_json(json.load(open(custom_property_filename)))
 
         if filename:
             self.parse_xml(ElementTree.parse(self.filename).getroot())
@@ -552,9 +554,9 @@ class TiledMap(TiledElement):
 
     # iterate over layers and objects in map
     def __iter__(self):
-        return chain(self.layers, self.objects)
+        return chain(cast(list[Union[LayerType, TiledObject]], self.layers), self.objects)
 
-    def _set_properties(self, node: ElementTree.Element) -> None:
+    def _set_properties(self, node: ElementTree.Element, customs=None) -> None:
         TiledElement._set_properties(self, node)
 
         # TODO: make class/layer-specific type casting
@@ -576,7 +578,7 @@ class TiledMap(TiledElement):
 
                 self.custom_types[custom_type["name"]] = new
 
-    def parse_xml(self, node: ElementTree.Element) -> None:
+    def parse_xml(self, node: ElementTree.Element) -> 'TiledMap':
         """Parse a map from ElementTree xml node.
 
         Args:
@@ -660,7 +662,7 @@ class TiledMap(TiledElement):
         images will be loaded.
 
         """
-        self.images = [None] * self.maxgid
+        self.images: list = [None] * self.maxgid
 
         # iterate through tilesets to get source images
         for ts in self.tilesets:
@@ -688,7 +690,7 @@ class TiledMap(TiledElement):
 
             # iterate through the tiles
             for real_gid, (y, x) in enumerate(p, ts.firstgid):
-                rect = (x, y, ts.tilewidth, ts.tileheight)
+                rect = Rect(x, y, ts.tilewidth, ts.tileheight)
                 gids = self.map_gid(real_gid)
 
                 # gids is None if the tile is never used
@@ -696,7 +698,7 @@ class TiledMap(TiledElement):
                 if gids is None:
                     if self.load_all_tiles or real_gid in self.optional_gids:
                         # TODO: handle flags? - might never be an issue, though
-                        gids = [self.register_gid(real_gid, flags=0)]
+                        gids = [self.register_gid(real_gid, flags=None)]
 
                 if gids:
                     # flags might rotate/flip the image, so let the loader
@@ -719,7 +721,7 @@ class TiledMap(TiledElement):
                 layer.gid = gid
                 path = os.path.join(os.path.dirname(self.filename), source)
                 loader = self.image_loader(path, colorkey)
-                image = loader()
+                image = loader(None, None)
                 self.images.append(image)
 
         # load images in tiles.
@@ -731,7 +733,7 @@ class TiledMap(TiledElement):
                 colorkey = props.get("trans", None)
                 path = os.path.join(os.path.dirname(self.filename), source)
                 loader = self.image_loader(path, colorkey)
-                image = loader()
+                image = loader(None, None)
                 self.images[real_gid] = image
 
     def update_images(self):
@@ -764,7 +766,7 @@ class TiledMap(TiledElement):
 
                 # iterate through the tiles
                 for real_gid, (y, x) in enumerate(p, ts.firstgid):
-                    rect = (x, y, ts.tilewidth, ts.tileheight)
+                    rect = Rect(x, y, ts.tilewidth, ts.tileheight)
                     gids = self.map_gid(real_gid)
 
                     # gids is None if the tile is never used
@@ -772,7 +774,7 @@ class TiledMap(TiledElement):
                     if gids is None:
                         if self.load_all_tiles or real_gid in self.optional_gids:
                             # TODO: handle flags? - might never be an issue, though
-                            gids = [self.register_gid(real_gid, flags=0)]
+                            gids = [self.register_gid(real_gid, flags=None)]
 
                     if gids:
                         # flags might rotate/flip the image, so let the loader
@@ -985,9 +987,7 @@ class TiledMap(TiledElement):
 
     def add_layer(
         self,
-        layer: Union[
-            TiledTileLayer, TiledImageLayer, TiledGroupLayer, TiledObjectGroup
-        ],
+        layer: LayerType,
     ) -> None:
         """Add a layer to the map.
 
@@ -1122,7 +1122,7 @@ class TiledMap(TiledElement):
         return (l for l in self.layers if l.visible)
 
     @property
-    def visible_tile_layers(self) -> Iterable[TiledTileLayer]:
+    def visible_tile_layers(self) -> Iterable[int]:
         """Return iterator of layer indexes that are set "visible".
 
         Returns:
@@ -1324,7 +1324,7 @@ class TiledTileset(TiledElement):
         for child in node.iter("tile"):
             tiled_gid = int(child.get("id"))
 
-            p = {k: types[k](v) for k, v in child.items()}
+            p: dict = {k: types[k](v) for k, v in child.items()}
             p.update(parse_properties(child))
 
             # images are listed as relative to the .tsx file, not the .tmx file:
@@ -1465,7 +1465,7 @@ class TiledTileLayer(TiledElement):
         for x, y, gid in [i for i in self.iter_data() if i[2]]:
             yield x, y, images[gid]
 
-    def _set_properties(self, node) -> None:
+    def _set_properties(self, node: ElementTree.Element, customs=None) -> None:
         TiledElement._set_properties(self, node)
 
         # TODO: make class/layer-specific type casting
@@ -1575,6 +1575,7 @@ class TiledObject(TiledElement):
         self.template = None
         self.custom_types = custom_types
         self.collisions = set()
+        self.points: Optional[tuple] = None
 
         self.parse_xml(node)
 
@@ -1669,9 +1670,9 @@ class TiledObject(TiledElement):
     def apply_transformations(self) -> List[Point]:
         """Return all points for object, taking in account rotation."""
         if hasattr(self, "points"):
-            return rotate(self.points, self, self.rotation)
+            return rotate(self.points, cast(Point, self), self.rotation)
         else:
-            return rotate(self.as_points, self, self.rotation)
+            return rotate(self.as_points, cast(Point, self), self.rotation)
 
     @property
     def as_points(
@@ -1736,7 +1737,7 @@ class TiledImageLayer(TiledElement):
 class TiledProperty(TiledElement):
     """Represents Tiled Property."""
 
-    def __init__(self, parent, node: ElementTree.Element) -> None:
+    def __init__(self, _parent, node: ElementTree.Element) -> None:
         TiledElement.__init__(self)
 
         # defaults from the specification
@@ -1748,3 +1749,6 @@ class TiledProperty(TiledElement):
 
     def parse_xml(self, node: ElementTree.Element) -> None:
         pass
+
+
+LayerType = Union[TiledTileLayer, TiledImageLayer, TiledGroupLayer, TiledObjectGroup]

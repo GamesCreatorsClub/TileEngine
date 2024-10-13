@@ -1,11 +1,8 @@
-from typing import Union
 
 import pygame
 from pygame.key import ScancodeWrapper
-from pytmx import TiledObject
 
 from engine.game_context import GameContext
-from engine.player import Player
 
 
 class SideScrollerGameContext(GameContext):
