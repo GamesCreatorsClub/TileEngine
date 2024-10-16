@@ -1,10 +1,12 @@
+import os.path
+from itertools import chain
 from typing import Union, Optional
 
 import pygame
 from pygame import Surface, Rect
 
-# import pytmx
 from engine.collision_result import CollisionResult
+from engine.level_context import LevelContext
 from engine.player import Player, Orientation
 from engine.utils import clip
 from engine.pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, TileFlags
@@ -15,18 +17,29 @@ offscreen_rendering = True
 
 class Level:
     @classmethod
-    def load_levels(cls, *filenames: str) -> list['Level']:
-        def load_file(filename: str) -> list['Level']:
+    def load_levels(cls, screen_size: Rect, *filenames: Union[str, dict[str, str]], **named_filenames) -> dict[str, 'Level']:
+        def load_file(name: str, filename: str) -> dict[str, 'Level']:
+
             tmx_data = load_pygame(filename)
 
             if tmx_data.layers[0].name.startswith("group_"):
-                return [Level(tmx_data, i + 1) for i, l in enumerate([l for l in tmx_data.layers if l.name.startswith("group_")])]
+                return {f"{name}_{i}": Level(screen_size, tmx_data, i + 1) for i, l in enumerate([l for l in tmx_data.layers if l.name.startswith("group_")])}
 
-            return [Level(tmx_data)]
+            return {name: Level(screen_size, tmx_data)}
 
-        return [l for filename in filenames for l in load_file(filename)]
+        def filename_to_name(filename: str) -> str:
+            return filename.split(os.path.sep)[-1].split(".")[0]
 
-    def __init__(self, tiled_map: TiledMap, part_no: Optional[int] = None) -> None:
+        name_and_filename_dict = {
+            filename_to_name(filename) if isinstance(filename, str) else filename[0]: filename if isinstance(filename, str) else filename[1]
+            for filename in filenames
+        } | named_filenames
+
+        l = [load_file(name, filename) for name, filename in name_and_filename_dict.items()]
+
+        return dict(chain(*map(dict.items, l)))
+
+    def __init__(self, screen_size: Rect, tiled_map: TiledMap, part_no: Optional[int] = None) -> None:
         self.map = tiled_map
         self.tile_width = tiled_map.tilewidth
         self.tile_height = tiled_map.tileheight
@@ -59,6 +72,7 @@ class Level:
         self.invalidated = True
 
         self.level_context_class_str = tiled_map.properties["level_context"] if "level_context" in tiled_map.properties else None
+        self.level_context: Optional[LevelContext] = None
 
         # initialise level
         # def init(self) -> None:
@@ -67,7 +81,10 @@ class Level:
             if self.part_no is not None and isinstance(layer, TiledGroupLayer) and layer.name.endswith(f"_{self.part_no}")
         ), tiled_map)
 
-        self.viewport = Rect(*(int(v.strip()) for v in self.group.properties["viewport"].split(",")))
+        if "viewport" in self.group.properties:
+            self.viewport = Rect(*(int(v.strip()) for v in self.group.properties["viewport"].split(",")))
+        else:
+            self.viewport = screen_size
 
         self.offscreen_surface = Surface(self.viewport.size, pygame.HWSURFACE).convert_alpha()
 
@@ -110,39 +127,7 @@ class Level:
             self.player_object.visible = False
             self.update_map_position(self.player_object.rect)
 
-            original_tiled_gid = self.map.tiledgidmap[self.player_object.gid]
-            # # decoded_tiled_gid, flags = pytmx.pytmx.decode_gid(original_tiled_gid)
-
-            self.player_orientation = Orientation.LEFT
-            for _, f in self.map.gidmap[original_tiled_gid]:
-                if f.flipped_horizontally:
-                    self.player_orientation = Orientation.RIGHT
-
-            def image_gid(original_tiled_gid: int, tile_flags: TileFlags) -> int:
-                gid_flag_tuple = original_tiled_gid, tile_flags
-                if gid_flag_tuple not in self.map.imagemap:
-                    return self.map.register_gid(original_tiled_gid, tile_flags)
-
-                gid, _ = self.map.imagemap[gid_flag_tuple]
-                return gid
-
-            for tile_flags, orientation in [(TileFlags(0, 0, 0), Orientation.LEFT), (TileFlags(1, 0, 0), Orientation.RIGHT)]:
-                gid = image_gid(original_tiled_gid, tile_flags)
-
-                if orientation == Orientation.LEFT:
-                    self.player_left_animation = [gid]
-                else:
-                    self.player_right_animation = [gid]
-
-                gid = image_gid(original_tiled_gid + 1, tile_flags)
-
-                if orientation == Orientation.LEFT:
-                    self.player_left_animation.append(gid)
-                else:
-                    self.player_right_animation.append(gid)
-
-            self.map.update_images()
-
+            self._update_player_animation()
         else:
             raise ValueError("Object layer cannot be None")
 
@@ -150,6 +135,84 @@ class Level:
             self.layers.append(self.foreground_layer)
         if self.over_layer is not None:
             self.layers.append(self.over_layer)
+
+    def _update_player_animation(self) -> None:
+        def image_gid(original_tiled_gid: int, tile_flags: TileFlags) -> int:
+            gid_flag_tuple = original_tiled_gid, tile_flags
+            if gid_flag_tuple in self.map.imagemap:
+                return self.map.imagemap[gid_flag_tuple][0]
+
+            return self.map.register_gid(original_tiled_gid, tile_flags)
+
+        up: list[tuple] = []
+        down: list[tuple] = []
+        left: list[tuple] = []
+        right: list[tuple] = []
+        for tile_id in self.map.tile_properties:
+            gid = self.map.tiledgidmap[tile_id]
+            properties = self.map.tile_properties[tile_id]
+            if "player" in properties:
+                orientation_str = properties["player"]
+                if orientation_str.startswith("left"):
+                    pos = int(orientation_str[5:]) if orientation_str.startswith("left,") else 0
+
+                    left.append((pos, image_gid(gid, TileFlags(0, 0, 0))))
+                    gid_flag_tuple = gid, TileFlags(1, 0, 0)
+                    if gid_flag_tuple in self.map.imagemap:
+                        right.append((pos, self.map.imagemap[gid_flag_tuple][0]))
+
+                elif orientation_str.startswith("right"):
+                    pos = int(orientation_str[6:]) if orientation_str.startswith("right,") else 0
+
+                    right.append((pos, image_gid(gid, TileFlags(0, 0, 0))))
+                    # gid_flag_tuple = gid, TileFlags(0, 0, 0)
+                    # if gid_flag_tuple in self.map.imagemap:
+                    #     left.append((pos, self.map.imagemap[gid_flag_tuple][0]))
+
+                elif orientation_str.startswith("up,"):
+                    up.append((int(orientation_str[3:]), image_gid(gid, TileFlags(0, 0, 0))))
+                elif orientation_str == "up":
+                    up.append((0, image_gid(gid, TileFlags(0, 0, 0))))
+                elif orientation_str.startswith("down,"):
+                    down.append((int(orientation_str[5:]), image_gid(gid, TileFlags(0, 0, 0))))
+                elif orientation_str == "down":
+                    down.append((0, image_gid(gid, TileFlags(0, 0, 0))))
+
+        def sorter(t1: tuple) -> int:
+            return t1[0]
+
+        left.sort(key=sorter)
+        left: list[int] = [t[1] for t in left]
+        right.sort(key=sorter)
+        right: list[int] = [t[1] for t in right]
+        up.sort(key=sorter)
+        up: list[int] = [t[1] for t in up]
+        down.sort(key=sorter)
+        down: list[int] = [t[1] for t in down]
+
+        if len(left) > len(right):
+            right += [image_gid(self.map.tiledgidmap[left[i + len(right)]], TileFlags(1, 0, 0)) for i in range(len(left) - len(right))]
+
+        if len(right) > len(left):
+            left += [image_gid(right[i], TileFlags(1, 0, 0)) for i in range(len(right) - len(left))]
+
+        original_tiled_gid = self.map.tiledgidmap[self.player_object.gid]
+
+        if original_tiled_gid in up:
+            self.player_orientation = Orientation.UP
+        elif original_tiled_gid in down:
+            self.player_orientation = Orientation.DOWN
+        elif original_tiled_gid in right:
+            self.player_orientation = Orientation.RIGHT
+        else:
+            self.player_orientation = Orientation.LEFT
+
+        self.player_left_animation = left
+        self.player_right_animation = right
+        self.player_up_animation = up
+        self.player_down_animation = down
+
+        self.map.update_images()
 
     def __eq__(self, other) -> bool:
         return self.map.filename == other.map.filename and self.part_no == other.part_no
@@ -160,8 +223,10 @@ class Level:
     def start(self, player: Player) -> None:
         player.tiled_object = self.player_object
         player.orientation = self.player_orientation
-        player.left_animation = self.player_left_animation
-        player.right_animation = self.player_right_animation
+        player.left_animation[:] = self.player_left_animation
+        player.right_animation[:] = self.player_right_animation
+        player.up_animation[:] = self.player_up_animation
+        player.down_animation[:] = self.player_down_animation
         self.player_object.visible = True
 
     def stop(self) -> None:
@@ -171,6 +236,16 @@ class Level:
         if obj in self.objects:
             del self.objects[obj]
             self.objects_layer.remove(obj)
+
+    def objects_at_position(self, pos: tuple) -> list[TiledObject]:
+        screen_pos = Rect(0, 0, 0, 0)
+        res = []
+        for obj in self.objects:
+            screen_pos.update(obj.rect)
+            screen_pos.move(-self.x_offset, -self.y_offset)
+            if screen_pos.collidepoint(pos[0], pos[1]):
+                res.append(obj)
+        return res
 
     def render_to(self, surface: Surface, xo: int, yo: int) -> None:
         tile_width = self.tile_width

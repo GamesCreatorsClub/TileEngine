@@ -11,6 +11,8 @@ from engine.pytmx import TiledObject
 class Orientation(enum.Enum):
     LEFT = enum.auto()
     RIGHT = enum.auto()
+    UP = enum.auto()
+    DOWN = enum.auto()
 
 
 class Player:
@@ -23,6 +25,10 @@ class Player:
         self._object: Optional[TiledObject] = None
         self.left_animation: list[int] = []
         self.right_animation: list[int] = []
+        self.up_animation: list[int] = []
+        self.down_animation: list[int] = []
+        self.animations = {Orientation.LEFT: self.left_animation, Orientation.RIGHT: self.right_animation, Orientation.UP: self.up_animation, Orientation.DOWN: self.down_animation}
+
         self.animation_speed = 3
         self.animation_tick = 0
 
@@ -74,12 +80,14 @@ class Player:
         if stage > 1:
             self.animation_tick = 0
             stage = 0
-        animation_list = self.left_animation if self.orientation == Orientation.LEFT else self.right_animation
+
+        animation_list = self.animations[self.orientation]
+
         self._object.gid = animation_list[stage]
 
     def stop_walk(self) -> None:
         self.animation_tick = 0
-        animation_list = self.left_animation if self.orientation == Orientation.LEFT else self.right_animation
+        animation_list = self.animations[self.orientation]
         self._object.gid = animation_list[0]
 
     def turn_left(self) -> None:
@@ -92,4 +100,16 @@ class Player:
         if self.orientation != Orientation.RIGHT:
             self.orientation = Orientation.RIGHT
             self._object.gid = self.right_animation[0]
+            self.animation_tick = 0
+
+    def turn_up(self) -> None:
+        if self.orientation != Orientation.UP:
+            self.orientation = Orientation.UP
+            self._object.gid = self.up_animation[0]
+            self.animation_tick = 0
+
+    def turn_down(self) -> None:
+        if self.orientation != Orientation.DOWN:
+            self.orientation = Orientation.DOWN
+            self._object.gid = self.down_animation[0]
             self.animation_tick = 0

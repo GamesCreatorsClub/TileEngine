@@ -1,13 +1,15 @@
+from typing import Union
 
 import pygame
 from pygame.key import ScancodeWrapper
 
 from engine.game_context import GameContext
+from engine.level import Level
 
 
 class SideScrollerGameContext(GameContext):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, levels: dict[Union[str, int], Level]) -> None:
+        super().__init__(levels)
 
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         player = self.player

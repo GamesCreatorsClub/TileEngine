@@ -2,6 +2,7 @@ import importlib
 from abc import ABC, abstractmethod
 from typing import Optional, Union, cast, Callable
 
+import pygame
 from pygame import Rect, Surface
 from pygame.key import ScancodeWrapper
 
@@ -17,6 +18,9 @@ from engine.utils import is_close
 from engine.pytmx import TiledObject
 
 
+PlayerOrObject = Union[Player, TiledObject]
+
+
 def in_context(function: Callable) -> Callable:
     function.context_object = True
     return function
@@ -25,16 +29,19 @@ def in_context(function: Callable) -> Callable:
 class GameContext(ABC):
     closure_objects = {}
 
-    def __init__(self) -> None:
+    def __init__(self, levels: dict[Union[str, int], Level]) -> None:
         self.visible_levels: dict[Level, LevelTransition] = {}
         self.player = Player()
         self.player_collision = CollisionResult()
         self.level_no = 1
         self.level: Optional[Level] = None
         self.currently_colliding_object = None
-        self.all_levels = {}
+        self.all_levels = levels
         self.allow_moving = True
         self.allow_colliding = True
+        self.player_input_allowed = True
+
+        self.mouse_pressed_pos: Optional[tuple] = None
 
         self.current_level_context: Optional[LevelContext] = None
 
@@ -44,6 +51,7 @@ class GameContext(ABC):
             "Player": Player,
             "MoveViewport": MoveViewport,
             "context": self,
+            "game": self,
             "player": self.player,
             **closure_objects
         }
@@ -54,29 +62,54 @@ class GameContext(ABC):
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         pass
 
+    def process_mouse_down(self, pos: tuple) -> None:
+        self.mouse_pressed_pos = pos
+        objs = self.level.objects_at_position(pos)
+        for obj in objs:
+            if "on_click" in obj.properties:
+                exec(obj.properties["on_click"], self.closure, {"pos": pos})
+
+    def process_mouse_up(self, _pos: tuple) -> None:
+        self.mouse_pressed_pos = None
+
+    @in_context
+    def set_player_input_allowed(self, allowed) -> None:
+        self.player_input_allowed = allowed
+
     def set_level(self, level: Level) -> None:
         self.level = level
+
+        level.start(self.player)
 
         if self.level not in self.visible_levels:
             self.visible_levels[level] = RenderDirect(level)
 
-        module_name = ".".join(self.level.level_context_class_str.split(".")[:-1])
-        class_name = self.level.level_context_class_str.split(".")[-1]
+        if level.level_context_class_str is not None:
+            module_name = ".".join(level.level_context_class_str.split(".")[:-1])
+            class_name = level.level_context_class_str.split(".")[-1]
 
-        module = importlib.import_module(module_name)
-        class_ = getattr(module, class_name)
-        level.level_context = class_(self)
+            module = importlib.import_module(module_name)
+            class_ = getattr(module, class_name)
+            level.level_context = class_(self)
 
         self.closure = {
             **self.base_closure,
-            **{name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")}
+            **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
         }
 
-    def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None) -> None:
+        # Default resets
+        self.player_input_allowed = True
+
+        if "on_show" in level.map.properties:
+            exec(level.map.properties["on_show"], self.closure, {"level": level})
+
+    def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None, activate: bool = False) -> None:
         if level not in self.visible_levels:
             if level_transition is None:
                 level_transition = RenderDirect(level)
             self.visible_levels[level] = level_transition
+        if activate:
+            self.set_level(level)
 
     def draw(self, surface: Surface) -> None:
         for level_transition in [lt for lt in self.visible_levels.values()]:
@@ -89,16 +122,22 @@ class GameContext(ABC):
 
     def check_next_position(
             self,
-            obj: Union[Player, TiledObject],
+            obj: PlayerOrObject,
             current_rect: Rect,
             next_rect: Rect,
-            dx: float, dy: float) -> tuple[tuple[Union[int, float], Union[int, float]], Optional[CollisionResult]]:
+            x: float, y: float,
+            absolute: bool = False
+    ) -> tuple[tuple[Union[int, float], Union[int, float]], Optional[CollisionResult]]:
 
         level = self.level
         level_map = level.map
 
-        next_rect.x = min(max(0, next_rect.x + dx), level.width - level_map.tilewidth)
-        next_rect.y = min(max(0, next_rect.y + dy), level.width - level_map.tilewidth)
+        if absolute:
+            next_rect.x = x
+            next_rect.y = y
+        else:
+            next_rect.x = min(max(0, next_rect.x + x), level.width - level_map.tilewidth)
+            next_rect.y = min(max(0, next_rect.y + y), level.width - level_map.tilewidth)
 
         if obj.collision_result is None:
             obj.collision_result = CollisionResult()
@@ -136,11 +175,18 @@ class GameContext(ABC):
 
         return current_rect.topleft, None
 
-    def move_object(self, obj: Union[Player, TiledObject], dx: float, dy: float, test_collisions: bool = False) -> bool:
+    @in_context
+    def move_object(self, obj: PlayerOrObject, x: float, y: float, test_collisions: bool = False, absolute: bool = False) -> bool:
+        def test_if_obj_is_player(object_has_moved: bool) -> None:
+            if obj == self.player:
+                self.level.update_map_position(self.player.rect)
+            if object_has_moved:
+                self.level.invalidated = True
+
         next_rect = obj.next_rect
         next_rect.update(obj.rect)
 
-        next_pos, collided_result = self.check_next_position(obj, obj.rect, obj.next_rect, dx, dy)
+        next_pos, collided_result = self.check_next_position(obj, obj.rect, obj.next_rect, x, y, absolute=absolute)
 
         next_rect.topleft = next_pos
 
@@ -185,6 +231,7 @@ class GameContext(ABC):
                 obj.y = next_rect.y
 
         if collided_result is None:
+            test_if_obj_is_player(object_has_moved)
             return object_has_moved
 
         tiled_map = self.level.map
@@ -194,22 +241,31 @@ class GameContext(ABC):
                 self.on_tile_collision(tiled_map.tile_properties[g], tile_rect, obj, next_rect)
 
             if obj == self.player:
-                return self.player.move_to(next_rect.topleft)
+                object_has_moved = self.player.move_to(next_rect.topleft)
+                test_if_obj_is_player(object_has_moved)
+                return object_has_moved
 
             obj.x = next_rect.x
             obj.y = next_rect.y
+            test_if_obj_is_player(True)
             return True
 
+        test_if_obj_is_player(object_has_moved)
         return object_has_moved
 
-    def on_tile_collision(self, tile, tile_rect: Rect, obj: Union[Player, TiledObject], next_rect: Rect) -> None:
+    def animate(self, elapsed_ms: int) -> None:
+        for obj in self.level.objects:
+            if "on_animate" in obj.properties:
+                exec(obj.properties["on_animate"], self.closure, {"elapsed_ms": elapsed_ms})
+
+    def on_tile_collision(self, tile, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
         try:
             scriptlet = tile["on_collision"]
             exec(scriptlet, self.closure, {"obj": obj, "next_rect": next_rect, "tile": tile, "tile_rect": tile_rect})
         finally:
             self.currently_colliding_object = None
 
-    def on_collision(self, this: Union[Player, TiledObject], obj: TiledObject) -> None:
+    def on_collision(self, this: PlayerOrObject, obj: TiledObject) -> None:
         self.currently_colliding_object = obj
 
         self.allow_moving = True
@@ -220,7 +276,7 @@ class GameContext(ABC):
         finally:
             self.currently_colliding_object = None
 
-    def on_enter(self, this: Union[Player, TiledObject], obj: TiledObject) -> None:
+    def on_enter(self, this: PlayerOrObject, obj: TiledObject) -> None:
         self.currently_colliding_object = obj
 
         self.allow_moving = True
@@ -232,7 +288,7 @@ class GameContext(ABC):
         finally:
             self.currently_colliding_object = None
 
-    def on_leave(self, this: Union[Player, TiledObject], obj: TiledObject) -> None:
+    def on_leave(self, this: PlayerOrObject, obj: TiledObject) -> None:
         self.currently_colliding_object = obj
         try:
             scriptlet = obj.properties["on_leave"]
@@ -249,7 +305,7 @@ class GameContext(ABC):
         self.allow_colliding = False
 
     @in_context
-    def is_player(self, obj: Union[Player, TiledObject]) -> bool:
+    def is_player(self, obj: PlayerOrObject) -> bool:
         return isinstance(obj, Player)
 
     @in_context
@@ -260,15 +316,29 @@ class GameContext(ABC):
     def remove_collided_object(self) -> None:
         self.remove_object(self.currently_colliding_object)
 
+    def _find_next_level(self) -> tuple[str, Level]:
+        current_key, _ = next(filter(lambda t: t[1] == self.level, self.all_levels.items()))
+        all_keys = [k for k in self.all_levels.keys()]
+        index = all_keys.index(current_key)
+        next_key = all_keys[index + 1]
+        return next_key, self.all_levels[next_key]
+
+    def _find_prev_level(self) -> tuple[str, Level]:
+        current_key, _ = next(filter(lambda t: t[1] == self.level, self.all_levels.items()))
+        all_keys = [k for k in self.all_levels.keys()]
+        index = all_keys.index(current_key)
+        next_key = all_keys[index - 1]
+        return next_key, self.all_levels[next_key]
+
     @in_context
     def show_next_level(self) -> None:
-        level = self.all_levels[self.level_no + 1]
+        _, level = self._find_next_level()
         self.remove_object(self.currently_colliding_object)
         self.show_level(level, FadeIn(level))
 
     @in_context
     def show_previous_level(self) -> None:
-        level = self.all_levels[self.level_no - 1]
+        _, level = self._find_prev_level()
         self.remove_object(self.currently_colliding_object)
         self.show_level(level, FadeIn(level))
 
@@ -276,7 +346,8 @@ class GameContext(ABC):
     def next_level(self) -> None:
         self.level.player_object.visible = False
         self.level.invalidated = True
-        next_level = self.all_levels[self.level_no + 1]
+
+        _, next_level = self._find_next_level()
         self.set_level(next_level)
         next_level.start(self.player)
 
@@ -284,6 +355,18 @@ class GameContext(ABC):
     def previous_level(self) -> None:
         self.level.player_object.visible = False
         self.level.invalidated = True
-        next_level = self.all_levels[self.level_no - 1]
+
+        _, next_level = self._find_prev_level()
         self.set_level(next_level)
         next_level.start(self.player)
+
+    @in_context
+    def teleport_to_object(self, who: PlayerOrObject, obj_name: str) -> None:
+        for obj in self.level.objects:
+            if obj.name == obj_name:
+                x = obj.rect.x + (obj.rect.width - who.rect.width) // 2
+                y = obj.rect.y + (obj.rect.height - who.rect.height) // 2
+                self.move_object(who, x, y, absolute=True)
+                print(f"Teleported to {x}, {y}")
+                self.prevent_colliding()
+                return
