@@ -5,7 +5,7 @@ import struct
 import zlib
 from abc import ABC
 from base64 import b64decode
-from collections import defaultdict
+from collections import defaultdict, ChainMap
 from copy import deepcopy
 from typing import Any, Optional, Callable, NamedTuple, Union, TypeVar, Iterable, cast
 from xml.etree import ElementTree
@@ -14,6 +14,8 @@ from xml.etree.ElementTree import Element
 import pygame
 from pygame import Surface, Rect
 from pygame.transform import flip, rotate
+
+from engine.collision_result import CollisionResult
 
 logger = logging.getLogger(__name__)
 
@@ -123,10 +125,16 @@ PROPERTY_TYPES = {
 TiledElementType = TypeVar('TiledElementType')
 
 
-class NodeType[TiledElementType](NamedTuple):
-    factory_method: Optional[Callable[[TiledElementType, Element], None]]
-    type_constructor: Optional[Union[Callable[[TiledElementType], Any], TiledElementType]]
-    destination: Optional[str]
+class NodeType:
+    def __init__(
+            self,
+            factory_method: Optional[Callable[[TiledElementType, Element], None]] = None,
+            type_constructor: Optional[Union[Callable[[TiledElementType], Any], TiledElementType]] = None,
+            destination: Optional[str] = None
+    ) -> None:
+        self.factory_method: Optional[Callable[[TiledElementType, Element], None]] = factory_method
+        self.type_constructor: Optional[Union[Callable[[TiledElementType], Any], TiledElementType]] = type_constructor
+        self.destination: Optional[str] = destination
 
 
 class TileFlags(NamedTuple):
@@ -297,6 +305,9 @@ class TiledGroupLayer(BaseTiledLayer):
 
 
 class TiledObject(TiledSubElement):
+    NODE_TYPES = TiledElement.NODE_TYPES | {
+        "ellipse": NodeType(None, None, None),
+    }
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
         self.gid: int = 0
@@ -304,6 +315,8 @@ class TiledObject(TiledSubElement):
 
         self.rect = Rect(0, 0, 0, 0)
         self.next_rect = Rect(0, 0, 0, 0)
+        self.collisions = set()
+        self.collision_result: Optional[CollisionResult] = None
 
     @property
     def x(self) -> float: return self.rect.x
@@ -334,6 +347,14 @@ class TiledObject(TiledSubElement):
         if self.gid > 0:
             self.gid = self.map.register_raw_gid(self.gid)
 
+            if self.gid in self.map.tile_properties:
+                properties = self.map.tile_properties[self.gid]
+                if properties is not None:
+                    self.properties = properties | self.properties
+
+        if self.map.invert_y and self.gid > 0:
+            self.y -= self.height
+
     @property
     def image(self):
         if self.gid:
@@ -345,10 +366,19 @@ class TiledObjectGroup(TiledSubElement):
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
         self.parent_tile_id: Optional[int] = None
-        self.objects: dict[int, TiledObject] = {}
+        self.objects_id_map: dict[int, TiledObject] = {}
+
+    @property
+    def objects(self) -> Iterable[TiledObject]:
+        return self.objects_id_map.values()
+
+    def add_object(self, obj: TiledObject):
+        if obj.id == 0:
+            obj.id = (max(obj.id for obj in self.objects_id_map.values()) + 1) if len(self.objects_id_map) > 0 else 1
+        self.objects_id_map[obj.id] = obj
 
     NODE_TYPES = TiledElement.NODE_TYPES | {
-        "object": NodeType(None, TiledObject, "objects"),
+        "object": NodeType(None, TiledObject, "add_object"),
     }
 
 
@@ -403,7 +433,7 @@ class TiledTileset(TiledElement):
         image_rect = self.image.get_rect()
 
     def _tile(self, tile_element: Element) -> None:
-        id_ = int(tile_element.get("id"))
+        id_ = int(tile_element.get("id")) + self.firstgid
         properties: dict[str, Any] = {}
         properties_node = tile_element.find("properties")
         if properties_node:
@@ -428,23 +458,27 @@ class TiledTileset(TiledElement):
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "image": NodeType(_load_image, None, None),
         "tile": NodeType(_tile, None, None),
-        "tileoffset": NodeType(_tileoffset, None, None)
+        "tileoffset": NodeType(_tileoffset, None, None),
+        "wangsets": NodeType(None, None, None)
     }
 
 
 class TiledMap(TiledElement):
     NODE_TYPES = TiledElement.NODE_TYPES | {
-        "tileset": NodeType(None, TiledTileset, "_set_tileset"),
-        "layer": NodeType(None, TiledTileLayer, "layers"),
-        "objectgroup": NodeType(None, TiledObjectGroup, "layers"),
+        "tileset": NodeType(None, TiledTileset, "add_tileset"),
+        "layer": NodeType(None, TiledTileLayer, "add_layer"),
+        "objectgroup": NodeType(None, TiledObjectGroup, "add_layer"),
     }
 
-    def __init__(self) -> None:
+    def __init__(self, invert_y: bool = True) -> None:
         super().__init__()
         self.filename: Optional[str] = None
 
-        self.layers: dict[str, BaseTiledLayer] = {}
-        self.tilesets: dict[str, TiledTileset] = {}
+        self.invert_y = invert_y
+
+        self.layer_id_map: dict[int, BaseTiledLayer] = {}
+        self.tilesets: list[TiledTileset] = []
+        self._tileset_properties: ChainMap[int, dict[str, Any]] = ChainMap()
 
         self.version = "0.0"
         self.tiledversion = ""
@@ -466,15 +500,21 @@ class TiledMap(TiledElement):
         self.infinite = False
         self.images: list[Surface] = []
 
-    def load(self, filename: str) -> None:
-        self.filename = filename
-        self._parse_xml(ElementTree.parse(filename).getroot())
+    @property
+    def layers(self) -> Iterable[BaseTiledLayer]:
+        return self.layer_id_map.values()
 
-    def save(self, filename: str) -> None:
-        pass
+    @property
+    def tile_properties(self) -> ChainMap[int, dict[str, Any]]:
+        return self._tileset_properties
 
-    def _set_tileset(self, tileset: TiledTileset) -> None:
-        self.tilesets[tileset.name] = tileset
+    def add_layer(self, layer: BaseTiledLayer) -> None:
+        self.layer_id_map[layer.id] = layer
+
+    def add_tileset(self, tileset: TiledTileset) -> None:
+        self.tilesets.append(tileset)
+        self._tileset_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
+
         tilesets_maxgid = tileset.firstgid + tileset.tilecount
         self.maxgid = max(self.maxgid, tilesets_maxgid)
         if len(self.images) < self.maxgid:
@@ -482,13 +522,20 @@ class TiledMap(TiledElement):
         for i in range(tileset.tilecount):
             self.images[tileset.firstgid + i] = tileset.get_image(i + tileset.firstgid)
 
+    def load(self, filename: str) -> None:
+        self.filename = filename
+        self._parse_xml(ElementTree.parse(filename).getroot())
+
+    def save(self, filename: str) -> None:
+        pass
+
     def register_raw_gid(self, gid: int) -> int:
         if gid < self.maxgid:
             return gid
 
         g = gid & ~GID_MASK
 
-        self.register_gid(g, TileFlags(
+        return self.register_gid(g, TileFlags(
             flipped_horizontally=gid & GID_TRANS_FLIP_HORIZONTALLY == GID_TRANS_FLIP_HORIZONTALLY,
             flipped_vertically=gid & GID_TRANS_FLIP_VERTICALLY == GID_TRANS_FLIP_VERTICALLY,
             flipped_diagonally=gid & GID_TRANS_ROTATE == GID_TRANS_ROTATE

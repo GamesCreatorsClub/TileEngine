@@ -23,8 +23,8 @@ class Level:
             tmx_data = TiledMap()
             tmx_data.load(filename)
 
-            if list(tmx_data.layers.values())[0].name.startswith("group_"):
-                return {f"{name}_{i}": Level(screen_size, tmx_data, i + 1) for i, l in enumerate([l for l in tmx_data.layers.values() if l.name.startswith("group_")])}
+            if list(tmx_data.layers)[0].name.startswith("group_"):
+                return {f"{name}_{i}": Level(screen_size, tmx_data, i + 1) for i, l in enumerate([l for l in tmx_data.layers if l.name.startswith("group_")])}
 
             return {name: Level(screen_size, tmx_data)}
 
@@ -77,7 +77,7 @@ class Level:
 
         # initialise level
         self.group = next((
-            layer for layer in self.map.layers.values()
+            layer for layer in self.map.layers
             if self.part_no is not None and isinstance(layer, TiledGroupLayer) and layer.name.endswith(f"_{self.part_no}")
         ), tiled_map)
 
@@ -91,7 +91,7 @@ class Level:
         del self.layers[:]
 
         layers: list[BaseTiledLayer] = [
-            layer for layer in self.group.layers.values()
+            layer for layer in self.group.layers
             if self.part_no is None or (isinstance(layer, TiledTileLayer) or isinstance(layer, TiledObjectGroup)) and layer.name.endswith(f"_{self.part_no}")
         ]
         self.background_layer: Optional[TiledTileLayer] = None
@@ -111,7 +111,7 @@ class Level:
                 self.over_layer = cast(TiledTileLayer, layer)
             elif layer.name.startswith("object"):
                 self.objects_layer = cast(TiledObjectGroup, layer)
-                self.objects = {o: o.rect for o in self.objects_layer.objects.values() if o.name != "player"}
+                self.objects = {o: o.rect for o in self.objects_layer.objects if o.name != "player"}
 
         if self.background_layer is not None:
             self.layers.append(self.background_layer)
@@ -120,7 +120,7 @@ class Level:
 
         if self.objects_layer is not None:
             self.layers.append(self.objects_layer)
-            self.player_object = next((o for o in self.objects_layer.objects.values() if o.name == "player"), None)
+            self.player_object = next((o for o in self.objects_layer.objects if o.name == "player"), None)
             if self.player_object is None:
                 raise ValueError("Missing player object")
 
@@ -137,39 +137,37 @@ class Level:
             self.layers.append(self.over_layer)
 
         self.on_collision_tiles_properties: dict[int, dict[str, Any]] = {}  # gid to tile properties where tile properties has 'on_collision' in
-        for tileset in self.map.tilesets.values():
-            for tile_id in tileset.tile_properties:
-                if "on_collision" in tileset.tile_properties[tile_id]:
-                    self.on_collision_tiles_properties[tile_id + tileset.firstgid] = tileset.tile_properties[tile_id]
+        for tile_id in self.map.tile_properties:
+            if "on_collision" in self.map.tile_properties[tile_id]:
+                self.on_collision_tiles_properties[tile_id] = self.map.tile_properties[tile_id]
 
     def _update_player_animation(self) -> None:
         up: list[tuple] = []
         down: list[tuple] = []
         left: list[tuple] = []
         right: list[tuple] = []
-        for tileset in self.map.tilesets.values():
-            for tile_id in tileset.tile_properties:
-                properties = tileset.tile_properties[tile_id]
-                gid = tile_id + tileset.firstgid
-                if "player" in properties:
-                    orientation_str = properties["player"]
-                    if orientation_str.startswith("left"):
-                        pos = int(orientation_str[5:]) if orientation_str.startswith("left,") else 0
+        for tile_id in self.map.tile_properties:
+            properties = self.map.tile_properties[tile_id]
+            gid = tile_id
+            if "player" in properties:
+                orientation_str = properties["player"]
+                if orientation_str.startswith("left"):
+                    pos = int(orientation_str[5:]) if orientation_str.startswith("left,") else 0
 
-                        left.append((pos, gid))
+                    left.append((pos, gid))
 
-                    elif orientation_str.startswith("right"):
-                        pos = int(orientation_str[6:]) if orientation_str.startswith("right,") else 0
+                elif orientation_str.startswith("right"):
+                    pos = int(orientation_str[6:]) if orientation_str.startswith("right,") else 0
 
-                        right.append((pos, gid))
-                    elif orientation_str.startswith("up,"):
-                        up.append((int(orientation_str[3:]), (gid, TileFlags(False, False, False))))
-                    elif orientation_str == "up":
-                        up.append((0, gid))
-                    elif orientation_str.startswith("down,"):
-                        down.append((int(orientation_str[5:]), (gid, TileFlags(False, False, False))))
-                    elif orientation_str == "down":
-                        down.append((0, gid))
+                    right.append((pos, gid))
+                elif orientation_str.startswith("up,"):
+                    up.append((int(orientation_str[3:]), (gid, TileFlags(False, False, False))))
+                elif orientation_str == "up":
+                    up.append((0, gid))
+                elif orientation_str.startswith("down,"):
+                    down.append((int(orientation_str[5:]), (gid, TileFlags(False, False, False))))
+                elif orientation_str == "down":
+                    down.append((0, gid))
 
         def sorter(t1: tuple) -> int:
             return t1[0]
@@ -226,7 +224,7 @@ class Level:
     def remove_object(self, obj: TiledObject) -> None:
         if obj in self.objects:
             del self.objects[obj]
-            del self.objects_layer.objects[obj.id]
+            del self.objects_layer.objects_id_map[obj.id]
 
     def objects_at_position(self, pos: tuple) -> list[TiledObject]:
         screen_pos = Rect(0, 0, 0, 0)
@@ -243,7 +241,7 @@ class Level:
         tile_height = self.tile_height
         for layer in self.layers:
             if isinstance(layer, TiledObjectGroup):
-                for obj in layer.objects.values():
+                for obj in layer.objects:
                     if obj.image and obj.visible:
                         surface.blit(obj.image, (obj.x + xo, obj.y + yo))
             else:
