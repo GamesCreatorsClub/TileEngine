@@ -252,9 +252,8 @@ class GameContext(ABC):
         return object_has_moved
 
     def animate(self, elapsed_ms: int) -> None:
-        for obj in self.level.objects:
-            if "on_animate" in obj.properties:
-                exec(obj.properties["on_animate"], self.closure, {"elapsed_ms": elapsed_ms, "this": obj})
+        for obj in self.level.on_animate_objects:
+            exec(obj.properties["on_animate"], self.closure, {"elapsed_ms": elapsed_ms, "this": obj})
 
     def on_tile_collision(self, tile, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
         try:

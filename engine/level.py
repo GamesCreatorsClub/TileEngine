@@ -9,7 +9,6 @@ from engine.collision_result import CollisionResult
 from engine.level_context import LevelContext
 from engine.player import Player, Orientation
 from engine.utils import clip
-# from engine.pytmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, TileFlags
 from engine.tmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, TileFlags, BaseTiledLayer
 
 offscreen_rendering = True
@@ -140,6 +139,10 @@ class Level:
         for tile_id in self.map.tile_properties:
             if "on_collision" in self.map.tile_properties[tile_id]:
                 self.on_collision_tiles_properties[tile_id] = self.map.tile_properties[tile_id]
+
+        self.on_animate_objects: list[TiledObject] = [
+            obj for obj in self.objects if "on_animate" in obj.properties
+        ]
 
     def _update_player_animation(self) -> None:
         up: list[tuple] = []
