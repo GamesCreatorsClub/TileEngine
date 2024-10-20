@@ -2,7 +2,6 @@ import importlib
 from abc import ABC, abstractmethod
 from typing import Optional, Union, cast, Callable
 
-import pygame
 from pygame import Rect, Surface
 from pygame.key import ScancodeWrapper
 
@@ -234,11 +233,10 @@ class GameContext(ABC):
             test_if_obj_is_player(object_has_moved)
             return object_has_moved
 
-        tiled_map = self.level.map
-        g, tile_rect = next(((g, r) for g, r in collided_result.collided_rects() if g in tiled_map.tile_properties and "on_collision" in tiled_map.tile_properties[g]), (0, None))
+        g, tile_rect = next(((g, r) for g, r in collided_result.collided_rects() if g in self.level.on_collision_tiles_properties), (0, None))
         if tile_rect:
             if tile_rect:
-                self.on_tile_collision(tiled_map.tile_properties[g], tile_rect, obj, next_rect)
+                self.on_tile_collision(self.level.on_collision_tiles_properties[g], tile_rect, obj, next_rect)
 
             if obj == self.player:
                 object_has_moved = self.player.move_to(next_rect.topleft)
@@ -256,7 +254,7 @@ class GameContext(ABC):
     def animate(self, elapsed_ms: int) -> None:
         for obj in self.level.objects:
             if "on_animate" in obj.properties:
-                exec(obj.properties["on_animate"], self.closure, {"elapsed_ms": elapsed_ms})
+                exec(obj.properties["on_animate"], self.closure, {"elapsed_ms": elapsed_ms, "this": obj})
 
     def on_tile_collision(self, tile, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
         try:
