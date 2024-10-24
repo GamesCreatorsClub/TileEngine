@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="47">
+<map version="1.11" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="47">
  <properties>
   <property name="level_context" value="game.G24ImpossibleLevelContext"/>
   <property name="viewport" value="220, 180, 604, 288"/>
@@ -67,7 +67,7 @@ else:
 context.move_object(obj, 0, 2)
 
 
-prevent_colliding()</property>
+prevent_move()</property>
    </properties>
   </object>
  </objectgroup>

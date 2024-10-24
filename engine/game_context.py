@@ -1,6 +1,6 @@
 import importlib
 from abc import ABC, abstractmethod
-from typing import Optional, Union, cast, Callable
+from typing import Optional, Union, cast, Callable, Any
 
 from pygame import Rect, Surface
 from pygame.key import ScancodeWrapper
@@ -20,9 +20,9 @@ from engine.pytmx import TiledObject
 PlayerOrObject = Union[Player, TiledObject]
 
 
-def in_context(function: Callable) -> Callable:
-    function.context_object = True
-    return function
+def in_context(target: Union[Callable]) -> Callable:
+    target.context_object = True
+    return target
 
 
 class GameContext(ABC):
@@ -44,7 +44,14 @@ class GameContext(ABC):
 
         self.current_level_context: Optional[LevelContext] = None
 
-        closure_objects = {name: getattr(self, name) for name in dir(GameContext) if hasattr(getattr(self, name), "context_object")}
+        closure_objects = {
+            name: getattr(self, name)
+            for name in dir(self)
+            if hasattr(
+                getattr(self, name),
+                "context_object"
+            )
+        }
         self.base_closure = {
             "Rect": Rect,
             "Player": Player,
@@ -75,6 +82,12 @@ class GameContext(ABC):
     def set_player_input_allowed(self, allowed) -> None:
         self.player_input_allowed = allowed
 
+    def calculate_closure(self, level: Level) -> dict[str, Any]:
+        return {
+            **self.base_closure,
+            **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
+        }
+
     def set_level(self, level: Level) -> None:
         self.level = level
 
@@ -91,10 +104,7 @@ class GameContext(ABC):
             class_ = getattr(module, class_name)
             level.level_context = class_(self)
 
-        self.closure = {
-            **self.base_closure,
-            **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
-        }
+        self.closure = self.calculate_closure(level)
 
         # Default resets
         self.player_input_allowed = True
@@ -298,7 +308,7 @@ class GameContext(ABC):
         self.allow_moving = False
 
     @in_context
-    def prevent_colliding(self) -> None:
+    def prevent_move(self) -> None:
         self.allow_colliding = False
 
     @in_context
@@ -365,5 +375,5 @@ class GameContext(ABC):
                 y = obj.rect.y + (obj.rect.height - who.rect.height) // 2
                 self.move_object(who, x, y, absolute=True)
                 print(f"Teleported to {x}, {y}")
-                self.prevent_colliding()
+                self.prevent_move()
                 return

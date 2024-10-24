@@ -1,3 +1,5 @@
+from typing import Callable, Optional
+
 import pygame
 from pygame import Surface
 
@@ -15,6 +17,8 @@ class Game:
 
         self.previous_keys = pygame.key.get_pressed()
         self.current_keys = pygame.key.get_pressed()
+        self.before_map: Optional[Callable[[Surface], None]] = None
+        self.after_map: Optional[Callable[[Surface], None]] = None
 
     def main_loop(self) -> None:
         leave = False
@@ -47,13 +51,10 @@ class Game:
 
             self.screen.fill((0, 0, 0))
 
+            if self.before_map: self.before_map(self.screen)
             self.game_context.draw(self.screen)
-
-            if self.game_context.mouse_pressed_pos:
-                pygame.draw.circle(self.screen, (200, 100, 0), self.game_context.mouse_pressed_pos, 10)
-
-            if self.debug:
-                self.debug.draw(self.screen)
+            if self.before_map: self.after_map(self.screen)
+            if self.debug: self.debug.draw(self.screen)
 
             pygame.display.flip()
             self.frameclock.tick(self.framerate)

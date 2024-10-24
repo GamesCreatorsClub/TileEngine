@@ -310,7 +310,7 @@ class TiledObject(TiledSubElement):
     }
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.gid: int = 0
+        self._gid: int = 0
         self.visible: bool = True
 
         self.rect = Rect(0, 0, 0, 0)
@@ -342,15 +342,26 @@ class TiledObject(TiledSubElement):
     @height.setter
     def height(self, v: float) -> None: self.rect.height = v
 
-    def _parse_xml(self, node: Element) -> None:
-        super()._parse_xml(node)
-        if self.gid > 0:
-            self.gid = self.map.register_raw_gid(self.gid)
+    @property
+    def gid(self) -> int:
+        return self._gid
 
-            if self.gid in self.map.tile_properties:
-                properties = self.map.tile_properties[self.gid]
+    @gid.setter
+    def gid(self, new_gid) -> None:
+        self.set_gid(new_gid)
+
+    def set_gid(self, gid: int) -> None:
+        if gid > 0:
+            gid = self.map.register_raw_gid(gid)
+
+            if gid in self.map.tile_properties:
+                properties = self.map.tile_properties[gid]
                 if properties is not None:
                     self.properties = properties | self.properties
+        self._gid = gid
+
+    def _parse_xml(self, node: Element) -> None:
+        super()._parse_xml(node)
 
         if self.map.invert_y and self.gid > 0:
             self.y -= self.height
@@ -391,6 +402,7 @@ class TiledTileset(TiledElement):
         self.firstgid = 0
         self.image: Optional[Surface] = None
         self.tile_properties: dict[int, dict[str, Any]] = {}
+        self.tiles_by_name: dict[str: int] = {}
 
         self.offset = (0, 0)
 
@@ -445,6 +457,8 @@ class TiledTileset(TiledElement):
             properties["colliders"] = objectgroup
         if len(properties) > 0:
             self.tile_properties[id_] = properties
+            if "name" in properties:
+                self.tiles_by_name[properties["name"]] = id_
 
     def _tileoffset(self, tileoffset_element: Element) -> None:
         self.offset = (int(tileoffset_element.get("x")), int(tileoffset_element.get("y")))
@@ -478,7 +492,8 @@ class TiledMap(TiledElement):
 
         self.layer_id_map: dict[int, BaseTiledLayer] = {}
         self.tilesets: list[TiledTileset] = []
-        self._tileset_properties: ChainMap[int, dict[str, Any]] = ChainMap()
+        self.tile_properties: ChainMap[int, dict[str, Any]] = ChainMap()
+        self.tiles_by_name: ChainMap[str, int] = ChainMap()
 
         self.version = "0.0"
         self.tiledversion = ""
@@ -504,16 +519,13 @@ class TiledMap(TiledElement):
     def layers(self) -> Iterable[BaseTiledLayer]:
         return self.layer_id_map.values()
 
-    @property
-    def tile_properties(self) -> ChainMap[int, dict[str, Any]]:
-        return self._tileset_properties
-
     def add_layer(self, layer: BaseTiledLayer) -> None:
         self.layer_id_map[layer.id] = layer
 
     def add_tileset(self, tileset: TiledTileset) -> None:
         self.tilesets.append(tileset)
-        self._tileset_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
+        self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
+        self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
 
         tilesets_maxgid = tileset.firstgid + tileset.tilecount
         self.maxgid = max(self.maxgid, tilesets_maxgid)
