@@ -128,13 +128,17 @@ TiledElementType = TypeVar('TiledElementType')
 class NodeType:
     def __init__(
             self,
-            factory_method: Optional[Callable[[TiledElementType, Element], None]] = None,
+            factory_method: Optional[
+                Union[
+                    Callable[[TiledElementType, Element], None],  # Correct type
+                    Callable[[Element], None]  # For incorrect type deduction in PyCharm
+                ]] = None,
             type_constructor: Optional[Union[Callable[[TiledElementType], Any], TiledElementType]] = None,
             destination: Optional[str] = None
     ) -> None:
-        self.factory_method: Optional[Callable[[TiledElementType, Element], None]] = factory_method
-        self.type_constructor: Optional[Union[Callable[[TiledElementType], Any], TiledElementType]] = type_constructor
-        self.destination: Optional[str] = destination
+        self.factory_method = factory_method
+        self.type_constructor = type_constructor
+        self.destination = destination
 
 
 class TileFlags(NamedTuple):
@@ -178,7 +182,7 @@ class TiledElement:
                     properties[name] = cls(subnode.get("value"))
         return properties
 
-    def _parse_xml_to_properties(self: TiledElementType, node: Element) -> None:
+    def _parse_xml_to_properties(self, node: Element) -> None:
         self.properties.update(self._parse_xml_properties(node))
 
     def _parse_xml(self, node: Element) -> None:
@@ -196,9 +200,9 @@ class TiledElement:
                 node_type = types[child_node.tag]
 
                 if node_type.factory_method:
-                    node_type.factory_method(self, child_node)
+                    cast(Callable[[TiledElement, Element], None], node_type.factory_method)(self, child_node)
                 elif node_type.type_constructor:
-                    obj = node_type.type_constructor(self)
+                    obj = cast(TiledElement, node_type.type_constructor(self))
                     obj._parse_xml(child_node)
                     if node_type.destination is not None:
                         if hasattr(self, node_type.destination):
@@ -308,6 +312,7 @@ class TiledObject(TiledSubElement):
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "ellipse": NodeType(None, None, None),
     }
+
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
         self._gid: int = 0
