@@ -1,5 +1,6 @@
 import importlib
 from abc import ABC, abstractmethod
+from itertools import chain
 from typing import Optional, Union, cast, Callable, Any
 
 from pygame import Rect, Surface
@@ -20,15 +21,17 @@ from engine.pytmx import TiledObject
 PlayerOrObject = Union[Player, TiledObject]
 
 
-def in_context(target: Union[Callable]) -> Callable:
-    target.context_object = True
+def in_context(target: Union[Callable, property]) -> Callable:
+    if isinstance(target, property):
+        target.fget.context_object = True
+    else:
+        target.context_object = True
     return target
 
 
 class GameContext(ABC):
-    closure_objects = {}
-
     def __init__(self, levels: dict[Union[str, int], Level]) -> None:
+        self._closure_objects_attribute_names = []
         self.visible_levels: dict[Level, LevelTransition] = {}
         self.player = Player()
         self.player_collision = CollisionResult()
@@ -44,25 +47,44 @@ class GameContext(ABC):
 
         self.current_level_context: Optional[LevelContext] = None
 
-        closure_objects = {
-            name: getattr(self, name)
-            for name in dir(self)
-            if hasattr(
-                getattr(self, name),
-                "context_object"
-            )
-        }
         self.base_closure = {
             "Rect": Rect,
             "Player": Player,
             "MoveViewport": MoveViewport,
             "context": self,
             "game": self,
-            "player": self.player,
-            **closure_objects
+            "player": self.player
         }
 
         self.closure = self.base_closure
+
+    def _add_attribute_name(self, name: str) -> None:
+        self._closure_objects_attribute_names.append(name)
+
+    def calculate_closure(self, level: Level) -> dict[str, Any]:
+        closure_objects = {
+            name: getattr(self, name)
+            for name in chain(dir(self), self._closure_objects_attribute_names)
+            if (name in self._closure_objects_attribute_names or
+                hasattr(
+                    getattr(self, name),
+                    "context_object"
+                ) or (
+                    hasattr(self, name)
+                    and isinstance(getattr(self, name), property)
+                    and hasattr(getattr(self, name).fget, "context_object")
+                ) or (
+                    hasattr(type(self), name)
+                    and isinstance(getattr(type(self), name), property)
+                    and hasattr(getattr(type(self), name).fget, "context_object")
+                )
+            )
+        }
+        return {
+            **self.base_closure,
+            **closure_objects,
+            **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
+        }
 
     @abstractmethod
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
@@ -81,12 +103,6 @@ class GameContext(ABC):
     @in_context
     def set_player_input_allowed(self, allowed) -> None:
         self.player_input_allowed = allowed
-
-    def calculate_closure(self, level: Level) -> dict[str, Any]:
-        return {
-            **self.base_closure,
-            **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
-        }
 
     def set_level(self, level: Level) -> None:
         self.level = level

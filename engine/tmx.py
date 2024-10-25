@@ -433,6 +433,9 @@ class TiledTileset(TiledElement):
     def load(self, filename: str) -> None:
         self._source = filename
 
+        filename = filename.replace("\\", "/")
+        filename = filename.replace("/", os.path.sep)
+
         full_filename = os.path.join(self._parent_dir, filename)
         self._parse_xml(ElementTree.parse(full_filename).getroot())
 

@@ -19,6 +19,9 @@ class Level:
     def load_levels(cls, screen_size: Rect, *filenames: Union[str, dict[str, str]], **named_filenames) -> dict[str, 'Level']:
         def load_file(name: str, filename: str) -> dict[str, 'Level']:
 
+            filename = filename.replace("\\", "/")
+            filename = filename.replace("/", os.path.sep)
+
             tmx_data = TiledMap()
             tmx_data.load(filename)
 
@@ -164,11 +167,11 @@ class Level:
 
                     right.append((pos, gid))
                 elif orientation_str.startswith("up,"):
-                    up.append((int(orientation_str[3:]), (gid, TileFlags(False, False, False))))
+                    up.append((int(orientation_str[3:]), gid))
                 elif orientation_str == "up":
                     up.append((0, gid))
                 elif orientation_str.startswith("down,"):
-                    down.append((int(orientation_str[5:]), (gid, TileFlags(False, False, False))))
+                    down.append((int(orientation_str[5:]), gid))
                 elif orientation_str == "down":
                     down.append((0, gid))
 
