@@ -245,6 +245,7 @@ class GameContext(ABC):
             for collided_object in obj_collisions:
                 if obj in collided_object.collisions:
                     collided_object.collisions.remove(obj)
+                    obj.collisions.remove(collided_object)
                 if "on_leave" in collided_object.properties:
                     self.on_leave(self.player, collided_object)
 

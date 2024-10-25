@@ -6,8 +6,8 @@ from pygame import Rect
 class CollisionResult:
 
     def __init__(self) -> None:
-        self.rects = [Rect(0, 0, 0, 0) for _ in range(9)]
-        self.gids = [0 for _ in range(9)]
+        self.rects = [Rect(0, 0, 0, 0) for _ in range(18)]
+        self.gids = [0 for _ in range(18)]
         self.total = 0
 
     def clear(self) -> None:

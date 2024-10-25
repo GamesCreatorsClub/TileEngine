@@ -284,6 +284,8 @@ class Level:
     def collect_collided(self, rect: Rect, collision_result: CollisionResult) -> 'CollisionResult':
         collision_result.total = 0
 
+        tiled_map = self.map
+        background_layer = self.background_layer
         main_layer = self.main_layer
         level_map = self.map
         t_w = level_map.tilewidth
@@ -302,12 +304,23 @@ class Level:
                     collision_result.rects[collision_result.total].update(t_x, t_y, t_w, t_h)
                     collision_result.gids[collision_result.total] = main_layer.data[t_row][t_col]
                     collision_result.total += 1
+
+                    background_gid = background_layer.data[t_row][t_col]
+                    if background_gid in tiled_map.tile_properties and "colliders" in tiled_map.tile_properties[background_gid]:
+                        colliders: list[TiledObject] = tiled_map.tile_properties[background_gid]["colliders"]
+                        collided_rect = next((r for r in map(lambda o: o.rect.move(t_x, t_y), colliders) if rect.colliderect(r)), None)
+                        if collided_rect is not None:
+                            collision_result.rects[collision_result.total].update(collided_rect)
+                            collision_result.gids[collision_result.total] = background_gid
+                            collision_result.total += 1
+
                     t_col += 1
                     t_x = t_col * t_w
                 t_col = start_col
                 t_row += 1
                 t_x = t_col * t_w
                 t_y = t_row * t_h
+
         except IndexError as e:
             raise IndexError(f"[{t_row}][{t_col}]", e)
 

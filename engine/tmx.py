@@ -462,7 +462,7 @@ class TiledTileset(TiledElement):
             objectgroup = TiledObjectGroup(self)
             objectgroup.parent_tile_id = id_
             objectgroup._parse_xml(obj_group_node)
-            properties["colliders"] = objectgroup
+            properties["colliders"] = objectgroup.objects
         if len(properties) > 0:
             self.tile_properties[id_] = properties
             if "name" in properties:
