@@ -53,7 +53,7 @@ class MoveViewport(LevelTransition):
 
             if self.level.invalidated:
                 self.level.invalidated = False
-                self.level.offscreen_surface.fill((0, 224, 0))
+                self.level.offscreen_surface.fill(self.level.background_colour)
                 self.level.render_to(self.level.offscreen_surface, -self.level.x_offset, -self.level.y_offset)
 
             surface.blit(self.level.offscreen_surface, self.level.viewport.topleft)

@@ -77,8 +77,7 @@ class GameContext(ABC):
                     hasattr(type(self), name)
                     and isinstance(getattr(type(self), name), property)
                     and hasattr(getattr(type(self), name).fget, "context_object")
-                )
-            )
+                ))
         }
         return {
             **self.base_closure,
@@ -222,10 +221,10 @@ class GameContext(ABC):
 
             obj_collisions = set(obj.collisions)
             for collision in collisions:
-                if collision != obj:
+                collided_object: TiledObject = cast(TiledObject, collision[0])
+                if collided_object.visible and collided_object != obj:
                     self.allow_colliding = True
                     self.allow_moving = True
-                    collided_object: TiledObject = cast(TiledObject, collision[0])
 
                     if collided_object in obj_collisions:
                         obj_collisions.remove(collided_object)
@@ -234,13 +233,15 @@ class GameContext(ABC):
                             self.on_enter(obj, collided_object)
                             object_has_moved = False if not self.allow_moving else object_has_moved
 
-                    if self.allow_colliding:
+                    if object_has_moved and self.allow_colliding:
                         collided_object.collisions.add(obj)
                         obj.collisions.add(collided_object)
 
                         if "on_collision" in collided_object.properties:
                             self.on_collision(obj, collided_object)
                             object_has_moved = False if not self.allow_moving else object_has_moved
+                    else:
+                        object_has_moved = False
 
             for collided_object in obj_collisions:
                 if obj in collided_object.collisions:
@@ -280,7 +281,8 @@ class GameContext(ABC):
 
     def animate(self, elapsed_ms: int) -> None:
         for obj in self.level.on_animate_objects:
-            exec(obj.properties["on_animate"], self.closure, {"elapsed_ms": elapsed_ms, "this": obj})
+            scriplet = obj.properties["on_animate"]
+            exec(scriplet, self.closure, {"elapsed_ms": elapsed_ms, "this": obj})
 
     def on_tile_collision(self, tile, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
         try:
@@ -325,7 +327,7 @@ class GameContext(ABC):
         self.allow_moving = False
 
     @in_context
-    def prevent_move(self) -> None:
+    def prevent_colliding(self) -> None:
         self.allow_colliding = False
 
     @in_context
@@ -392,5 +394,5 @@ class GameContext(ABC):
                 y = obj.rect.y + (obj.rect.height - who.rect.height) // 2
                 self.move_object(who, x, y, absolute=True)
                 print(f"Teleported to {x}, {y}")
-                self.prevent_move()
+                self.prevent_moving()
                 return

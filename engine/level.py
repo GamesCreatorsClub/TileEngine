@@ -58,6 +58,7 @@ class Level:
         self.viewport: Optional[Rect] = None
         self.x_offset = 0
         self.y_offset = 0
+        self.background_colour = (0, 224, 0) if tiled_map.backgroundcolor is None else tiled_map.backgroundcolor
 
         self.layers: list[Union[TiledTileLayer, TiledObjectGroup]] = []
         self.background_layer: Optional[TiledTileLayer] = None
@@ -237,7 +238,7 @@ class Level:
         res = []
         for obj in self.objects:
             screen_pos.update(obj.rect)
-            screen_pos.move(-self.x_offset, -self.y_offset)
+            screen_pos.move_ip(-self.x_offset, -self.y_offset)
             if screen_pos.collidepoint(pos[0], pos[1]):
                 res.append(obj)
         return res
@@ -259,7 +260,7 @@ class Level:
             if offscreen_rendering:
                 if self.invalidated:
                     self.invalidated = False
-                    self.offscreen_surface.fill((0, 224, 0))
+                    self.offscreen_surface.fill(self.background_colour)
                     self.render_to(self.offscreen_surface, -self.x_offset, -self.y_offset)
                 surface.blit(self.offscreen_surface, self.viewport.topleft)
             else:

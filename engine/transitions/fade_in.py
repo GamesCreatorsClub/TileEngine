@@ -15,7 +15,7 @@ class FadeIn(LevelTransition):
 
     def draw(self, surface: Surface) -> Optional[LevelTransition]:
         with clip(surface, self.level.viewport):
-            self.level.offscreen_surface.fill((0, 224, 0))
+            self.level.offscreen_surface.fill(self.level.background_colour)
             self.level.render_to(self.level.offscreen_surface, -self.level.x_offset, -self.level.y_offset)
             self.level.offscreen_surface.set_alpha(255 - self.countdown)
 

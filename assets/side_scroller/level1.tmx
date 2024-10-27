@@ -67,7 +67,7 @@ else:
 context.move_object(obj, 0, 2)
 
 
-prevent_move()</property>
+prevent_colliding()</property>
    </properties>
   </object>
  </objectgroup>

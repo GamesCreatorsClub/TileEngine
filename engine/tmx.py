@@ -154,6 +154,15 @@ class TiledElement:
         self.id = 0
         self.name = ""
 
+    def __getitem__(self, key: str) -> Any:
+        return self.properties[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.properties[key] = value
+
+    def __delitem(self, key: str) -> None:
+        del self.properties[key]
+
     # def __getattr__(self, item: str) -> Any:
     #     try:
     #         return self.properties[item]
@@ -404,7 +413,6 @@ class TiledTileset(TiledElement):
         self._source: str = ""
         self._parent_dir = os.path.dirname(cast(TiledMap, self.parent).filename)
 
-        self.firstgid = 0
         self.image: Optional[Surface] = None
         self.tile_properties: dict[int, dict[str, Any]] = {}
         self.tiles_by_name: dict[str: int] = {}
@@ -514,7 +522,7 @@ class TiledMap(TiledElement):
         self.hexsidelength = 0
         self.staggeraxis = None
         self.staggerindex = None
-        self.background_color = None
+        self._backgroundcolor: Optional[tuple[int, int, int]] = None
 
         self.nextobjectid = 0
         self.nextlayerid = 0
@@ -522,6 +530,16 @@ class TiledMap(TiledElement):
 
         self.infinite = False
         self.images: list[Surface] = []
+
+    @property
+    def backgroundcolor(self) -> Optional[tuple[int, int, int]]:
+        return self._backgroundcolor
+
+    @backgroundcolor.setter
+    def backgroundcolor(self, colour: str) -> None:
+        if not colour.startswith('#'):
+            raise ValueError(f"Unsupported value {colour}")
+        self._backgroundcolor = int(colour[1:3], 16), int(colour[3:5], 16), int(colour[5:7], 16)
 
     @property
     def layers(self) -> Iterable[BaseTiledLayer]:

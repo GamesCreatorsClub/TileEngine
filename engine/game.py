@@ -53,7 +53,7 @@ class Game:
 
             if self.before_map: self.before_map(self.screen)
             self.game_context.draw(self.screen)
-            if self.before_map: self.after_map(self.screen)
+            if self.after_map: self.after_map(self.screen)
             if self.debug: self.debug.draw(self.screen)
 
             pygame.display.flip()
