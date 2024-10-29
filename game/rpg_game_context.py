@@ -98,6 +98,22 @@ class RPGGameContext(TopDownGameContext):
             self.move_object(this, dx - new_dx, dy - new_dy, test_collisions)
 
     @in_context
+    def push_object(self, this: TiledObject, obj: TiledObject, test_collisions: bool = True) -> None:
+        dx = 0
+        dy = 0
+        if obj.rect.x < this.next_rect.x < obj.rect.right:
+            dx = this.next_rect.x - obj.rect.right
+        elif obj.rect.right > this.next_rect.right > obj.rect.x:
+            dx = this.next_rect.right - obj.rect.x
+
+        if obj.rect.y < this.next_rect.y < obj.rect.bottom:
+            dy = this.next_rect.y - obj.rect.bottom
+        elif obj.rect.bottom > this.next_rect.bottom > obj.rect.y:
+            dy = this.next_rect.bottom - obj.rect.y
+        self.move_object(obj, dx, dy, test_collisions)
+        self.prevent_moving()
+
+    @in_context
     def add_object_to_inventory(self, obj: TiledObject) -> None:
         self.remove_object(obj)
         k = obj.name
