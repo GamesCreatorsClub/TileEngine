@@ -5,7 +5,7 @@ from pygame import Rect
 
 from engine.collision_result import CollisionResult
 from engine.utils import int_tuple
-from engine.pytmx import TiledObject
+from engine.tmx import TiledObject
 
 
 class Orientation(enum.Enum):

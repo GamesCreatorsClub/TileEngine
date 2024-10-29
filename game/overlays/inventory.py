@@ -5,7 +5,7 @@ from pygame import Surface, Color, Rect
 from pygame.font import Font
 
 from engine.game_context import GameContext
-from engine.pytmx import TiledObject
+from engine.tmx import TiledObject
 from engine.utils import Size
 
 

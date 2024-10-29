@@ -15,7 +15,7 @@ from engine.transitions.level_transition import LevelTransition
 from engine.transitions.move_viewport import MoveViewport
 from engine.transitions.render_direct import RenderDirect
 from engine.utils import is_close, Size
-from engine.pytmx import TiledObject
+from engine.tmx import TiledObject
 
 
 PlayerOrObject = Union[Player, TiledObject]
