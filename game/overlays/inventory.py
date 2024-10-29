@@ -1,4 +1,4 @@
-from typing import Iterator, Mapping, Sized
+from typing import Iterator, Mapping, Sized, Any, Optional, Union
 
 import pygame
 from pygame import Surface, Color, Rect
@@ -6,9 +6,21 @@ from pygame.font import Font
 
 from engine.game_context import GameContext
 from engine.pytmx import TiledObject
+from engine.utils import Size
 
 
-class Inventory(Mapping[str, TiledObject], Sized):
+class InventoryObject:
+    def __init__(self, gid: int, properties: Optional[dict[str, Any]] = None, tiled_object: Optional[TiledObject] = None) -> None:
+        self.gid = gid
+        self.tiled_object: Optional[TiledObject] = tiled_object
+        self.properties: dict[str, Any] = {} if properties is None else properties
+
+    @classmethod
+    def from_obj(cls, tiled_object: TiledObject) -> 'InventoryObject':
+        return InventoryObject(tiled_object.gid, tiled_object.properties if len(tiled_object.properties) > 0 else None, tiled_object=tiled_object)
+
+
+class Inventory(Mapping[str, InventoryObject], Sized):
     def __init__(self,
                  game_context: GameContext,
                  small_font: Font,
@@ -19,16 +31,16 @@ class Inventory(Mapping[str, TiledObject], Sized):
         self.box_colour = box_colour
         self.box_colour_transparent = pygame.Color(box_colour.r, box_colour.g, box_colour.b, 128)
         self.font_color = font_color
-        self.dict: dict[str, list[TiledObject]] = {}
+        self.dict: dict[str, list[InventoryObject]] = {}
         self.entry_images: dict[str, Surface] = {}
         self._free_entry_images: list[Surface] = []
-        self.image_size: tuple[int, int] = (32, 32)
+        self.image_size: Size = Size(32, 32)
 
     def _init_image(self, image: Surface) -> None:
         image.fill(self.box_colour_transparent)
         pygame.draw.rect(image, self.box_colour, image.get_rect(), width=2)
 
-    def _stamp_object(self, image: Surface, obj: TiledObject) -> Surface:
+    def _stamp_object(self, image: Surface, obj: InventoryObject) -> Surface:
         tile = self.game_context.level.map.images[obj.gid]
         r = tile.get_rect().copy()
         r.center = image.get_rect().center
@@ -44,14 +56,9 @@ class Inventory(Mapping[str, TiledObject], Sized):
             self._init_image(image)
         return image
 
-    def set_size(self, size: tuple[int, int]) -> bool:
+    def set_size(self, size: Size) -> bool:
         changed = False
-        if not self.image_size or size[0] != self.image_size[0] or size[1] != self.image_size[1]:
-            # self._inventory_box = Surface((width, height), pygame.SRCALPHA, 32).convert_alpha()
-            # # self._inventory_box.set_alpha(128)
-            # self._inventory_box.fill(COLOUR_BROWN_TRANSPARENT)
-            # pygame.draw.rect(self._inventory_box, COLOUR_BROWN, self._inventory_box.get_rect().inflate(-2, -2), width=2)
-
+        if not self.image_size or size.width != self.image_size.width or size.height != self.image_size.height:
             del self._free_entry_images[:]
             changed = True
             self.image_size = size
@@ -62,10 +69,13 @@ class Inventory(Mapping[str, TiledObject], Sized):
             return len(self.dict[key])
         return 0
 
-    def __getitem__(self, key: str) -> TiledObject:
+    def __getitem__(self, key: str) -> InventoryObject:
         return self.dict[key][0]
 
-    def __setitem__(self, key: str, obj: TiledObject) -> None:
+    def __setitem__(self, key: str, obj: Union[TiledObject, InventoryObject]) -> None:
+        if isinstance(obj, TiledObject):
+            obj = InventoryObject.from_obj(obj)
+
         if key in self.dict:
             self.dict[key].append(obj)
             image = self.entry_images[key]
@@ -117,4 +127,4 @@ class Inventory(Mapping[str, TiledObject], Sized):
         rect = place.copy()
         for key in self:
             screen.blit(self.entry_images[key], rect)
-            rect.y += self.image_size[1]
+            rect.y += self.image_size.height

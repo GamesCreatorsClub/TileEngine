@@ -45,7 +45,7 @@ class RPGGameContext(TopDownGameContext):
         width = max(tiled_map.images[gid].get_rect().width + 1 for gid in range(tiled_map.maxgid) if tiled_map.images[gid]) + 8
         height = max(tiled_map.images[gid].get_rect().width + 1 for gid in range(tiled_map.maxgid) if tiled_map.images[gid]) + 8
 
-        self._inventory.set_size((width, height))
+        self._inventory.set_size(Size(width, height))
 
     @property
     @in_context
