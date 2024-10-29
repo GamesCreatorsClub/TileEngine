@@ -13,7 +13,7 @@ class RenderDirect(LevelTransition):
 
     def draw(self, surface: Surface) -> Optional[LevelTransition]:
         with clip(surface, self.level.viewport):
-            if self.level.invalidated:
+            if self.level.always or self.level.invalidated:
                 self.level.invalidated = False
                 self.level.offscreen_surface.fill(self.level.background_colour)
                 self.level.render_to(self.level.offscreen_surface, -self.level.x_offset, -self.level.y_offset)

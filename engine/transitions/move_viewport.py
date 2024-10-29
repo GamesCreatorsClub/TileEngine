@@ -51,7 +51,7 @@ class MoveViewport(LevelTransition):
             #     self.level.invalidated = True
             #     self.level.offscreen_surface = Surface(self.level.viewport.size, pygame.HWSURFACE).convert_alpha()
 
-            if self.level.invalidated:
+            if self.level.always or self.level.invalidated:
                 self.level.invalidated = False
                 self.level.offscreen_surface.fill(self.level.background_colour)
                 self.level.render_to(self.level.offscreen_surface, -self.level.x_offset, -self.level.y_offset)

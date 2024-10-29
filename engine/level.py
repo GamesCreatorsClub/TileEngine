@@ -74,6 +74,7 @@ class Level:
         self.player_right_animation: list[int] = []
 
         self.invalidated = True
+        self.always = True
 
         self.level_context_class_str = tiled_map.properties["level_context"] if "level_context" in tiled_map.properties else None
         self.level_context: Optional[LevelContext] = None
@@ -258,7 +259,7 @@ class Level:
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.viewport) as clip_rect:
             if offscreen_rendering:
-                if self.invalidated:
+                if self.always or self.invalidated:
                     self.invalidated = False
                     self.offscreen_surface.fill(self.background_colour)
                     self.render_to(self.offscreen_surface, -self.x_offset, -self.y_offset)

@@ -110,6 +110,13 @@ class RPGGameContext(TopDownGameContext):
             dy = this.next_rect.y - obj.rect.bottom
         elif obj.rect.bottom > this.next_rect.bottom > obj.rect.y:
             dy = this.next_rect.bottom - obj.rect.y
+
+        if abs(dx) > 0 and abs(dy) > 0:
+            if abs(dx) < abs(dy):
+                dy = 0
+            else:
+                dx = 0
+
         self.move_object(obj, dx, dy, test_collisions)
         self.prevent_moving()
 

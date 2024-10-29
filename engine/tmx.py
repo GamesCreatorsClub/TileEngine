@@ -2,10 +2,11 @@ import gzip
 import logging
 import os
 import struct
+import time
 import zlib
 from abc import ABC
 from base64 import b64decode
-from collections import defaultdict, ChainMap
+from collections import defaultdict, ChainMap, namedtuple
 from copy import deepcopy
 from typing import Any, Optional, Callable, NamedTuple, Union, TypeVar, Iterable, cast
 from xml.etree import ElementTree
@@ -23,6 +24,8 @@ GID_TRANS_FLIP_HORIZONTALLY = 1 << 31
 GID_TRANS_FLIP_VERTICALLY = 1 << 30
 GID_TRANS_ROTATE = 1 << 29
 GID_MASK = GID_TRANS_FLIP_HORIZONTALLY | GID_TRANS_FLIP_VERTICALLY | GID_TRANS_ROTATE
+
+TiledTileAnimation = namedtuple('TiledTileAnimation', ["tileid", "duration"])
 
 
 class TiledClassType:
@@ -192,7 +195,11 @@ class TiledElement:
         return properties
 
     def _parse_xml_to_properties(self, node: Element) -> None:
-        self.properties.update(self._parse_xml_properties(node))
+        properties = self._parse_xml_properties(node)
+        self.properties.update(properties)
+        for key in properties:
+            if hasattr(self, key):
+                setattr(self, key, properties[key])
 
     def _parse_xml(self, node: Element) -> None:
         for key, value in node.items():
@@ -224,7 +231,7 @@ class TiledElement:
                             elif isinstance(destination, Callable):
                                 destination(obj)
                             else:
-                                setattr(self, destination, obj)
+                                setattr(self, node_type.destination, obj)
                         else:
                             raise KeyError(f"Cannot set {child_node.tag} on {self}")
                 else:
@@ -294,16 +301,26 @@ class TiledTileLayer(BaseTiledLayer):
             for x, gid in enumerate(row):
                 yield x, y, gid
 
-    def tiles(self):
+    def tiles(self, current_time: Optional[float] = None):
         """Yields X, Y, Image tuples for each tile in the layer.
 
         Yields:
             ???: Iterator of X, Y, Image tuples for each tile in the layer
 
         """
+        current_time = current_time if current_time is not None else time.time()
+        time_ms = int(current_time * 1000)
+
         images = self.map.images
-        for x, y, gid in [i for i in self.iter_data() if i[2]]:
-            yield x, y, images[gid]
+
+        if self.map.animate_layers:
+            for x, y, gid in [i for i in self.iter_data() if i[2]]:
+                if gid in self.map.tile_animations:
+                    gid = self.map.tile_animations[gid].get_gid(time_ms)
+                yield x, y, images[gid]
+        else:
+            for x, y, gid in [i for i in self.iter_data() if i[2]]:
+                yield x, y, images[gid]
 
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "data": NodeType(_parse_xml_data, None, None),
@@ -382,8 +399,12 @@ class TiledObject(TiledSubElement):
 
     @property
     def image(self):
-        if self.gid:
-            return self.map.images[self.gid]
+        gid = self.gid
+        if gid:
+            if gid in self.map.tile_animations:
+                time_ms = int(time.time() * 1000)
+                gid = self.map.tile_animations[gid].get_gid(time_ms)
+            return self.map.images[gid]
         return None
 
 
@@ -413,6 +434,70 @@ class TiledTerrain(TiledElement):
         self.tile = -1
 
 
+class TiledWangTile(TiledElement):
+    def __init__(self, parent: TiledElement) -> None:
+        super().__init__(parent)
+        self.wangid = ""
+
+    @property
+    def tileid(self) -> int:
+        return self.id
+
+    @tileid.setter
+    def tileid(self, id_: Union[str, int]) -> None:
+        if isinstance(id_, str):
+            id_ = int(id_)
+        self.id = id_
+
+
+class TiledWangColor(TiledElement):
+    def __init__(self, parent: TiledElement) -> None:
+        super().__init__(parent)
+        self.color = ""
+        self.tile = -1
+        self.probability = 1
+
+
+class TiledWangSet(TiledElement):
+    def __init__(self, parent: TiledElement) -> None:
+        super().__init__(parent)
+        self.wangcolors: list[TiledWangColor] = []
+        self.wangtiles: list[TiledWangTile] = []
+
+    NODE_TYPES = TiledElement.NODE_TYPES | {
+        "wangtile": NodeType(None, TiledWangTile, "wangtiles"),
+        "wangcolor": NodeType(None, TiledWangColor, "wangcolors")
+    }
+
+
+class TiledWangSets(TiledElement):
+    def __init__(self, parent: TiledElement) -> None:
+        super().__init__(parent)
+        self.wangset_by_name: dict[str, TiledWangSet] = {}
+
+    NODE_TYPES = TiledElement.NODE_TYPES | {
+        "wangset": NodeType(None, TiledWangSet, "wangset_by_name")
+    }
+
+
+class TiledTileAnimations:
+    def __init__(self) -> None:
+        self.frames: list[TiledTileAnimation] = []
+        self.total_animation_len = 0
+
+    def add_frame(self, frame: TiledTileAnimation) -> None:
+        self.frames.append(frame)
+        self.total_animation_len += frame.duration
+
+    def get_gid(self, time_ms: int) -> int:
+        r = time_ms % self.total_animation_len
+        for frame in self.frames:
+            r -= frame.duration
+            if r <= 0:
+                return frame.tileid
+        return self.frames[-1].tileid
+
+
 class TiledTileset(TiledElement):
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
@@ -424,6 +509,8 @@ class TiledTileset(TiledElement):
         self.tile_terrain: dict[int, str] = {}
         self.tiles_by_name: dict[str: int] = {}
         self.terrain: list[TiledTerrain] = []
+        self.wangsets: Optional[TiledWangSets] = None
+        self.tile_animations: dict[int, TiledTileAnimations] = {}
 
         self.offset = (0, 0)
 
@@ -486,6 +573,14 @@ class TiledTileset(TiledElement):
             self.tile_properties[id_] = properties
             if "name" in properties:
                 self.tiles_by_name[properties["name"]] = id_
+        animation_node = tile_element.find("animation")
+        if animation_node:
+            animations = TiledTileAnimations()
+            self.tile_animations[id_] = animations
+            for frame_node in animation_node.findall("frame"):
+                frame_tileid = int(frame_node.get("tileid")) + self.firstgid
+                duration = int(frame_node.get("duration"))
+                animations.add_frame(TiledTileAnimation(frame_tileid, duration))
 
     def _tileoffset(self, tileoffset_element: Element) -> None:
         self.offset = (int(tileoffset_element.get("x")), int(tileoffset_element.get("y")))
@@ -507,7 +602,7 @@ class TiledTileset(TiledElement):
         "image": NodeType(_load_image, None, None),
         "tile": NodeType(_tile, None, None),
         "tileoffset": NodeType(_tileoffset, None, None),
-        "wangsets": NodeType(None, None, None),
+        "wangsets": NodeType(None, TiledWangSets, "wangsets"),
         "terraintypes": NodeType(_add_terrain_types, None, None),
     }
 
@@ -524,11 +619,13 @@ class TiledMap(TiledElement):
         self.filename: Optional[str] = None
 
         self.invert_y = invert_y
+        self.animate_layers = False
 
         self.layer_id_map: dict[int, BaseTiledLayer] = {}
         self.tilesets: list[TiledTileset] = []
         self.tile_properties: ChainMap[int, dict[str, Any]] = ChainMap()
         self.tiles_by_name: ChainMap[str, int] = ChainMap()
+        self.tile_animations: ChainMap[int, TiledTileAnimations] = ChainMap()
 
         self.version = "0.0"
         self.tiledversion = ""
@@ -571,6 +668,7 @@ class TiledMap(TiledElement):
         self.tilesets.append(tileset)
         self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
+        self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
 
         tilesets_maxgid = tileset.firstgid + tileset.tilecount
         self.maxgid = max(self.maxgid, tilesets_maxgid)
