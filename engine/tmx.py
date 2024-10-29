@@ -407,6 +407,12 @@ class TiledObjectGroup(TiledSubElement):
     }
 
 
+class TiledTerrain(TiledElement):
+    def __init__(self, parent: TiledElement) -> None:
+        super().__init__(parent)
+        self.tile = -1
+
+
 class TiledTileset(TiledElement):
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
@@ -415,7 +421,9 @@ class TiledTileset(TiledElement):
 
         self.image: Optional[Surface] = None
         self.tile_properties: dict[int, dict[str, Any]] = {}
+        self.tile_terrain: dict[int, str] = {}
         self.tiles_by_name: dict[str: int] = {}
+        self.terrain: list[TiledTerrain] = []
 
         self.offset = (0, 0)
 
@@ -462,6 +470,9 @@ class TiledTileset(TiledElement):
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
+        terrain = tile_element.get("terrain")
+        if terrain is not None:
+            self.tile_terrain[id_] = terrain
         properties: dict[str, Any] = {}
         properties_node = tile_element.find("properties")
         if properties_node:
@@ -479,6 +490,13 @@ class TiledTileset(TiledElement):
     def _tileoffset(self, tileoffset_element: Element) -> None:
         self.offset = (int(tileoffset_element.get("x")), int(tileoffset_element.get("y")))
 
+    def _add_terrain_types(self, terrain_types_element: Element) -> None:
+        for terrain_node in terrain_types_element.findall("terrain"):
+            terrain = TiledTerrain(self)
+            terrain.name = terrain_node.get("name")
+            terrain.tile = terrain_node.get("tile")
+            self.terrain.append(terrain)
+
     def get_image(self, gid) -> Surface:
         gid = gid - self.firstgid
         y = (gid // self.columns)
@@ -489,7 +507,8 @@ class TiledTileset(TiledElement):
         "image": NodeType(_load_image, None, None),
         "tile": NodeType(_tile, None, None),
         "tileoffset": NodeType(_tileoffset, None, None),
-        "wangsets": NodeType(None, None, None)
+        "wangsets": NodeType(None, None, None),
+        "terraintypes": NodeType(_add_terrain_types, None, None),
     }
 
 
