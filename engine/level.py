@@ -274,8 +274,16 @@ class Level:
             if offset + 2 * screen_half > map_width: offset = map_width - 2 * screen_half
             return offset
 
-        xo = place(self.viewport.width // 2, player_rect.x, self.map_rect.width)
-        yo = place(self.viewport.height // 2, player_rect.y, self.map_rect.height)
+        if self.map_rect.width < self.viewport.width:
+            xo = -(self.viewport.width - self.map_rect.width) // 2
+        else:
+            xo = place(self.viewport.width // 2, player_rect.x, self.map_rect.width)
+
+        if self.map_rect.height < self.viewport.height:
+            yo = -(self.viewport.height - self.map_rect.height) // 2
+        else:
+            yo = place(self.viewport.height // 2, player_rect.y, self.map_rect.height)
+
         if xo != self.x_offset or yo != self.y_offset:
             self.invalidated = True
 
@@ -300,8 +308,8 @@ class Level:
         t_y = t_row * t_h
 
         try:
-            while t_y + t_h >= rect.y and t_y < rect.bottom:
-                while t_x + t_w > rect.x and t_x < rect.right:
+            while t_y + t_h >= rect.y and t_y < rect.bottom and t_row < self.map.height:
+                while t_x + t_w > rect.x and t_x < rect.right and t_col < self.map.width:
                     collision_result.rects[collision_result.total].update(t_x, t_y, t_w, t_h)
                     collision_result.gids[collision_result.total] = main_layer.data[t_row][t_col]
                     collision_result.total += 1

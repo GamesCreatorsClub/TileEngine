@@ -14,7 +14,7 @@ from engine.transitions.fade_in import FadeIn
 from engine.transitions.level_transition import LevelTransition
 from engine.transitions.move_viewport import MoveViewport
 from engine.transitions.render_direct import RenderDirect
-from engine.utils import is_close
+from engine.utils import is_close, Size
 from engine.pytmx import TiledObject
 
 
@@ -57,6 +57,21 @@ class GameContext(ABC):
         }
 
         self.closure = self.base_closure
+        self._screen_size: Optional[Size] = None
+
+    @property
+    def screen_size(self) -> Optional[Size]:
+        return self._screen_size
+
+    def _set_screen_size(self, size: Size) -> None:
+        self._screen_size = size
+
+    @screen_size.setter
+    def screen_size(self, size: Union[Size, tuple[int, int]]) -> None:
+        if isinstance(size, Size):
+            self._set_screen_size(size)
+        else:
+            self._set_screen_size(Size(size[0], size[1]))
 
     def _add_attribute_name(self, name: str) -> None:
         self._closure_objects_attribute_names.append(name)

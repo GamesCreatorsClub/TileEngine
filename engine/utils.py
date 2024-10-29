@@ -1,7 +1,12 @@
+from collections import namedtuple
 from contextlib import contextmanager
 from typing import Generator, Union
 
 from pygame import Rect, Surface
+
+
+Position = namedtuple("Position", ["x", "y"])
+Size = namedtuple("Size", ["width", "height"])
 
 
 @contextmanager
