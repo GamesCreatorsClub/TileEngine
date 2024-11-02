@@ -39,18 +39,12 @@ class MoveViewport(LevelTransition):
         new_width = sw + (ew - sw) * f
         new_height = sh + (eh - sh) * f
 
-        # resized = self.level.viewport.width != new_width or self.level.viewport.height != new_height
-
         self.level.viewport.x = sx + (ex - sx) * f
         self.level.viewport.y = sy + (ey - sy) * f
         self.level.viewport.width = new_width
         self.level.viewport.height = new_height
 
         with clip(surface, self.level.viewport):
-            # if resized:
-            #     self.level.invalidated = True
-            #     self.level.offscreen_surface = Surface(self.level.viewport.size, pygame.HWSURFACE).convert_alpha()
-
             if self.level.always or self.level.invalidated:
                 self.level.invalidated = False
                 self.level.offscreen_surface.fill(self.level.background_colour)

@@ -15,12 +15,14 @@ class TopDownGameContext(GameContext):
         if self.player_input_allowed:
             player = self.player
             player_moved_horizontally = False
-            if current_keys[pygame.K_LEFT] and current_keys[pygame.K_RIGHT]:
+            left = current_keys[pygame.K_LEFT] or current_keys[pygame.K_a]
+            right = current_keys[pygame.K_RIGHT] or current_keys[pygame.K_d]
+            if left and right:
                 player.vx = 0
-            elif current_keys[pygame.K_LEFT]:
+            elif left:
                 self.player.turn_left()
                 player.vx = -player.player_speed
-            elif current_keys[pygame.K_RIGHT]:
+            elif right:
                 self.player.turn_right()
                 player.vx = player.player_speed
             else:
@@ -30,12 +32,14 @@ class TopDownGameContext(GameContext):
                 player_moved_horizontally = self.move_object(player, player.vx, 0, test_collisions=True)
 
             player_moved_vertically = False
-            if current_keys[pygame.K_UP] and current_keys[pygame.K_DOWN]:
+            up = current_keys[pygame.K_UP] or current_keys[pygame.K_w]
+            down = current_keys[pygame.K_DOWN] or current_keys[pygame.K_s]
+            if up and down:
                 player.vy = 0
-            elif current_keys[pygame.K_UP]:
+            elif up:
                 self.player.turn_up()
                 player.vy = -player.player_speed
-            elif current_keys[pygame.K_DOWN]:
+            elif down:
                 self.player.turn_down()
                 player.vy = player.player_speed
             else:

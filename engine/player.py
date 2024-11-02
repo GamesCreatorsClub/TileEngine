@@ -1,11 +1,9 @@
 import enum
 from typing import Optional, Union
 
-from pygame import Rect
-
 from engine.collision_result import CollisionResult
 from engine.utils import int_tuple
-from engine.tmx import TiledObject
+from engine.tmx import TiledObject, TiledElement
 
 
 class Orientation(enum.Enum):
@@ -15,14 +13,15 @@ class Orientation(enum.Enum):
     DOWN = enum.auto()
 
 
-class Player:
+class Player(TiledObject):
     def __init__(self) -> None:
+        super().__init__(None)
+        self.name = "player"
+
         self.coins = 0
 
-        self.next_rect = Rect(0, 0, 0, 0)
         self.collision_result = CollisionResult()
         self.orientation = Orientation.LEFT
-        self._object: Optional[TiledObject] = None
         self.left_animation: list[int] = []
         self.right_animation: list[int] = []
         self.up_animation: list[int] = []
@@ -48,15 +47,21 @@ class Player:
 
     @property
     def tiled_object(self) -> TiledObject:
-        return self._object
+        return self
 
     @tiled_object.setter
     def tiled_object(self, obj: TiledObject) -> None:
-        self._object = obj
-        self.next_rect.update(obj.rect)
-
-    @property
-    def rect(self) -> Rect: return self._object.rect
+        self.rect = obj.rect
+        self.properties.update(obj.properties)
+        self.rect.update(obj.rect)
+        self.next_rect.update(obj.next_rect)
+        self.collisions.clear()
+        self.collisions.update(obj.collisions)
+        self.collision_result.clear()
+        self.map = obj.map
+        for key in self.properties:
+            if hasattr(self, key):
+                setattr(self, key, self.properties[key])
 
     def move_to(self, pos: tuple[Union[int, float], Union[int, float]]) -> bool:
         rect = self.rect
@@ -83,33 +88,33 @@ class Player:
 
         animation_list = self.animations[self.orientation]
 
-        self._object.gid = animation_list[stage]
+        self.gid = animation_list[stage]
 
     def stop_walk(self) -> None:
         self.animation_tick = 0
         animation_list = self.animations[self.orientation]
-        self._object.gid = animation_list[0]
+        self.gid = animation_list[0]
 
     def turn_left(self) -> None:
         if self.orientation != Orientation.LEFT:
             self.orientation = Orientation.LEFT
-            self._object.gid = self.left_animation[0]
+            self.gid = self.left_animation[0]
             self.animation_tick = 0
 
     def turn_right(self) -> None:
         if self.orientation != Orientation.RIGHT:
             self.orientation = Orientation.RIGHT
-            self._object.gid = self.right_animation[0]
+            self.gid = self.right_animation[0]
             self.animation_tick = 0
 
     def turn_up(self) -> None:
         if self.orientation != Orientation.UP:
             self.orientation = Orientation.UP
-            self._object.gid = self.up_animation[0]
+            self.gid = self.up_animation[0]
             self.animation_tick = 0
 
     def turn_down(self) -> None:
         if self.orientation != Orientation.DOWN:
             self.orientation = Orientation.DOWN
-            self._object.gid = self.down_animation[0]
+            self.gid = self.down_animation[0]
             self.animation_tick = 0

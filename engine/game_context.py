@@ -1,4 +1,5 @@
 import importlib
+import math
 from abc import ABC, abstractmethod
 from itertools import chain
 from typing import Optional, Union, cast, Callable, Any
@@ -34,7 +35,6 @@ class GameContext(ABC):
         self._closure_objects_attribute_names = []
         self.visible_levels: dict[Level, LevelTransition] = {}
         self.player = Player()
-        self.player_collision = CollisionResult()
         self.level_no = 1
         self.level: Optional[Level] = None
         self.currently_colliding_object = None
@@ -53,7 +53,8 @@ class GameContext(ABC):
             "MoveViewport": MoveViewport,
             "context": self,
             "game": self,
-            "player": self.player
+            "player": self.player,
+            "math": math
         }
 
         self.closure = self.base_closure
@@ -72,6 +73,12 @@ class GameContext(ABC):
             self._set_screen_size(size)
         else:
             self._set_screen_size(Size(size[0], size[1]))
+
+    def _execute_script(self, script: str, locals: dict[str, Any]) -> None:
+        try:
+            exec(script, self.closure, locals)
+        except Exception as e:
+            raise Exception(f"Couldn't execute script, got error {e}\n{script}", e)
 
     def _add_attribute_name(self, name: str) -> None:
         self._closure_objects_attribute_names.append(name)
@@ -109,7 +116,7 @@ class GameContext(ABC):
         objs = self.level.objects_at_position(pos)
         for obj in objs:
             if "on_click" in obj.properties:
-                exec(obj.properties["on_click"], self.closure, {"pos": pos})
+                self._execute_script(obj.properties["on_click"], {"obj": obj, "pos": pos})
 
     def process_mouse_up(self, _pos: tuple) -> None:
         self.mouse_pressed_pos = None
@@ -140,7 +147,11 @@ class GameContext(ABC):
         self.player_input_allowed = True
 
         if "on_show" in level.map.properties:
-            exec(level.map.properties["on_show"], self.closure, {"level": level})
+            self._execute_script(level.map.properties["on_show"], {"level": level})
+
+        for obj in self.level.objects:
+            if "on_create" in obj.properties:
+                self._execute_script(obj.properties["on_create"], {"obj": obj})
 
     def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None, activate: bool = False) -> None:
         if level not in self.visible_levels:
@@ -247,6 +258,12 @@ class GameContext(ABC):
                         if "on_enter" in collided_object.properties:
                             self.on_enter(obj, collided_object)
                             object_has_moved = False if not self.allow_moving else object_has_moved
+                        elif collided_object.pushable:
+                            self.push_object(obj, collided_object)
+                            object_has_moved = False if not self.allow_moving else object_has_moved
+                        elif collided_object.solid:
+                            self.prevent_moving()
+                            object_has_moved = False if not self.allow_moving else object_has_moved
 
                     if object_has_moved and self.allow_colliding:
                         collided_object.collisions.add(obj)
@@ -297,12 +314,12 @@ class GameContext(ABC):
     def animate(self, elapsed_ms: int) -> None:
         for obj in self.level.on_animate_objects:
             scriplet = obj.properties["on_animate"]
-            exec(scriplet, self.closure, {"elapsed_ms": elapsed_ms, "this": obj})
+            self._execute_script(scriplet, {"elapsed_ms": elapsed_ms, "this": obj, "obj": obj})
 
     def on_tile_collision(self, tile, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
         try:
             scriptlet = tile["on_collision"]
-            exec(scriptlet, self.closure, {"obj": obj, "next_rect": next_rect, "tile": tile, "tile_rect": tile_rect})
+            self._execute_script(scriptlet, {"obj": obj, "next_rect": next_rect, "tile": tile, "tile_rect": tile_rect})
         finally:
             self.currently_colliding_object = None
 
@@ -313,7 +330,7 @@ class GameContext(ABC):
 
         try:
             scriptlet = obj.properties["on_collision"]
-            exec(scriptlet, self.closure, {"this": this, "obj": obj})
+            self._execute_script(scriptlet, {"this": this, "obj": obj})
         finally:
             self.currently_colliding_object = None
 
@@ -325,7 +342,7 @@ class GameContext(ABC):
 
         try:
             scriptlet = obj.properties["on_enter"]
-            exec(scriptlet, self.closure, {"this": this, "obj": obj})
+            self._execute_script(scriptlet, {"this": this, "obj": obj})
         finally:
             self.currently_colliding_object = None
 
@@ -333,9 +350,14 @@ class GameContext(ABC):
         self.currently_colliding_object = obj
         try:
             scriptlet = obj.properties["on_leave"]
-            return exec(scriptlet, self.closure, {"this": this, "obj": obj})
+            self._execute_script(scriptlet, {"this": this, "obj": obj})
         finally:
             self.currently_colliding_object = None
+
+    def _undo_collisions(self, obj: Union[Player, TiledObject]) -> None:
+        for collided_obj in obj.collisions:
+            del collided_obj.collisions[collided_obj.index[self.player]]
+        obj.collisions.clear()
 
     @in_context
     def prevent_moving(self) -> None:
@@ -385,6 +407,7 @@ class GameContext(ABC):
 
     @in_context
     def next_level(self) -> None:
+        self._undo_collisions(self.player)
         self.level.player_object.visible = False
         self.level.invalidated = True
 
@@ -411,3 +434,26 @@ class GameContext(ABC):
                 print(f"Teleported to {x}, {y}")
                 self.prevent_moving()
                 return
+
+    @in_context
+    def push_object(self, this: TiledObject, obj: TiledObject, test_collisions: bool = True) -> None:
+        dx = 0
+        dy = 0
+        if obj.rect.x < this.next_rect.x < obj.rect.right:
+            dx = this.next_rect.x - obj.rect.right
+        elif obj.rect.right > this.next_rect.right > obj.rect.x:
+            dx = this.next_rect.right - obj.rect.x
+
+        if obj.rect.y < this.next_rect.y < obj.rect.bottom:
+            dy = this.next_rect.y - obj.rect.bottom
+        elif obj.rect.bottom > this.next_rect.bottom > obj.rect.y:
+            dy = this.next_rect.bottom - obj.rect.y
+
+        if abs(dx) > 0 and abs(dy) > 0:
+            if abs(dx) < abs(dy):
+                dy = 0
+            else:
+                dx = 0
+
+        self.move_object(obj, dx, dy, test_collisions)
+        self.prevent_moving()

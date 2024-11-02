@@ -245,16 +245,13 @@ class Level:
         return res
 
     def render_to(self, surface: Surface, xo: int, yo: int) -> None:
-        tile_width = self.tile_width
-        tile_height = self.tile_height
         for layer in self.layers:
             if isinstance(layer, TiledObjectGroup):
                 for obj in layer.objects:
                     if obj.image and obj.visible:
                         surface.blit(obj.image, (obj.x + xo, obj.y + yo))
             else:
-                for x, y, image in layer.tiles():
-                    surface.blit(image, (x * tile_width + xo, y * tile_height + yo))
+                layer.draw(surface, self.viewport, xo, yo)
 
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.viewport) as clip_rect:

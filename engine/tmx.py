@@ -246,11 +246,12 @@ class TiledSubElement(TiledElement):
     def __init__(self, parent: Optional['TiledElement'] = None) -> None:
         super().__init__(parent)
 
-        tiled_map = parent
-        while not isinstance(tiled_map, TiledMap):
-            tiled_map = tiled_map.parent
+        if parent:
+            tiled_map = parent
+            while not isinstance(tiled_map, TiledMap):
+                tiled_map = tiled_map.parent
 
-        self.map: TiledMap = tiled_map
+            self.map: Optional[TiledMap] = tiled_map
 
 
 class BaseTiledLayer(TiledSubElement, ABC):
@@ -322,6 +323,30 @@ class TiledTileLayer(BaseTiledLayer):
             for x, y, gid in [i for i in self.iter_data() if i[2]]:
                 yield x, y, images[gid]
 
+    def draw(self, surface: Surface, viewport: Rect, xo: int, yo: int) -> None:
+        images = self.map.images
+        width = self.map.width
+        height = self.map.height
+        tilewidth = self.map.tilewidth
+        tileheight = self.map.tileheight
+
+        dy = -yo // tileheight
+        oy = yo % tileheight if yo >= 0 else -(-yo % tileheight)
+
+        start_dx = -xo // tilewidth
+        ox = xo % tilewidth if xo >= 0 else -(-xo % tilewidth)
+
+        for y in range(viewport.y + oy, viewport.bottom + tileheight, tileheight):
+            if 0 <= dy < height:
+                dx = start_dx
+                for x in range(viewport.x + ox, viewport.right + tilewidth, tilewidth):
+                    if 0 <= dx < width:
+                        gid = self.data[dy][dx]
+                        if gid > 0:
+                            surface.blit(images[gid], (x, y))
+                    dx += 1
+            dy += 1
+
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "data": NodeType(_parse_xml_data, None, None),
     }
@@ -339,10 +364,12 @@ class TiledObject(TiledSubElement):
         "ellipse": NodeType(None, None, None),
     }
 
-    def __init__(self, parent: TiledElement) -> None:
+    def __init__(self, parent: Optional[TiledElement]) -> None:
         super().__init__(parent)
         self._gid: int = 0
         self.visible: bool = True
+        self.solid: bool = False
+        self.pushable: bool = False
 
         self.rect = Rect(0, 0, 0, 0)
         self.next_rect = Rect(0, 0, 0, 0)
@@ -398,7 +425,7 @@ class TiledObject(TiledSubElement):
             self.y -= self.height
 
     @property
-    def image(self):
+    def image(self) -> Optional[Surface]:
         gid = self.gid
         if gid:
             if gid in self.map.tile_animations:

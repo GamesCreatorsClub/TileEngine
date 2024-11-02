@@ -98,27 +98,19 @@ class RPGGameContext(TopDownGameContext):
             self.move_object(this, dx - new_dx, dy - new_dy, test_collisions)
 
     @in_context
-    def push_object(self, this: TiledObject, obj: TiledObject, test_collisions: bool = True) -> None:
-        dx = 0
-        dy = 0
-        if obj.rect.x < this.next_rect.x < obj.rect.right:
-            dx = this.next_rect.x - obj.rect.right
-        elif obj.rect.right > this.next_rect.right > obj.rect.x:
-            dx = this.next_rect.right - obj.rect.x
+    def move_object_towards(self, this: TiledObject, obj: TiledObject, speed: float, test_collisions: bool = False, above_everything: bool = True) -> None:
+        dx = this.rect.x - obj.rect.x
+        dy = this.rect.y - obj.rect.y
+        d = math.sqrt(dx * dx + dy * dy)
+        factor = (d - speed) / d
+        new_dx = dx * factor
+        new_dy = dy * factor
 
-        if obj.rect.y < this.next_rect.y < obj.rect.bottom:
-            dy = this.next_rect.y - obj.rect.bottom
-        elif obj.rect.bottom > this.next_rect.bottom > obj.rect.y:
-            dy = this.next_rect.bottom - obj.rect.y
-
-        if abs(dx) > 0 and abs(dy) > 0:
-            if abs(dx) < abs(dy):
-                dy = 0
-            else:
-                dx = 0
-
-        self.move_object(obj, dx, dy, test_collisions)
-        self.prevent_moving()
+        if above_everything:
+            this.x -= dx - new_dx
+            this.y -= dy - new_dy
+        else:
+            self.move_object(this, dx - new_dx, dy - new_dy, test_collisions)
 
     @in_context
     def add_object_to_inventory(self, obj: TiledObject) -> None:
