@@ -102,6 +102,7 @@ class GameContext(ABC):
                 ))
         }
         return {
+            "level": level,
             **self.base_closure,
             **closure_objects,
             **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
@@ -187,7 +188,7 @@ class GameContext(ABC):
             next_rect.y = y
         else:
             next_rect.x = min(max(0, next_rect.x + x), level.width - level_map.tilewidth)
-            next_rect.y = min(max(0, next_rect.y + y), level.width - level_map.tilewidth)
+            next_rect.y = min(max(0, next_rect.y + y), level.height - level_map.tileheight)
 
         if obj.collision_result is None:
             obj.collision_result = CollisionResult()

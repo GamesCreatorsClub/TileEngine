@@ -251,7 +251,8 @@ class Level:
                     if obj.image and obj.visible:
                         surface.blit(obj.image, (obj.x + xo, obj.y + yo))
             else:
-                layer.draw(surface, self.viewport, xo, yo)
+                if layer.visible:
+                    layer.draw(surface, self.viewport, xo, yo)
 
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.viewport) as clip_rect:

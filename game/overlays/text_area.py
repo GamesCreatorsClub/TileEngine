@@ -82,8 +82,13 @@ class TextArea:
             screen.blit(say_thing.surface, (10, y))
             y += self.line_height
 
+    def _trim(self) -> None:
+        while len(self.say_things) > self.number_of_lines:
+            del self.say_things[0]
+
     def say(self, text: str, colour: Optional[Color] = None, expires_in: float = 0.0) -> None:
         self.say_things.append(SayThing(text, colour=self.font_colour if colour is None else colour, expires_in=expires_in))
+        self._trim()
 
     def say_once(self, text: str, colour: Optional[Color] = None, expires_in: float = 0.0) -> None:
         colour = self.font_colour if colour is None else colour
@@ -92,3 +97,4 @@ class TextArea:
         elif self.say_things[-1].colour != colour:
             self.say_things[-1].colour = colour
             self.say_things[-1].invalidate()
+        self._trim()
