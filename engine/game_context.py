@@ -42,6 +42,7 @@ class GameContext(ABC):
         self.allow_moving = True
         self.allow_colliding = True
         self.player_input_allowed = True
+        self.properties: dict[str, Any] = {}
 
         self.mouse_pressed_pos: Optional[tuple] = None
 
@@ -52,9 +53,10 @@ class GameContext(ABC):
             "Player": Player,
             "MoveViewport": MoveViewport,
             "context": self,
+            "properties": self.properties,
             "game": self,
             "player": self.player,
-            "math": math
+            "math": math,
         }
 
         self.closure = self.base_closure
@@ -407,23 +409,40 @@ class GameContext(ABC):
         self.show_level(level, FadeIn(level))
 
     @in_context
-    def next_level(self) -> None:
+    def select_level(self, name: str, keep_others: bool = False) -> None:
+        if not keep_others:
+            self.visible_levels.clear()
+        self._undo_collisions(self.player)
+        self.level.player_object.visible = False
+        self.level.invalidated = True
+
+        level = self.all_levels[name]
+        self.set_level(level)
+        self.prevent_moving()
+
+    @in_context
+    def next_level(self, keep_others: bool = False) -> None:
+        if not keep_others:
+            self.visible_levels.clear()
         self._undo_collisions(self.player)
         self.level.player_object.visible = False
         self.level.invalidated = True
 
         _, next_level = self._find_next_level()
         self.set_level(next_level)
-        next_level.start(self.player)
+        self.prevent_moving()
 
     @in_context
-    def previous_level(self) -> None:
+    def previous_level(self, keep_others: bool = False) -> None:
+        if not keep_others:
+            self.visible_levels.clear()
         self.level.player_object.visible = False
         self.level.invalidated = True
 
         _, next_level = self._find_prev_level()
         self.set_level(next_level)
         next_level.start(self.player)
+        self.prevent_moving()
 
     @in_context
     def teleport_to_object(self, who: PlayerOrObject, obj_name: str) -> None:

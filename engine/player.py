@@ -53,7 +53,6 @@ class Player(TiledObject):
     def tiled_object(self, obj: TiledObject) -> None:
         self.rect = obj.rect
         self.properties.update(obj.properties)
-        self.rect.update(obj.rect)
         self.next_rect.update(obj.next_rect)
         self.collisions.clear()
         self.collisions.update(obj.collisions)

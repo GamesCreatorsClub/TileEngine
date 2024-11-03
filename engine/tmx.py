@@ -267,6 +267,7 @@ class TiledTileLayer(BaseTiledLayer):
         self.width = 0
         self.height = 0
         self.data: list[list[int]] = [[]]
+        self.animate_layer = False
 
     def _parse_xml_data(self, data_node: Element) -> None:
         encoding = data_node.get("encoding", None)
@@ -290,6 +291,14 @@ class TiledTileLayer(BaseTiledLayer):
                 data[i] = self.map.register_raw_gid(data[i])
 
         self.data = [data[i: i + columns] for i in range(0, len(data), columns)]
+        self.animate_layer = self._check_if_animated_gids()
+
+    def _check_if_animated_gids(self) -> bool:
+        for row in self.data:
+            for gid in row:
+                if gid in self.map.tile_animations:
+                    return True
+        return False
 
     def iter_data(self) -> Iterable[tuple[int, int, int]]:
         """Yields X, Y, GID tuples for each tile in the layer.
@@ -314,7 +323,7 @@ class TiledTileLayer(BaseTiledLayer):
 
         images = self.map.images
 
-        if self.map.animate_layers:
+        if self.animate_layer:
             for x, y, gid in [i for i in self.iter_data() if i[2]]:
                 if gid in self.map.tile_animations:
                     gid = self.map.tile_animations[gid].get_gid(time_ms)
@@ -323,7 +332,10 @@ class TiledTileLayer(BaseTiledLayer):
             for x, y, gid in [i for i in self.iter_data() if i[2]]:
                 yield x, y, images[gid]
 
-    def draw(self, surface: Surface, viewport: Rect, xo: int, yo: int) -> None:
+    def draw(self, surface: Surface, viewport: Rect, xo: int, yo: int, current_time: Optional[float] = None) -> None:
+        current_time = current_time if current_time is not None else time.time()
+        time_ms = int(current_time * 1000)
+
         images = self.map.images
         width = self.map.width
         height = self.map.height
@@ -336,16 +348,30 @@ class TiledTileLayer(BaseTiledLayer):
         start_dx = -xo // tilewidth
         ox = xo % tilewidth if xo >= 0 else -(-xo % tilewidth)
 
-        for y in range(viewport.y + oy, viewport.bottom + tileheight, tileheight):
-            if 0 <= dy < height:
-                dx = start_dx
-                for x in range(viewport.x + ox, viewport.right + tilewidth, tilewidth):
-                    if 0 <= dx < width:
-                        gid = self.data[dy][dx]
-                        if gid > 0:
-                            surface.blit(images[gid], (x, y))
-                    dx += 1
-            dy += 1
+        if self.animate_layer:
+            for y in range(viewport.y + oy, viewport.bottom + tileheight, tileheight):
+                if 0 <= dy < height:
+                    dx = start_dx
+                    for x in range(viewport.x + ox, viewport.right + tilewidth, tilewidth):
+                        if 0 <= dx < width:
+                            gid = self.data[dy][dx]
+                            if gid > 0:
+                                if gid in self.map.tile_animations:
+                                    gid = self.map.tile_animations[gid].get_gid(time_ms)
+                                surface.blit(images[gid], (x, y))
+                        dx += 1
+                dy += 1
+        else:
+            for y in range(viewport.y + oy, viewport.bottom + tileheight, tileheight):
+                if 0 <= dy < height:
+                    dx = start_dx
+                    for x in range(viewport.x + ox, viewport.right + tilewidth, tilewidth):
+                        if 0 <= dx < width:
+                            gid = self.data[dy][dx]
+                            if gid > 0:
+                                surface.blit(images[gid], (x, y))
+                        dx += 1
+                dy += 1
 
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "data": NodeType(_parse_xml_data, None, None),
@@ -380,7 +406,8 @@ class TiledObject(TiledSubElement):
     def x(self) -> float: return self.rect.x
 
     @x.setter
-    def x(self, v: float) -> None: self.rect.x = v
+    def x(self, v: float) -> None:
+        self.rect.x = v
 
     @property
     def y(self) -> float: return self.rect.y
@@ -646,7 +673,6 @@ class TiledMap(TiledElement):
         self.filename: Optional[str] = None
 
         self.invert_y = invert_y
-        self.animate_layers = False
 
         self.layer_id_map: dict[int, BaseTiledLayer] = {}
         self.tilesets: list[TiledTileset] = []
