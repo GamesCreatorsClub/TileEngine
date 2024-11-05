@@ -10,7 +10,7 @@ from engine.utils import Size, Position
 from game.overlays.inventory import Inventory
 from game.overlays.text_area import TextArea
 from game.top_down_game_context import TopDownGameContext
-from pygame import Surface, Color, Rect
+from pygame import Color
 
 from engine.game_context import in_context
 
@@ -108,10 +108,18 @@ class RPGGameContext(TopDownGameContext):
             new_dy = dy * factor
 
             if above_everything:
-                this.x -= dx - new_dx
-                this.y -= dy - new_dy
+                this.next_rect.update(this.rect)
+                this.next_rect.x -= dx - new_dx
+                this.next_rect.y -= dy - new_dy
+                if obj == self.player:
+                    object_moved = self.test_collisions_with_objects(obj.rect, obj, {this: this.rect})
+                else:
+                    # TODO - this means object collided with another object
+                    object_moved = True
+                if object_moved:
+                    this.rect.update(this.next_rect)
             else:
-                self.move_object(this, dx - new_dx, dy - new_dy, test_collisions)
+                self.move_object(this, new_dx - dx, new_dy - dy, test_collisions)
 
     @in_context
     def add_object_to_inventory(self, obj: TiledObject) -> None:

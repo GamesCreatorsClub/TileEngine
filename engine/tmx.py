@@ -18,6 +18,9 @@ from pygame.transform import flip, rotate
 
 from engine.collision_result import CollisionResult
 
+from engine.utils import NestedDict
+
+
 logger = logging.getLogger(__name__)
 
 GID_TRANS_FLIP_HORIZONTALLY = 1 << 31
@@ -392,6 +395,7 @@ class TiledObject(TiledSubElement):
 
     def __init__(self, parent: Optional[TiledElement]) -> None:
         super().__init__(parent)
+        self.properties: dict[str, Any] = NestedDict()
         self._gid: int = 0
         self.visible: bool = True
         self.solid: bool = False
@@ -432,8 +436,18 @@ class TiledObject(TiledSubElement):
         return self._gid
 
     @gid.setter
-    def gid(self, new_gid) -> None:
+    def gid(self, new_gid: int) -> None:
         self.set_gid(new_gid)
+
+    @property
+    def tile(self) -> int:
+        return self._gid
+
+    @tile.setter
+    def tile(self, gid: int) -> None:
+        if gid > 0:
+            gid = self.map.register_raw_gid(gid)
+        self._gid = gid
 
     def set_gid(self, gid: int) -> None:
         if gid > 0:
@@ -442,7 +456,9 @@ class TiledObject(TiledSubElement):
             if gid in self.map.tile_properties:
                 properties = self.map.tile_properties[gid]
                 if properties is not None:
-                    self.properties = properties | self.properties
+                    self.properties.over = properties
+                else:
+                    self.properties.over = {}
         self._gid = gid
 
     def _parse_xml(self, node: Element) -> None:

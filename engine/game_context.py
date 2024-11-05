@@ -76,9 +76,9 @@ class GameContext(ABC):
         else:
             self._set_screen_size(Size(size[0], size[1]))
 
-    def _execute_script(self, script: str, locals: dict[str, Any]) -> None:
+    def _execute_script(self, script: str, local_env: dict[str, Any]) -> None:
         try:
-            exec(script, self.closure, locals)
+            exec(script, self.closure, local_env)
         except Exception as e:
             raise Exception(f"Couldn't execute script, got error {e}\n{script}", e)
 
@@ -228,6 +228,50 @@ class GameContext(ABC):
 
         return current_rect.topleft, None
 
+    def test_collisions_with_objects(self, next_rect: Rect, obj: PlayerOrObject, with_objects: dict[TiledObject, Rect]) -> bool:
+        object_has_moved = True
+
+        collisions = next_rect.collidedictall(with_objects)
+
+        obj_collisions = set(obj.collisions)
+        for collision in collisions:
+            collided_object: TiledObject = cast(TiledObject, collision[0])
+            if collided_object.visible and collided_object != obj:
+                self.allow_colliding = True
+                self.allow_moving = True
+
+                if collided_object in obj_collisions:
+                    obj_collisions.remove(collided_object)
+                else:
+                    if "on_enter" in collided_object.properties:
+                        self.on_enter(obj, collided_object)
+                        object_has_moved = False if not self.allow_moving else object_has_moved
+                    elif collided_object.pushable:
+                        self.push_object(obj, collided_object)
+                        object_has_moved = False if not self.allow_moving else object_has_moved
+                    elif collided_object.solid:
+                        self.prevent_moving()
+                        object_has_moved = False if not self.allow_moving else object_has_moved
+
+                if object_has_moved and self.allow_colliding:
+                    collided_object.collisions.add(obj)
+                    obj.collisions.add(collided_object)
+
+                    if "on_collision" in collided_object.properties:
+                        self.on_collision(obj, collided_object)
+                        object_has_moved = False if not self.allow_moving else object_has_moved
+                else:
+                    object_has_moved = False
+
+        for collided_object in obj_collisions:
+            if obj in collided_object.collisions:
+                collided_object.collisions.remove(obj)
+                obj.collisions.remove(collided_object)
+            if "on_leave" in collided_object.properties:
+                self.on_leave(self.player, collided_object)
+
+        return object_has_moved
+
     @in_context
     def move_object(self, obj: PlayerOrObject, x: float, y: float, test_collisions: bool = False, absolute: bool = False) -> bool:
         def test_if_obj_is_player(object_has_moved: bool) -> None:
@@ -246,44 +290,7 @@ class GameContext(ABC):
         object_has_moved = True
 
         if test_collisions:
-            collisions = next_rect.collidedictall(self.level.objects)
-
-            obj_collisions = set(obj.collisions)
-            for collision in collisions:
-                collided_object: TiledObject = cast(TiledObject, collision[0])
-                if collided_object.visible and collided_object != obj:
-                    self.allow_colliding = True
-                    self.allow_moving = True
-
-                    if collided_object in obj_collisions:
-                        obj_collisions.remove(collided_object)
-                    else:
-                        if "on_enter" in collided_object.properties:
-                            self.on_enter(obj, collided_object)
-                            object_has_moved = False if not self.allow_moving else object_has_moved
-                        elif collided_object.pushable:
-                            self.push_object(obj, collided_object)
-                            object_has_moved = False if not self.allow_moving else object_has_moved
-                        elif collided_object.solid:
-                            self.prevent_moving()
-                            object_has_moved = False if not self.allow_moving else object_has_moved
-
-                    if object_has_moved and self.allow_colliding:
-                        collided_object.collisions.add(obj)
-                        obj.collisions.add(collided_object)
-
-                        if "on_collision" in collided_object.properties:
-                            self.on_collision(obj, collided_object)
-                            object_has_moved = False if not self.allow_moving else object_has_moved
-                    else:
-                        object_has_moved = False
-
-            for collided_object in obj_collisions:
-                if obj in collided_object.collisions:
-                    collided_object.collisions.remove(obj)
-                    obj.collisions.remove(collided_object)
-                if "on_leave" in collided_object.properties:
-                    self.on_leave(self.player, collided_object)
+            object_has_moved = self.test_collisions_with_objects(next_rect, obj, self.level.objects)
 
         if object_has_moved:
             if obj == self.player:
