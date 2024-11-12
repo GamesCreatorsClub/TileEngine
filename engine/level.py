@@ -42,7 +42,7 @@ class Level:
 
         return dict(chain(*map(dict.items, l)))
 
-    def __init__(self, screen_size: Rect, tiled_map: TiledMap, part_no: Optional[int] = None) -> None:
+    def __init__(self, screen_rect: Rect, tiled_map: TiledMap, part_no: Optional[int] = None) -> None:
         self.map = tiled_map
         self.tile_width = tiled_map.tilewidth
         self.tile_height = tiled_map.tileheight
@@ -88,7 +88,8 @@ class Level:
         if "viewport" in self.group.properties:
             self.viewport = Rect(*(int(v.strip()) for v in self.group.properties["viewport"].split(",")))
         else:
-            self.viewport = screen_size
+            self.viewport = screen_rect
+        self.off_screen_viewport = screen_rect
 
         self.offscreen_surface = Surface(self.viewport.size, pygame.HWSURFACE).convert_alpha()
 
@@ -252,7 +253,10 @@ class Level:
                         surface.blit(obj.image, (obj.x + xo, obj.y + yo))
             else:
                 if layer.visible:
-                    layer.draw(surface, self.viewport, xo, yo)
+                    if offscreen_rendering:
+                        layer.draw(surface, self.off_screen_viewport, xo, yo)
+                    else:
+                        layer.draw(surface, self.off_screen_viewport, xo, yo)
 
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.viewport) as clip_rect:

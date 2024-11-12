@@ -275,9 +275,9 @@ class GameContext(ABC):
     @in_context
     def move_object(self, obj: PlayerOrObject, x: float, y: float, test_collisions: bool = False, absolute: bool = False) -> bool:
         def test_if_obj_is_player(object_has_moved: bool) -> None:
-            if obj == self.player:
-                self.level.update_map_position(self.player.rect)
             if object_has_moved:
+                if obj == self.player:
+                    self.level.update_map_position(self.player.rect)
                 self.level.invalidated = True
 
         next_rect = obj.next_rect
@@ -366,7 +366,7 @@ class GameContext(ABC):
 
     def _undo_collisions(self, obj: Union[Player, TiledObject]) -> None:
         for collided_obj in obj.collisions:
-            del collided_obj.collisions[collided_obj.index[self.player]]
+            collided_obj.collisions.remove(self.player)
         obj.collisions.clear()
 
     @in_context
