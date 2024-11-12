@@ -4,7 +4,7 @@ from typing import Optional
 import pygame
 import tkinter as tk
 
-from tkinter import colorchooser, ttk, RIGHT, Y, X
+from tkinter import colorchooser, ttk, RIGHT, Y, X, LEFT
 from sys import exit
 
 from pygame import Surface, Rect
@@ -88,6 +88,29 @@ class PropertiesWidget(ttk.Treeview):
                 self.entryPopup.place(x=x, y=y + height // 2, width=width, height=height, anchor=tk.W, relwidth=1)
 
 
+class EditText:
+    def __init__(self, root: tk.Tk, properties_widget: PropertiesWidget) -> None:
+        self.properties_widget = properties_widget
+        self.pop_up_window = tk.Tk()
+        self.frame = tk.Frame(self.pop_up_window, highlightbackground="green", highlightcolor="green", highlightthickness=1, bd=0)
+        self.frame.pack()
+        self.pop_up_window.overrideredirect(1)
+        self.pop_up_window.geometry("200x70+650+400")
+        self.label = tk.Label(self.frame, text="Edit text")
+        self.label.pack()
+        yes_btn = tk.Button(self.frame, text="Yes", bg="light blue", fg="red", command=self.ok, width=10)
+        yes_btn.pack(padx=10, pady=10, side=LEFT)
+        no_btn = tk.Button(self.frame, text="No", bg="light blue", fg="red", command=self.close, width=10)
+        no_btn.pack(padx=10, pady=10, side=LEFT)
+
+    def ok(self) -> None:
+        print("OK!")
+        self.close()
+
+    def close(self) -> None:
+        self.pop_up_window.destroy()
+
+
 class Editor:
     def __init__(self) -> None:
         self.running = True
@@ -125,10 +148,46 @@ class Editor:
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.title("Edit object")
 
+        # menu_frame = tk.Frame(root)
+        # menu_frame.pack(fill=X)
+        #
+        # menu = tk.Menubutton(menu_frame, text="Menu")
+        # menu.menu = tk.Menu(menu, tearoff=0)
+        # menu["menu"] = menu.menu
+        # menu.menu.add_command(label="Load", command=self.on_load)
+        # menu.menu.add_command(label="Save", command=self.on_save)
+        # menu.pack(side=LEFT)
+
+        menubar = tk.Menu(root)
+        filemenu = tk.Menu(menubar, tearoff=0)
+        filemenu.add_command(label="New", command=self.donothing)
+        filemenu.add_command(label="Open", command=self.donothing)
+        filemenu.add_command(label="Save", command=self.donothing)
+        filemenu.add_command(label="Save as...", command=self.donothing)
+        filemenu.add_command(label="Close", command=self.donothing)
+
+        filemenu.add_separator()
+        filemenu.add_command(label="Exit", command=root.quit)
+        menubar.add_cascade(label="File", menu=filemenu)
+        editmenu = tk.Menu(menubar, tearoff=0)
+        editmenu.add_command(label="Undo", command=self.donothing)
+        editmenu.add_separator()
+        editmenu.add_command(label="Cut", command=self.donothing)
+        editmenu.add_command(label="Copy", command=self.donothing)
+        editmenu.add_command(label="Paste", command=self.donothing)
+        editmenu.add_command(label="Delete", command=self.donothing)
+        editmenu.add_command(label="Select All", command=self.donothing)
+
+        menubar.add_cascade(label="Edit", menu=editmenu)
+        helpmenu = tk.Menu(menubar, tearoff=0)
+        helpmenu.add_command(label="Help Index", command=self.donothing)
+        helpmenu.add_command(label="About...", command=self.donothing)
+        menubar.add_cascade(label="Help", menu=helpmenu)
+        root.config(menu=menubar)
+
         properties_label = pack(tk.Label(root, text="Properties"), fill=X)
 
-        properties = PropertiesWidget(root)
-
+        main_properties = PropertiesWidget(root)
         values = {
             "First": 1,
             "Second": "some value",
@@ -139,44 +198,39 @@ class Editor:
             **{k: k for k in range(20)}
         }
         for k, v in values.items():
-            properties.insert('', tk.END, text=k, values=(v, ))
+            main_properties.insert('', tk.END, text=k, values=(v, ))
 
-        # treeview_frame = tk.Frame(root)
-        #
-        # properties = ttk.Treeview(treeview_frame, columns=("value",))
-        # scrollbar = tk.Scrollbar(treeview_frame,
-        #                          orient="vertical",
-        #                          command=properties.yview)
-        # scrollbar.pack(side=RIGHT, fill=Y)
-        # if WITH_SCROLLBAR:
-        #     properties.configure(yscrollcommand=scrollbar.set)
-        #
-        # properties.heading("#0", text="Property")
-        # properties.heading("value", text="Value")
-        # properties.column("#0", minwidth=50, width=150)
-        # properties.column("value", minwidth=50, width=150)
-        #
-        # for k, v in values.items():
-        #     properties.insert('', tk.END, text=k, values=(v, ))
-        #
-        # def on_left_click(event):
-        #     rowid = properties.identify_row(event.y)
-        #     column = properties.identify_column(event.x)
-        #
-        #     info = properties.bbox(rowid, column)
-        #     if info:
-        #         x, y, width, height = info
-        #         text = properties.item(rowid, "values")[0]
-        #         self.entryPopup = EntryPopup(root, properties, rowid, text, bd=0, highlightthickness=0)
-        #         self.entryPopup.place(x=x, y=y + height // 2, width=width, height=height, anchor=tk.W, relwidth=1)
-        #
-        # properties.bind("<Button-1>", on_left_click)
-        # properties.pack(fill=X)
-        # treeview_frame.pack(fill=X)
+        pack(tk.Label(root, text=""), fill=X)
+        custom_properties_label = pack(tk.Label(root, text="Custom Properties"), fill=X)
+
+        custom_properties = PropertiesWidget(root)
+        values = {
+            "on_click": "do_nothing()",
+            "on_animation": "a = a + 1",
+            "on_entry": "say_once(\"Hey\")",
+            "on_leave": "say(\"Buy\")",
+            **{f"custom_{k}": k for k in range(20)}
+        }
+        for k, v in values.items():
+            custom_properties.insert('', tk.END, text=k, values=(v, ))
 
         select_colour_button = pack(tk.Button(root, text="Select Colour", command=self.select_colour), fill=X)
 
+        def open_edit() -> None:
+            text_edit = EditText(root, properties_widget=custom_properties)
+
+        pack(tk.Button(root, text="Edit text", command=open_edit), fill=X)
+
         return root
+
+    def donothing(self) -> None:
+        print("Do nothigng!")
+
+    def on_load(self) -> None:
+        print("Called on load")
+
+    def on_save(self) -> None:
+        print("Called on load")
 
     def setup_pygame(self) -> None:
         os.environ['SDL_VIDEO_WINDOW_POS'] = "320,10"
