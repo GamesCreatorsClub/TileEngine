@@ -10,7 +10,7 @@ from sys import exit
 
 from pygame import Surface, Rect
 
-from properties import Properties
+from editor.properties import Properties
 from engine.tmx import TiledMap, TiledElement
 
 WITH_PYGAME = True
