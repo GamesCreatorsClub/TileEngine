@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP
+from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, LEFT
 from typing import Callable, Optional
 
 
@@ -9,7 +9,7 @@ def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
 
 
 class EditText(tk.Toplevel):
-    def __init__(self, root: tk.Tk, rowid: str, name: str, text: str, callback: Callable[[str, str], None]) -> None:
+    def __init__(self, root: tk.Widget, rowid: str, name: str, text: str, callback: Callable[[str, str], None]) -> None:
         super().__init__(root)
         self.root = root
         self.rowid = rowid
@@ -36,7 +36,10 @@ class EditText(tk.Toplevel):
         self.cancel_btn = pack(tk.Button(self.buttons_frame, text="Cancel", command=self.close, width=5), padx=5, pady=10, side=RIGHT)
 
     def ok(self) -> None:
-        self.callback(self.rowid, self.entry.get("1.0", END))
+        new_value = self.entry.get("1.0", END)
+        if new_value.rstrip(" ").endswith("\n"):
+            new_value = new_value.rstrip(" ")[:-1]
+        self.callback(self.rowid, new_value)
         self.destroy()
 
     def close(self) -> None:
@@ -45,7 +48,7 @@ class EditText(tk.Toplevel):
 
 class EntryPopup(tk.Frame):
     def __init__(self,
-                 window: tk.Tk,
+                 window: tk.Widget,
                  parent: tk.Widget,
                  x: int, y: int, width: int, height: int,
                  rowid: str, text: str,
@@ -90,6 +93,8 @@ class EntryPopup(tk.Frame):
     def update_value(self, _event):
         if not self.destroyed:
             new_value = self.entry.get()
+            if new_value.rstrip().endswith("/n"):
+                new_value = new_value.rstrip()[:-1]
             self.update_value_callback(self.rowid, new_value)
             self.destroyed = True
             self.destroy()
@@ -105,7 +110,7 @@ class EntryPopup(tk.Frame):
 
 
 class Properties(ttk.Treeview):
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Widget) -> None:
         self.root = root
         self.treeview_frame = tk.Frame(root)
         super().__init__(self.treeview_frame, columns=("value",))
@@ -118,13 +123,13 @@ class Properties(ttk.Treeview):
 
         self.heading("#0", text="Property")
         self.heading("value", text="Value")
-        self.column("#0", minwidth=50, width=150)
-        self.column("value", minwidth=50, width=150)
+        self.column("#0", minwidth=50, width=130)
+        self.column("value", minwidth=50, width=130)
 
         self.bind("<Button-1>", self.on_left_click)
         # self.bind("<Double-1>", self.on_double_left_click)
-        self.pack(fill=X)
-        self.treeview_frame.pack(fill=X)
+        self.pack(side=TOP, fill=X, expand=True)
+        self.treeview_frame.pack(side=TOP, fill=X)
         self.entryPopup: Optional[EntryPopup] = None
         self.editorPopup: Optional[EditText] = None
 

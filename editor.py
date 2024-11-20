@@ -3,13 +3,14 @@ import os
 import pygame
 import tkinter as tk
 
-from tkinter import colorchooser, X, filedialog
+from tkinter import colorchooser, X, filedialog, LEFT, Y, ttk, VERTICAL, BOTH, TOP, RIGHT
 
 from typing import Optional
 from sys import exit
 
 from pygame import Surface, Rect
 
+from editor.hierarchy import Hierarchy
 from editor.properties import Properties
 from engine.tmx import TiledMap, TiledElement
 
@@ -64,19 +65,9 @@ class Editor:
         exit(0)
 
     def open_tk_window(self, root: tk.Tk) -> tk.Tk:
-        root.geometry("320x800+10+10")
+        root.geometry("300x900+10+30")
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.title("Edit object")
-
-        # menu_frame = tk.Frame(root)
-        # menu_frame.pack(fill=X)
-        #
-        # menu = tk.Menubutton(menu_frame, text="Menu")
-        # menu.menu = tk.Menu(menu, tearoff=0)
-        # menu["menu"] = menu.menu
-        # menu.menu.add_command(label="Load", command=self.on_load)
-        # menu.menu.add_command(label="Save", command=self.on_save)
-        # menu.pack(side=LEFT)
 
         menubar = tk.Menu(root)
         filemenu = tk.Menu(menubar, tearoff=0)
@@ -105,9 +96,45 @@ class Editor:
         menubar.add_cascade(label="Help", menu=helpmenu)
         root.config(menu=menubar)
 
-        pack(tk.Label(root, text="Properties"), fill=X)
+        left_frame = tk.Frame(root)
+        left_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        right_frame = left_frame
+        # pack(tk.Label(text="|"), side=LEFT, fill=Y)
+        # right_frame = tk.Frame(root)
+        # right_frame.pack(side=LEFT, fill=BOTH, expand=True)
 
-        self.main_properties = Properties(root)
+        pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
+        hierarchy_view = Hierarchy(right_frame)
+        hierarchy_view.pack(side=TOP, fill=X, expand=True)
+
+        hierarchy_view.insert('', tk.END, iid=0, text="map", open=True)
+        hierarchy_view.insert('', tk.END, iid=1, text="tilesets", open=True)
+        hierarchy_view.insert('', tk.END, iid=2, text="layers", open=True)
+        hierarchy_view.insert('', tk.END, iid=3, text="foreground", open=True)
+        hierarchy_view.insert('', tk.END, iid=4, text="objects", open=True)
+        hierarchy_view.insert('', tk.END, iid=5, text="main", open=True)
+        hierarchy_view.insert('', tk.END, iid=6, text="background", open=True)
+        hierarchy_view.move(1, 0, 0)
+        hierarchy_view.move(2, 0, 1)
+        hierarchy_view.move(3, 2, 0)
+        hierarchy_view.move(4, 2, 1)
+        hierarchy_view.move(5, 2, 3)
+        hierarchy_view.move(6, 2, 4)
+
+        hierarchy_view.insert('', tk.END, iid=7, text="player", open=False)
+        hierarchy_view.insert('', tk.END, iid=8, text="door1", open=False)
+        hierarchy_view.insert('', tk.END, iid=9, text="door2", open=False)
+        hierarchy_view.insert('', tk.END, iid=10, text="teleport", open=False)
+        hierarchy_view.move(7, 4, 0)
+        hierarchy_view.move(8, 4, 1)
+        hierarchy_view.move(9, 4, 2)
+        hierarchy_view.move(10, 4, 3)
+
+
+        pack(tk.Label(left_frame, text="Properties"), fill=X)
+
+        self.main_properties = Properties(left_frame)
+        # self.main_properties.pack(fill=X, expand=True)
         # values = {
         #     "First": 1,
         #     "Second": "some value",
@@ -120,10 +147,11 @@ class Editor:
         # for k, v in values.items():
         #     main_properties.insert('', tk.END, text=k, values=(v, ))
 
-        pack(tk.Label(root, text=""), fill=X)
-        pack(tk.Label(root, text="Custom Properties"), fill=X)
+        pack(tk.Label(left_frame, text=""), fill=X)
+        pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
 
-        self.custom_properties = Properties(root)
+        self.custom_properties = Properties(left_frame)
+        # self.custom_properties.pack(fill=X, expand=True)
         values = {
             "on_click": "do_nothing()",
             "on_animation": "a = a + 1",
@@ -134,7 +162,7 @@ class Editor:
         for k, v in values.items():
             self.custom_properties.insert('', tk.END, text=k, values=(v, ))
 
-        pack(tk.Button(root, text="Select Colour", command=self.select_colour), fill=X)
+        pack(tk.Button(left_frame, text="Select Colour", command=self.select_colour), fill=X)
 
         # def open_edit() -> None:
         #     text_edit = EditText(root, properties_widget=self.custom_properties)
@@ -157,9 +185,9 @@ class Editor:
         print("Called on load")
 
     def setup_pygame(self) -> None:
-        os.environ['SDL_VIDEO_WINDOW_POS'] = "320,10"
+        os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
 
-        self.screen = pygame.display.set_mode((800, 800))
+        self.screen = pygame.display.set_mode((1150, 900))
         self.screen_rect = self.screen.get_rect()
         # self.clock = pygame.time.Clock()
 
