@@ -36,6 +36,19 @@ class Editor:
 
         self._selected_object: Optional[TiledElement] = None
 
+        self.file_menu: Optional[tk.Menu] = None
+        self.edit_menu: Optional[tk.Menu] = None
+        self.help_menu: Optional[tk.Menu] = None
+
+        self._tiled_map: Optional[TiledMap] = None
+
+        self._current_element: Optional[TiledElement] = None
+        self._current_object: Optional[TiledElement] = None
+        self._current_tileset: Optional[TiledTileset] = None
+        self._current_layer: Optional[BaseTiledLayer] = None
+
+        # Initialisation of other components
+
         # tk.Tk() and pygame.init() must be done in this order and before anything else (in tkinter world)
         self.root = tk.Tk()
         # self.popup: Optional[tk.Tk] = None
@@ -49,13 +62,20 @@ class Editor:
             self.background = Surface(self.screen_rect.size, pygame.HWSURFACE).convert_alpha()
         self.draw = False
         self.draw_size = (50, 50)
-        self.current_map: Optional[TiledMap] = None
-        self._current_element: Optional[TiledElement] = None
-        self._current_object: Optional[TiledElement] = None
-        self._current_tileset: Optional[TiledTileset] = None
-        self._current_layer: Optional[BaseTiledLayer] = None
 
-        self.tiled_map: Optional[TiledMap] = None
+    @property
+    def tiled_map(self) -> Optional[TiledMap]:
+        return self._tiled_map
+
+    @tiled_map.setter
+    def tiled_map(self, tiled_map: Optional[TiledMap]) -> None:
+        self._tiled_map = tiled_map
+        if tiled_map is not None:
+            self.file_menu.entryconfig("Save", state="normal")
+            self.file_menu.entryconfig("Save as...", state="normal")
+        else:
+            self.file_menu.entryconfig("Save", state="disabled")
+            self.file_menu.entryconfig("Save as...", state="disabled")
 
     @property
     def current_element(self) -> Optional[TiledElement]:
@@ -114,30 +134,31 @@ class Editor:
         root.title("Edit object")
 
         menubar = tk.Menu(root)
-        filemenu = tk.Menu(menubar, tearoff=0)
-        filemenu.add_command(label="New", command=self.do_nothing)
-        filemenu.add_command(label="Open", command=self.load_file)
-        filemenu.add_command(label="Save", command=self.do_nothing)
-        filemenu.add_command(label="Save as...", command=self.do_nothing)
-        filemenu.add_command(label="Close", command=self.do_nothing)
+        self.file_menu = tk.Menu(menubar, tearoff=0)
+        self.file_menu.add_command(label="New", command=self.do_nothing)
+        self.file_menu.add_command(label="Open", command=self.load_file)
+        self.file_menu.add_command(label="Save", command=self.do_nothing, state="disabled")
+        self.file_menu.add_command(label="Save as...", command=self.do_nothing, state="disabled")
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Exit", command=self.quit)
+        menubar.add_cascade(label="File", menu=self.file_menu)
 
-        filemenu.add_separator()
-        filemenu.add_command(label="Exit", command=root.quit)
-        menubar.add_cascade(label="File", menu=filemenu)
-        editmenu = tk.Menu(menubar, tearoff=0)
-        editmenu.add_command(label="Undo", command=self.do_nothing)
-        editmenu.add_separator()
-        editmenu.add_command(label="Cut", command=self.do_nothing)
-        editmenu.add_command(label="Copy", command=self.do_nothing)
-        editmenu.add_command(label="Paste", command=self.do_nothing)
-        editmenu.add_command(label="Delete", command=self.do_nothing)
-        editmenu.add_command(label="Select All", command=self.do_nothing)
+        self.edit_menu = tk.Menu(menubar, tearoff=0)
+        self.edit_menu.add_command(label="Redo", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_command(label="Undo", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="Cut", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_command(label="Copy", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_command(label="Paste", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_command(label="Delete", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_command(label="Select All", command=self.do_nothing, state="disabled")
 
-        menubar.add_cascade(label="Edit", menu=editmenu)
-        helpmenu = tk.Menu(menubar, tearoff=0)
-        helpmenu.add_command(label="Help Index", command=self.do_nothing)
-        helpmenu.add_command(label="About...", command=self.do_nothing)
-        menubar.add_cascade(label="Help", menu=helpmenu)
+        menubar.add_cascade(label="Edit", menu=self.edit_menu)
+
+        self.help_menu = tk.Menu(menubar, tearoff=0)
+        self.help_menu.add_command(label="Help Index", command=self.do_nothing, state="disabled")
+        self.help_menu.add_command(label="About...", command=self.do_nothing, state="disabled")
+        menubar.add_cascade(label="Help", menu=self.help_menu)
         root.config(menu=menubar)
 
         left_frame = tk.Frame(root)
