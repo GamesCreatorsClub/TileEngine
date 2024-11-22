@@ -3,7 +3,7 @@ import os
 import pygame
 import tkinter as tk
 
-from tkinter import colorchooser, X, filedialog, LEFT, Y, ttk, VERTICAL, BOTH, TOP, RIGHT
+from tkinter import colorchooser, X, filedialog, LEFT, BOTH, TOP
 
 from typing import Optional
 from sys import exit
@@ -30,6 +30,9 @@ class Editor:
         self.speed = 10
         self.screen = None
         self.screen_rect: Optional[Rect] = None
+        self.main_properties: Optional[Properties] = None
+        self.custom_properties: Optional[Properties] = None
+        self.hierarchy_view: Optional[Hierarchy] = None
 
         # tk.Tk() and pygame.init() must be done in this order and before anything else (in tkinter world)
         self.root = tk.Tk()
@@ -46,8 +49,8 @@ class Editor:
         self.draw_size = (50, 50)
         self.current_map: Optional[TiledMap] = None
         self._current_object: Optional[TiledElement] = None
-        self.main_properties: Optional[Properties] = None
-        self.custom_properties: Optional[Properties] = None
+
+        self.tiled_map: Optional[TiledMap] = None
 
     @property
     def current_object(self) -> Optional[TiledElement]:
@@ -104,32 +107,31 @@ class Editor:
         # right_frame.pack(side=LEFT, fill=BOTH, expand=True)
 
         pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
-        hierarchy_view = Hierarchy(right_frame)
-        hierarchy_view.pack(side=TOP, fill=X, expand=True)
-
-        hierarchy_view.insert('', tk.END, iid=0, text="map", open=True)
-        hierarchy_view.insert('', tk.END, iid=1, text="tilesets", open=True)
-        hierarchy_view.insert('', tk.END, iid=2, text="layers", open=True)
-        hierarchy_view.insert('', tk.END, iid=3, text="foreground", open=True)
-        hierarchy_view.insert('', tk.END, iid=4, text="objects", open=True)
-        hierarchy_view.insert('', tk.END, iid=5, text="main", open=True)
-        hierarchy_view.insert('', tk.END, iid=6, text="background", open=True)
-        hierarchy_view.move(1, 0, 0)
-        hierarchy_view.move(2, 0, 1)
-        hierarchy_view.move(3, 2, 0)
-        hierarchy_view.move(4, 2, 1)
-        hierarchy_view.move(5, 2, 3)
-        hierarchy_view.move(6, 2, 4)
-
-        hierarchy_view.insert('', tk.END, iid=7, text="player", open=False)
-        hierarchy_view.insert('', tk.END, iid=8, text="door1", open=False)
-        hierarchy_view.insert('', tk.END, iid=9, text="door2", open=False)
-        hierarchy_view.insert('', tk.END, iid=10, text="teleport", open=False)
-        hierarchy_view.move(7, 4, 0)
-        hierarchy_view.move(8, 4, 1)
-        hierarchy_view.move(9, 4, 2)
-        hierarchy_view.move(10, 4, 3)
-
+        self.hierarchy_view = Hierarchy(right_frame)
+        self.hierarchy_view.pack(side=TOP, fill=X, expand=True)
+        #
+        # self.hierarchy_view.insert('', tk.END, iid="0", text="map", open=True)
+        # self.hierarchy_view.insert('', tk.END, iid="1", text="tilesets", open=True)
+        # self.hierarchy_view.insert('', tk.END, iid="2", text="layers", open=True)
+        # self.hierarchy_view.insert('', tk.END, iid="3", text="foreground", open=True)
+        # self.hierarchy_view.insert('', tk.END, iid="4", text="objects", open=True)
+        # self.hierarchy_view.insert('', tk.END, iid="5", text="main", open=True)
+        # self.hierarchy_view.insert('', tk.END, iid="6", text="background", open=True)
+        # self.hierarchy_view.move(1, "0", 0)
+        # self.hierarchy_view.move(2, "0", 1)
+        # self.hierarchy_view.move(3, "2", 0)
+        # self.hierarchy_view.move(4, "2", 1)
+        # self.hierarchy_view.move(5, "2", 3)
+        # self.hierarchy_view.move(6, "2", 4)
+        #
+        # self.hierarchy_view.insert('', tk.END, iid=7, text="player", values=(True, ), open=False)
+        # self.hierarchy_view.insert('', tk.END, iid=8, text="door1", open=False)
+        # self.hierarchy_view.insert('', tk.END, iid=9, text="door2", open=False)
+        # self.hierarchy_view.insert('', tk.END, iid=10, text="teleport", open=False)
+        # self.hierarchy_view.move(7, "4", 0)
+        # self.hierarchy_view.move(8, "4", 1)
+        # self.hierarchy_view.move(9, "4", 2)
+        # self.hierarchy_view.move(10, "4", 3)
 
         pack(tk.Label(left_frame, text="Properties"), fill=X)
 
@@ -152,15 +154,17 @@ class Editor:
 
         self.custom_properties = Properties(left_frame)
         # self.custom_properties.pack(fill=X, expand=True)
-        values = {
-            "on_click": "do_nothing()",
-            "on_animation": "a = a + 1",
-            "on_entry": "say_once(\"Hey\")\n# second line \nb = b + 1\n",
-            "on_leave": "say(\"Buy\")",
-            # **{f"custom_{k}": k for k in range(20)}
-        }
-        for k, v in values.items():
-            self.custom_properties.insert('', tk.END, text=k, values=(v, ))
+        # values = {
+        #     "on_click": "do_nothing()",
+        #     "on_animation": "a = a + 1",
+        #     "on_entry": "say_once(\"Hey\")\n# second line \nb = b + 1\n",
+        #     "on_leave": "say(\"Buy\")",
+        #     # **{f"custom_{k}": k for k in range(20)}
+        # }
+        # for k, v in values.items():
+        #     self.custom_properties.insert('', tk.END, text=k, values=(v, ))
+
+        self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
 
         pack(tk.Button(left_frame, text="Select Colour", command=self.select_colour), fill=X)
 
@@ -175,14 +179,13 @@ class Editor:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
         print(f"Selected {filename}")
 
+        self.tiled_map = TiledMap()
+        self.tiled_map.load(filename)
+
+        self.hierarchy_view.set_map(self.tiled_map)
+
     def donothing(self) -> None:
         print("Do nothigng!")
-
-    def on_load(self) -> None:
-        print("Called on load")
-
-    def on_save(self) -> None:
-        print("Called on load")
 
     def setup_pygame(self) -> None:
         os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"

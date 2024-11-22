@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, LEFT
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -133,6 +133,8 @@ class Properties(ttk.Treeview):
         self.entryPopup: Optional[EntryPopup] = None
         self.editorPopup: Optional[EditText] = None
 
+        self.tag_configure("odd", background="gray95")
+
     def on_left_click(self, event) -> None:
         rowid = self.identify_row(event.y)
         column = self.identify_column(event.x)
@@ -171,3 +173,10 @@ class Properties(ttk.Treeview):
         self.item(rowid, values=(new_value,))
         self.editorPopup = None
         self.entryPopup = None
+
+    def update_properties(self, properties: dict[str, Any]) -> None:
+        self.delete(*self.get_children())
+        even = True
+        for k, v in properties.items():
+            self.insert('', tk.END, text=k, values=(v, ), tags="even" if even else "odd")
+            even = not even

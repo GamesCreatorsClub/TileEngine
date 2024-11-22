@@ -154,6 +154,7 @@ class TileFlags(NamedTuple):
 
 
 class TiledElement:
+    ATTRIBUTES = ["id", "name"]
     def __init__(self, parent: Optional['TiledElement'] = None) -> None:
         self.parent = parent
         self.properties: dict[str, Any] = {}
@@ -258,13 +259,16 @@ class TiledSubElement(TiledElement):
 
 
 class BaseTiledLayer(TiledSubElement, ABC):
+    ATTRIBUTES = TiledElement.ATTRIBUTES + ["visible"]
+
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.name = ""
         self.visible = True
 
 
 class TiledTileLayer(BaseTiledLayer):
+    ATTRIBUTES = BaseTiledLayer.ATTRIBUTES + ["width", "height", "animate_layer"]
+
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
         self.width = 0
@@ -392,6 +396,9 @@ class TiledObject(TiledSubElement):
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "ellipse": NodeType(None, None, None),
     }
+    ATTRIBUTES = TiledElement.ATTRIBUTES + [
+        "gid", "visible", "solid", "pushable", "x", "y", "width", "height"
+    ]
 
     def __init__(self, parent: Optional[TiledElement]) -> None:
         super().__init__(parent)
@@ -478,7 +485,8 @@ class TiledObject(TiledSubElement):
         return None
 
 
-class TiledObjectGroup(TiledSubElement):
+class TiledObjectGroup(BaseTiledLayer):
+
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
         self.parent_tile_id: Optional[int] = None
@@ -569,12 +577,18 @@ class TiledTileAnimations:
 
 
 class TiledTileset(TiledElement):
+    ATTRIBUTES = TiledElement.ATTRIBUTES + [
+        "firstgid", "name", "tilewidth", "tileheight",
+        "spacing", "margin", "tilecount", "columns",
+        "width", "height"
+    ]
+
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self._source: str = ""
         self._parent_dir = os.path.dirname(cast(TiledMap, self.parent).filename)
 
-        self.image: Optional[Surface] = None
+        self._source: str = ""
+        self.image_surface: Optional[Surface] = None
         self.tile_properties: dict[int, dict[str, Any]] = {}
         self.tile_terrain: dict[int, str] = {}
         self.tiles_by_name: dict[str: int] = {}
@@ -600,10 +614,10 @@ class TiledTileset(TiledElement):
         self.height = 0
 
     @property
-    def source(self) -> str:
+    def image(self) -> str:
         return self._source
 
-    @source.setter
+    @image.setter
     def source(self, filename: str) -> None:
         self._source = filename
         self.load(self._source)
@@ -622,8 +636,8 @@ class TiledTileset(TiledElement):
         _width = int(image_element.get("width"))
         _height = int(image_element.get("width"))
         full_filename = os.path.join(os.path.join(self._parent_dir, os.path.dirname(self._source)), filename)
-        self.image = pygame.image.load(full_filename)
-        image_rect = self.image.get_rect()
+        self.image_surface = pygame.image.load(full_filename)
+        image_rect = self.image_surface.get_rect()
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
@@ -666,7 +680,7 @@ class TiledTileset(TiledElement):
         gid = gid - self.firstgid
         y = (gid // self.columns)
         x = (gid - y * self.columns)
-        return self.image.subsurface(Rect(x * self.tilewidth, y * self.tileheight, self.tilewidth, self.tileheight))
+        return self.image_surface.subsurface(Rect(x * self.tilewidth, y * self.tileheight, self.tilewidth, self.tileheight))
 
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "image": NodeType(_load_image, None, None),
