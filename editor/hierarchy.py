@@ -1,14 +1,15 @@
 import tkinter as tk
 from tkinter import ttk, RIGHT, X, Y, TOP
-from typing import Optional, cast
+from typing import Optional, cast, Callable
 
 from editor.properties import Properties
-from engine.tmx import TiledMap, TiledObjectGroup, TiledObject, BaseTiledLayer
+from engine.tmx import TiledMap, TiledObjectGroup, TiledObject, BaseTiledLayer, TiledElement
 
 
 class Hierarchy(ttk.Treeview):
-    def __init__(self, root: tk.Widget) -> None:
+    def __init__(self, root: tk.Widget, selected_object_callback: Callable[[Optional[TiledElement]], None]) -> None:
         self.root = root
+        self.selected_object_callback = selected_object_callback
         self.treeview_frame = tk.Frame(root)
         super().__init__(self.treeview_frame, columns=("visible",))
 
@@ -31,11 +32,32 @@ class Hierarchy(ttk.Treeview):
         self.main_properties: Optional[Properties] = None
         self.custom_properties: Optional[Properties] = None
 
+        self._selected_object: Optional[TiledElement] = None
+
         self.tag_configure("odd", background="gray95")
 
     def init_properties_widgets(self, main_properties: Properties, custom_properties: Properties):
         self.main_properties = main_properties
         self.custom_properties = custom_properties
+
+    @property
+    def selected_object(self) -> TiledElement:
+        return self._selected_object
+
+    @selected_object.setter
+    def selected_object(self, selected_object: Optional[TiledElement]) -> None:
+        self._selected_object = selected_object
+
+        if selected_object is not None:
+            self.main_properties.update_properties(
+                {k: getattr(selected_object, k) for k in type(selected_object).ATTRIBUTES}
+            )
+            self.custom_properties.update_properties(selected_object.properties)
+        else:
+            self.main_properties.update_properties({})
+            self.custom_properties.update_properties({})
+
+        self.selected_object_callback(selected_object)
 
     @staticmethod
     def _obj_visibility(e: TiledObject | BaseTiledLayer) -> str:
@@ -77,10 +99,6 @@ class Hierarchy(ttk.Treeview):
 
     def on_tree_select(self, _event):
         for rowid in self.selection():
-            # rowid = self.item(item)
-            # # print(item_text)
-            # print(f"selected item: {rowid}")
-
             selected_object = None
             if rowid == "map":
                 selected_object = self.tiled_map
@@ -99,14 +117,7 @@ class Hierarchy(ttk.Treeview):
                 layer = cast(TiledObjectGroup, self.tiled_map.layer_id_map[int(s[1])])
                 selected_object = layer.objects_id_map[int(s[2])]
 
-            if selected_object is not None:
-                self.main_properties.update_properties(
-                    {k: getattr(selected_object, k) for k in type(selected_object).ATTRIBUTES}
-                )
-                self.custom_properties.update_properties(selected_object.properties)
-            else:
-                self.main_properties.update_properties({})
-                self.custom_properties.update_properties({})
+            self.selected_object = selected_object
 
     def on_left_click(self, event) -> None:
         rowid = self.identify_row(event.y)
@@ -123,5 +134,3 @@ class Hierarchy(ttk.Treeview):
                 layer = cast(TiledObjectGroup, self.tiled_map.layer_id_map[int(s[1])])
                 layer.visible = not layer.visible
                 self.item(rowid, values=(self._obj_visibility(layer),))
-
-        # print(f"Selected rowid: {rowid}, column {column}")

@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, LEFT
+from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP
 from typing import Callable, Optional, Any
 
 

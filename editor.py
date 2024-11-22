@@ -5,14 +5,14 @@ import tkinter as tk
 
 from tkinter import colorchooser, X, filedialog, LEFT, BOTH, TOP
 
-from typing import Optional
+from typing import Optional, cast
 from sys import exit
 
 from pygame import Surface, Rect
 
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
-from engine.tmx import TiledMap, TiledElement
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject
 
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
@@ -34,6 +34,8 @@ class Editor:
         self.custom_properties: Optional[Properties] = None
         self.hierarchy_view: Optional[Hierarchy] = None
 
+        self._selected_object: Optional[TiledElement] = None
+
         # tk.Tk() and pygame.init() must be done in this order and before anything else (in tkinter world)
         self.root = tk.Tk()
         # self.popup: Optional[tk.Tk] = None
@@ -48,17 +50,56 @@ class Editor:
         self.draw = False
         self.draw_size = (50, 50)
         self.current_map: Optional[TiledMap] = None
+        self._current_element: Optional[TiledElement] = None
         self._current_object: Optional[TiledElement] = None
+        self._current_tileset: Optional[TiledTileset] = None
+        self._current_layer: Optional[BaseTiledLayer] = None
 
         self.tiled_map: Optional[TiledMap] = None
 
     @property
-    def current_object(self) -> Optional[TiledElement]:
+    def current_element(self) -> Optional[TiledElement]:
+        return self._current_element
+
+    @current_element.setter
+    def current_element(self, current_element: Optional[TiledElement]) -> None:
+        self._current_element = current_element
+        if isinstance(current_element, BaseTiledLayer):
+            self.current_layer = cast(BaseTiledLayer, current_element)
+        elif isinstance(current_element, TiledTileset):
+            self.current_tileset = cast(TiledTileset, current_element)
+        elif isinstance(current_element, TiledObject):
+            self.current_object = cast(TiledObject, current_element)
+
+    @property
+    def current_tileset(self) -> Optional[TiledTileset]:
+        return self._current_tileset
+
+    @current_tileset.setter
+    def current_tileset(self, tileset: Optional[TiledTileset]) -> None:
+        self._current_tileset = tileset
+        print(f"Current tileset is {tileset.name}: {tileset.image}")
+
+    @property
+    def current_layer(self) -> Optional[BaseTiledLayer]:
+        return self._current_layer
+
+    @current_layer.setter
+    def current_layer(self, tileset: Optional[BaseTiledLayer]) -> None:
+        self._current_tileset = tileset
+        print(f"Current layer is {tileset.name}: {tileset.id}")
+
+    @property
+    def current_object(self) -> Optional[TiledObject]:
         return self._current_object
 
     @current_object.setter
-    def current_object(self, current_object: Optional[TiledElement]) -> None:
-        self._current_object = current_object
+    def current_object(self, obj: Optional[TiledObject]) -> None:
+        self._current_object = obj
+        print(f"Current object is {obj.name}: {obj.id}")
+
+    def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
+        self.current_element = selected_element
 
     def quit(self) -> None:
         self.running = False
@@ -74,28 +115,28 @@ class Editor:
 
         menubar = tk.Menu(root)
         filemenu = tk.Menu(menubar, tearoff=0)
-        filemenu.add_command(label="New", command=self.donothing)
+        filemenu.add_command(label="New", command=self.do_nothing)
         filemenu.add_command(label="Open", command=self.load_file)
-        filemenu.add_command(label="Save", command=self.donothing)
-        filemenu.add_command(label="Save as...", command=self.donothing)
-        filemenu.add_command(label="Close", command=self.donothing)
+        filemenu.add_command(label="Save", command=self.do_nothing)
+        filemenu.add_command(label="Save as...", command=self.do_nothing)
+        filemenu.add_command(label="Close", command=self.do_nothing)
 
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=root.quit)
         menubar.add_cascade(label="File", menu=filemenu)
         editmenu = tk.Menu(menubar, tearoff=0)
-        editmenu.add_command(label="Undo", command=self.donothing)
+        editmenu.add_command(label="Undo", command=self.do_nothing)
         editmenu.add_separator()
-        editmenu.add_command(label="Cut", command=self.donothing)
-        editmenu.add_command(label="Copy", command=self.donothing)
-        editmenu.add_command(label="Paste", command=self.donothing)
-        editmenu.add_command(label="Delete", command=self.donothing)
-        editmenu.add_command(label="Select All", command=self.donothing)
+        editmenu.add_command(label="Cut", command=self.do_nothing)
+        editmenu.add_command(label="Copy", command=self.do_nothing)
+        editmenu.add_command(label="Paste", command=self.do_nothing)
+        editmenu.add_command(label="Delete", command=self.do_nothing)
+        editmenu.add_command(label="Select All", command=self.do_nothing)
 
         menubar.add_cascade(label="Edit", menu=editmenu)
         helpmenu = tk.Menu(menubar, tearoff=0)
-        helpmenu.add_command(label="Help Index", command=self.donothing)
-        helpmenu.add_command(label="About...", command=self.donothing)
+        helpmenu.add_command(label="Help Index", command=self.do_nothing)
+        helpmenu.add_command(label="About...", command=self.do_nothing)
         menubar.add_cascade(label="Help", menu=helpmenu)
         root.config(menu=menubar)
 
@@ -107,71 +148,21 @@ class Editor:
         # right_frame.pack(side=LEFT, fill=BOTH, expand=True)
 
         pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
-        self.hierarchy_view = Hierarchy(right_frame)
+        self.hierarchy_view = Hierarchy(right_frame, self._set_selected_element)
         self.hierarchy_view.pack(side=TOP, fill=X, expand=True)
-        #
-        # self.hierarchy_view.insert('', tk.END, iid="0", text="map", open=True)
-        # self.hierarchy_view.insert('', tk.END, iid="1", text="tilesets", open=True)
-        # self.hierarchy_view.insert('', tk.END, iid="2", text="layers", open=True)
-        # self.hierarchy_view.insert('', tk.END, iid="3", text="foreground", open=True)
-        # self.hierarchy_view.insert('', tk.END, iid="4", text="objects", open=True)
-        # self.hierarchy_view.insert('', tk.END, iid="5", text="main", open=True)
-        # self.hierarchy_view.insert('', tk.END, iid="6", text="background", open=True)
-        # self.hierarchy_view.move(1, "0", 0)
-        # self.hierarchy_view.move(2, "0", 1)
-        # self.hierarchy_view.move(3, "2", 0)
-        # self.hierarchy_view.move(4, "2", 1)
-        # self.hierarchy_view.move(5, "2", 3)
-        # self.hierarchy_view.move(6, "2", 4)
-        #
-        # self.hierarchy_view.insert('', tk.END, iid=7, text="player", values=(True, ), open=False)
-        # self.hierarchy_view.insert('', tk.END, iid=8, text="door1", open=False)
-        # self.hierarchy_view.insert('', tk.END, iid=9, text="door2", open=False)
-        # self.hierarchy_view.insert('', tk.END, iid=10, text="teleport", open=False)
-        # self.hierarchy_view.move(7, "4", 0)
-        # self.hierarchy_view.move(8, "4", 1)
-        # self.hierarchy_view.move(9, "4", 2)
-        # self.hierarchy_view.move(10, "4", 3)
 
         pack(tk.Label(left_frame, text="Properties"), fill=X)
 
         self.main_properties = Properties(left_frame)
-        # self.main_properties.pack(fill=X, expand=True)
-        # values = {
-        #     "First": 1,
-        #     "Second": "some value",
-        #     "Third": True,
-        #     "fourth": 42,
-        #     "fifth": "something",
-        #     "sixth": "line1\nline2\nline3",
-        #     **{k: k for k in range(20)}
-        # }
-        # for k, v in values.items():
-        #     main_properties.insert('', tk.END, text=k, values=(v, ))
 
         pack(tk.Label(left_frame, text=""), fill=X)
         pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
 
         self.custom_properties = Properties(left_frame)
-        # self.custom_properties.pack(fill=X, expand=True)
-        # values = {
-        #     "on_click": "do_nothing()",
-        #     "on_animation": "a = a + 1",
-        #     "on_entry": "say_once(\"Hey\")\n# second line \nb = b + 1\n",
-        #     "on_leave": "say(\"Buy\")",
-        #     # **{f"custom_{k}": k for k in range(20)}
-        # }
-        # for k, v in values.items():
-        #     self.custom_properties.insert('', tk.END, text=k, values=(v, ))
 
         self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
 
         pack(tk.Button(left_frame, text="Select Colour", command=self.select_colour), fill=X)
-
-        # def open_edit() -> None:
-        #     text_edit = EditText(root, properties_widget=self.custom_properties)
-        #
-        # pack(tk.Button(root, text="Edit text", command=open_edit), fill=X)
 
         return root
 
@@ -184,11 +175,16 @@ class Editor:
 
         self.hierarchy_view.set_map(self.tiled_map)
 
-    def donothing(self) -> None:
-        print("Do nothigng!")
+    @staticmethod
+    def do_nothing() -> None:
+        print("Do nothing!")
 
     def setup_pygame(self) -> None:
-        os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
+        import platform
+        if platform.system() == "Darwin":
+            os.environ['SDL_VIDEO_WINDOW_POS'] = "315,58"
+        else:
+            os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
 
         self.screen = pygame.display.set_mode((1150, 900))
         self.screen_rect = self.screen.get_rect()
