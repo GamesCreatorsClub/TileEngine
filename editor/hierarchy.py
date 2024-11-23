@@ -50,7 +50,8 @@ class Hierarchy(ttk.Treeview):
 
         if selected_object is not None:
             self.main_properties.update_properties(
-                {k: getattr(selected_object, k) for k in type(selected_object).ATTRIBUTES}
+                {k: getattr(selected_object, k) for k in type(selected_object).ATTRIBUTES.keys()},
+                type(selected_object).ATTRIBUTES
             )
             self.custom_properties.update_properties(selected_object.properties)
         else:

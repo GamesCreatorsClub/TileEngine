@@ -5,14 +5,14 @@ import tkinter as tk
 
 from tkinter import colorchooser, X, filedialog, LEFT, BOTH, TOP
 
-from typing import Optional, cast
+from typing import Optional, cast, get_type_hints
 from sys import exit
 
-from pygame import Surface, Rect
+from pygame import Surface, Rect, Color
 
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledGroupLayer
 
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
@@ -77,6 +77,8 @@ class Editor:
             self.file_menu.entryconfig("Save", state="disabled")
             self.file_menu.entryconfig("Save as...", state="disabled")
 
+        self.hierarchy_view.set_map(self.tiled_map)
+
     @property
     def current_element(self) -> Optional[TiledElement]:
         return self._current_element
@@ -135,7 +137,7 @@ class Editor:
 
         menubar = tk.Menu(root)
         self.file_menu = tk.Menu(menubar, tearoff=0)
-        self.file_menu.add_command(label="New", command=self.do_nothing)
+        self.file_menu.add_command(label="New", command=self.create_new_map)
         self.file_menu.add_command(label="Open", command=self.load_file)
         self.file_menu.add_command(label="Save", command=self.do_nothing, state="disabled")
         self.file_menu.add_command(label="Save as...", command=self.do_nothing, state="disabled")
@@ -174,12 +176,12 @@ class Editor:
 
         pack(tk.Label(left_frame, text="Properties"), fill=X)
 
-        self.main_properties = Properties(left_frame)
+        self.main_properties = Properties(left_frame, self.update_current_element_attribute)
 
         pack(tk.Label(left_frame, text=""), fill=X)
         pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
 
-        self.custom_properties = Properties(left_frame)
+        self.custom_properties = Properties(left_frame, self.update_current_element_property)
 
         self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
 
@@ -189,12 +191,32 @@ class Editor:
 
     def load_file(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
-        print(f"Selected {filename}")
 
-        self.tiled_map = TiledMap()
-        self.tiled_map.load(filename)
+        tiled_map = TiledMap()
+        tiled_map.load(filename)
+        self.tiled_map = tiled_map
 
-        self.hierarchy_view.set_map(self.tiled_map)
+    def create_new_map(self) -> None:
+        tiled_map = TiledMap()
+        foreground_layer = TiledTileLayer(self.tiled_map)
+        foreground_layer.id = 1
+        foreground_layer.name = "foreground"
+        objects_layer = TiledGroupLayer(self.tiled_map)
+        objects_layer.id = 2
+        objects_layer.name = "objects"
+        main_layer = TiledTileLayer(self.tiled_map)
+        main_layer.id = 3
+        main_layer.name = "main"
+        background_layer = TiledTileLayer(self.tiled_map)
+        background_layer.id = 4
+        background_layer.name = "background"
+
+        tiled_map.add_layer(foreground_layer)
+        tiled_map.add_layer(objects_layer)
+        tiled_map.add_layer(main_layer)
+        tiled_map.add_layer(background_layer)
+
+        self.tiled_map = tiled_map
 
     @staticmethod
     def do_nothing() -> None:
@@ -243,6 +265,46 @@ class Editor:
             self.root.update()
             # if self.popup is not None:
             #     self.popup.update()
+
+    def update_current_element_attribute(self, key: str, value: str) -> None:
+        if self._current_element is not None:
+
+            attrs = type(self._current_element).ATTRIBUTES
+            typ = attrs[key].type if key in attrs else type(getattr(self._current_element, key))
+
+            if typ is None:
+                setattr(self._current_element, key, value)
+            elif typ is bool:
+                setattr(self._current_element, key, bool(value))
+            elif typ is int:
+                setattr(self._current_element, key, int(value))
+            elif typ is float:
+                setattr(self._current_element, key, float(value))
+            elif typ is Color:
+                if value == "":
+                    setattr(self._current_element, key, None)
+                elif len(value) >= 7 and value[0] == "(" and value[-1] == ")":
+                    s = [f"{int(s.strip()):02x}" for s in value[1:-1].split(",")]
+                    if len(s) == 3:
+                        setattr(self._current_element, key, "#" + "".join(s))
+                        return
+                print(f"Got incorrect color value '{value}'")
+            else:
+                setattr(self._current_element, key, value)
+
+    def update_current_element_property(self, key: str, value: str) -> None:
+        if self._current_element is not None:
+            current_value = self._current_element.properties[key]
+            if current_value is None:
+                self._current_element.properties[key] = value
+            elif isinstance(current_value, bool):
+                self._current_element.properties[key] = bool(value)
+            elif isinstance(current_value, int):
+                self._current_element.properties[key] = int(value)
+            elif isinstance(current_value, float):
+                self._current_element.properties[key] = float(value)
+            else:
+                self._current_element.properties[key] = value
 
 
 editor = Editor()

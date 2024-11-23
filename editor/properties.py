@@ -1,6 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP
-from typing import Callable, Optional, Any
+from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, colorchooser
+from typing import Callable, Optional, Any, Union
+
+from engine.tmx import F
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -9,7 +11,7 @@ def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
 
 
 class EditText(tk.Toplevel):
-    def __init__(self, root: tk.Widget, rowid: str, name: str, text: str, callback: Callable[[str, str], None]) -> None:
+    def __init__(self, root: Union[tk.Widget, tk.Tk], rowid: str, name: str, text: str, callback: Callable[[str, str], None]) -> None:
         super().__init__(root)
         self.root = root
         self.rowid = rowid
@@ -110,8 +112,9 @@ class EntryPopup(tk.Frame):
 
 
 class Properties(ttk.Treeview):
-    def __init__(self, root: tk.Widget) -> None:
+    def __init__(self, root: tk.Widget, update_callback: Callable[[str, str], None]) -> None:
         self.root = root
+        self.update_callback = update_callback
         self.treeview_frame = tk.Frame(root)
         super().__init__(self.treeview_frame, columns=("value",))
 
@@ -134,18 +137,29 @@ class Properties(ttk.Treeview):
         self.editorPopup: Optional[EditText] = None
 
         self.tag_configure("odd", background="gray95")
+        self.tag_configure("disabled", foreground="gray")
 
     def on_left_click(self, event) -> None:
         rowid = self.identify_row(event.y)
         column = self.identify_column(event.x)
 
-        if column == "#1":
+        tags = self.item(rowid, "tags")
+
+        if column == "#1" and "disabled" not in tags:
             info = self.bbox(rowid, column)
             if info:
                 x, y, width, height = info
                 text = self.item(rowid, "values")[0]
 
-                if "\n" not in text:
+                if "Color" in tags:
+                    def extract_color(v: str) -> str:
+                        return "#" + "".join(f"{int(s.strip()):02x}" for s in v[1:-1].split(","))
+
+                    initial_color = extract_color(text) if text != "" and text is not None else None
+                    color = colorchooser.askcolor(color=initial_color)
+                    if color[0] is not None:
+                        self.update_value(rowid, str(color[0]))
+                elif "\n" not in text:
                     self.entryPopup = EntryPopup(
                         self.root, self,
                         x=x, y=y,
@@ -173,10 +187,16 @@ class Properties(ttk.Treeview):
         self.item(rowid, values=(new_value,))
         self.editorPopup = None
         self.entryPopup = None
+        self.update_callback(rowid, new_value)
 
-    def update_properties(self, properties: dict[str, Any]) -> None:
+    def update_properties(self, properties: dict[str, Any], types_and_visibility: Optional[dict[str, F]] = None) -> None:
         self.delete(*self.get_children())
+        # self.types_and_visibility = types_and_visibility
         even = True
         for k, v in properties.items():
-            self.insert('', tk.END, text=k, values=(v, ), tags="even" if even else "odd")
+            enabled = "enabled" if types_and_visibility is None or types_and_visibility[k].visible else "disabled"
+            typ = types_and_visibility[k].type.__name__ if types_and_visibility is not None and k in types_and_visibility else "unknown_type"
+            if typ == "Color":
+                v = "(" + ",".join(str(s) for s in v) + ")" if v is not None and v != "" else ""
+            self.insert('', tk.END, iid=k, text=k, values=(v, ), tags=("even" if even else "odd", enabled, typ))
             even = not even

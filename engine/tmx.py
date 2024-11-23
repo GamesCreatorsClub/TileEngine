@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
 import pygame
-from pygame import Surface, Rect
+from pygame import Surface, Rect, Color
 from pygame.transform import flip, rotate
 
 from engine.collision_result import CollisionResult
@@ -29,6 +29,7 @@ GID_TRANS_ROTATE = 1 << 29
 GID_MASK = GID_TRANS_FLIP_HORIZONTALLY | GID_TRANS_FLIP_VERTICALLY | GID_TRANS_ROTATE
 
 TiledTileAnimation = namedtuple('TiledTileAnimation', ["tileid", "duration"])
+F = namedtuple('F', ["type", "visible"])
 
 
 class TiledClassType:
@@ -154,12 +155,13 @@ class TileFlags(NamedTuple):
 
 
 class TiledElement:
-    ATTRIBUTES = ["id", "name"]
+    ATTRIBUTES = {"id": F(int, False), "name": F(str, True)}
+
     def __init__(self, parent: Optional['TiledElement'] = None) -> None:
         self.parent = parent
         self.properties: dict[str, Any] = {}
-        self.id = 0
-        self.name = ""
+        self.id: int = 0
+        self.name: str = ""
 
     def __getitem__(self, key: str) -> Any:
         return self.properties[key]
@@ -259,22 +261,24 @@ class TiledSubElement(TiledElement):
 
 
 class BaseTiledLayer(TiledSubElement, ABC):
-    ATTRIBUTES = TiledElement.ATTRIBUTES + ["visible"]
+    ATTRIBUTES = TiledElement.ATTRIBUTES | {"visible": F(bool, True)}
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.visible = True
+        self.visible: bool = True
 
 
 class TiledTileLayer(BaseTiledLayer):
-    ATTRIBUTES = BaseTiledLayer.ATTRIBUTES + ["width", "height", "animate_layer"]
+    ATTRIBUTES = BaseTiledLayer.ATTRIBUTES | {
+        "width": F(int, True), "height": F(int, True), "animate_layer": F(bool, True)
+    }
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.width = 0
-        self.height = 0
+        self.width: int = 0
+        self.height: int = 0
         self.data: list[list[int]] = [[]]
-        self.animate_layer = False
+        self.animate_layer: bool = False
 
     def _parse_xml_data(self, data_node: Element) -> None:
         encoding = data_node.get("encoding", None)
@@ -396,9 +400,11 @@ class TiledObject(TiledSubElement):
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "ellipse": NodeType(None, None, None),
     }
-    ATTRIBUTES = TiledElement.ATTRIBUTES + [
-        "gid", "visible", "solid", "pushable", "x", "y", "width", "height"
-    ]
+    ATTRIBUTES = TiledElement.ATTRIBUTES | {
+        "gid": F(int, True), "visible": F(bool, True),
+        "solid": F(bool, True), "pushable": F(bool, True),
+        "x": F(float, True), "y": F(float, True), "width": F(int, True), "height": F(int, True)
+    }
 
     def __init__(self, parent: Optional[TiledElement]) -> None:
         super().__init__(parent)
@@ -509,13 +515,13 @@ class TiledObjectGroup(BaseTiledLayer):
 class TiledTerrain(TiledElement):
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.tile = -1
+        self.tile: int = -1
 
 
 class TiledWangTile(TiledElement):
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.wangid = ""
+        self.wangid: str = ""
 
     @property
     def tileid(self) -> int:
@@ -531,9 +537,9 @@ class TiledWangTile(TiledElement):
 class TiledWangColor(TiledElement):
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.color = ""
-        self.tile = -1
-        self.probability = 1
+        self.color: str = ""
+        self.tile: int = -1
+        self.probability: float = 1
 
 
 class TiledWangSet(TiledElement):
@@ -577,17 +583,18 @@ class TiledTileAnimations:
 
 
 class TiledTileset(TiledElement):
-    ATTRIBUTES = TiledElement.ATTRIBUTES + [
-        "firstgid", "name", "tilewidth", "tileheight",
-        "spacing", "margin", "tilecount", "columns",
-        "width", "height"
-    ]
+    ATTRIBUTES = TiledElement.ATTRIBUTES | {
+        "firstgid": F(int, False), "name": F(str, True), "tilewidth": F(int, True), "tileheight": F(int, True),
+        "spacing": F(int, True), "margin": F(int, True), "tilecount": F(int, False), "columns": F(int, True),
+        "width": F(int, True), "height": F(int, True)
+    }
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
         self._parent_dir = os.path.dirname(cast(TiledMap, self.parent).filename)
 
-        self._source: str = ""
+        self._source_filename: str = ""
+        self._source_image_filename: str = ""
         self.image_surface: Optional[Surface] = None
         self.tile_properties: dict[int, dict[str, Any]] = {}
         self.tile_terrain: dict[int, str] = {}
@@ -596,34 +603,42 @@ class TiledTileset(TiledElement):
         self.wangsets: Optional[TiledWangSets] = None
         self.tile_animations: dict[int, TiledTileAnimations] = {}
 
-        self.offset = (0, 0)
+        self.offset: tuple[int, int] = (0, 0)
 
         # defaults from the specification
-        self.firstgid = 0
-        self.name = None
-        self.tilewidth = 0
-        self.tileheight = 0
-        self.spacing = 0
-        self.margin = 0
-        self.tilecount = 0
-        self.columns = 0
+        self.firstgid: int = 0
+        self.name: Optional[str] = None
+        self.tilewidth: int = 0
+        self.tileheight: int = 0
+        self.spacing: int = 0
+        self.margin: int = 0
+        self.tilecount: int = 0
+        self.columns: int = 0
 
         # image properties
         self.trans = None
-        self.width = 0
-        self.height = 0
+        self.width: int = 0
+        self.height: int = 0
 
     @property
     def image(self) -> str:
-        return self._source
+        return self._source_image_filename
 
     @image.setter
+    def image(self, filename: str) -> None:
+        self._source_image_filename = filename
+        self.load(self._source_image_filename)
+
+    @property
+    def source(self) -> str:
+        return self._source_filename
+
+    @source.setter
     def source(self, filename: str) -> None:
-        self._source = filename
-        self.load(self._source)
+        self.load(filename)
 
     def load(self, filename: str) -> None:
-        self._source = filename
+        self._source_filename = filename
 
         filename = filename.replace("\\", "/")
         filename = filename.replace("/", os.path.sep)
@@ -632,12 +647,12 @@ class TiledTileset(TiledElement):
         self._parse_xml(ElementTree.parse(full_filename).getroot())
 
     def _load_image(self, image_element: Element) -> None:
-        filename = image_element.get("source")
+        self._source_image_filename = image_element.get("source")
         _width = int(image_element.get("width"))
         _height = int(image_element.get("width"))
-        full_filename = os.path.join(os.path.join(self._parent_dir, os.path.dirname(self._source)), filename)
+        full_filename = os.path.join(os.path.join(self._parent_dir, os.path.dirname(self._source_filename)), self._source_image_filename)
         self.image_surface = pygame.image.load(full_filename)
-        image_rect = self.image_surface.get_rect()
+        # image_rect = self.image_surface.get_rect()
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
@@ -698,6 +713,16 @@ class TiledMap(TiledElement):
         "objectgroup": NodeType(None, TiledObjectGroup, "add_layer"),
     }
 
+    ATTRIBUTES = TiledElement.ATTRIBUTES | {
+        "version": F(str, False), "tiledversion": F(str, False),
+        "orientation": F(str, False), "renderorder": F(str, False),
+        "width": F(int, True), "height": F(int, True), "tilewidth": F(int, True), "tileheight": F(int, True),
+        "hexsidelength": F(int, False), "staggeraxis": F(str, False), "staggerindex": F(int, False),
+        "backgroundcolor": F(Color, True),
+        "nextobjectid": F(int, False), "nextlayerid": F(int, False), "maxgid": F(int, False),
+        "infinite": F(bool, False)
+    }
+
     def __init__(self, invert_y: bool = True) -> None:
         super().__init__()
         self.filename: Optional[str] = None
@@ -710,24 +735,24 @@ class TiledMap(TiledElement):
         self.tiles_by_name: ChainMap[str, int] = ChainMap()
         self.tile_animations: ChainMap[int, TiledTileAnimations] = ChainMap()
 
-        self.version = "0.0"
-        self.tiledversion = ""
-        self.orientation = "orthogonal"
-        self.renderorder = "right-down"
-        self.width = 0  # width of map in tiles
-        self.height = 0  # height of map in tiles
-        self.tilewidth = 0  # width of a tile in pixels
-        self.tileheight = 0  # height of a tile in pixels
-        self.hexsidelength = 0
-        self.staggeraxis = None
-        self.staggerindex = None
+        self.version: str = "0.0"
+        self.tiledversion: str = ""
+        self.orientation: str = "orthogonal"
+        self.renderorder: str = "right-down"
+        self.width: int = 0  # width of map in tiles
+        self.height: int = 0  # height of map in tiles
+        self.tilewidth: int = 0  # width of a tile in pixels
+        self.tileheight: int = 0  # height of a tile in pixels
+        self.hexsidelength: int = 0
+        self.staggeraxis: Optional[str] = None
+        self.staggerindex: Optional[int] = None
         self._backgroundcolor: Optional[tuple[int, int, int]] = None
 
-        self.nextobjectid = 0
-        self.nextlayerid = 0
-        self.maxgid = 0
+        self.nextobjectid: int = 0
+        self.nextlayerid: int = 0
+        self.maxgid: int = 0
 
-        self.infinite = False
+        self.infinite: bool = False
         self.images: list[Surface] = []
 
     @property
