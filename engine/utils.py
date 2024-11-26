@@ -56,3 +56,6 @@ class NestedDict(dict):
 
     def __contains__(self, key) -> bool:
         return key in self.over or super().__contains__(key)
+
+    def has_original_keys(self) -> bool:
+        return super().__len__() > 0
