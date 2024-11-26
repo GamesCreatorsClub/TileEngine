@@ -365,7 +365,6 @@ class TiledSubElement(TiledElement, ABC):
 class BaseTiledLayer(TiledSubElement, ABC):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
         "id": F(int, False), "name": F(str, True),
-        "visible": F(bool, True, True)
     }
 
     def __init__(self, parent: TiledElement) -> None:
@@ -378,7 +377,8 @@ class BaseTiledLayer(TiledSubElement, ABC):
 class TiledTileLayer(BaseTiledLayer):
     ATTRIBUTES = BaseTiledLayer.ATTRIBUTES | {
         "id": F(int, False), "name": F(str, True),
-        "width": F(int, True), "height": F(int, True)
+        "width": F(int, True), "height": F(int, True),
+        "visible": F(bool, True, True)
     }
 
     def __init__(self, parent: TiledElement) -> None:
