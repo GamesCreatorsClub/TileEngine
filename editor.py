@@ -5,7 +5,7 @@ import tkinter as tk
 
 from tkinter import colorchooser, X, filedialog, LEFT, BOTH, TOP
 
-from typing import Optional, cast, get_type_hints
+from typing import Optional, cast
 from sys import exit
 
 from pygame import Surface, Rect, Color
@@ -59,9 +59,10 @@ class Editor:
         self.open_tk_window(self.root)
         if WITH_PYGAME:
             self.setup_pygame()
-            self.background = Surface(self.screen_rect.size, pygame.HWSURFACE).convert_alpha()
-        self.draw = False
-        self.draw_size = (50, 50)
+
+        self.viewport = Rect(0, 0, 1150, 900)
+        self.offset_x = 50
+        self.offset_y = 50
 
     @property
     def tiled_map(self) -> Optional[TiledMap]:
@@ -73,9 +74,20 @@ class Editor:
         if tiled_map is not None:
             self.file_menu.entryconfig("Save", state="normal")
             self.file_menu.entryconfig("Save as...", state="normal")
+            self.current_tileset = tiled_map.tilesets[0] if len(tiled_map.tilesets) > 0 else None
+            self.current_element = tiled_map
+
+            main_layer = next((l for l in tiled_map.layers if l.name == "main"), None)
+
+            self.current_layer = main_layer
+            self.current_object = None
         else:
             self.file_menu.entryconfig("Save", state="disabled")
             self.file_menu.entryconfig("Save as...", state="disabled")
+            self.current_tileset = None
+            self.current_element = None
+            self.current_layer = None
+            self.current_object = None
 
         self.hierarchy_view.set_map(self.tiled_map)
 
@@ -100,7 +112,10 @@ class Editor:
     @current_tileset.setter
     def current_tileset(self, tileset: Optional[TiledTileset]) -> None:
         self._current_tileset = tileset
-        print(f"Current tileset is {tileset.name}: {tileset.image}")
+        if tileset is not None:
+            print(f"Current tileset is {tileset.name}: {tileset.image}")
+        else:
+            print("No current tileset")
 
     @property
     def current_layer(self) -> Optional[BaseTiledLayer]:
@@ -108,8 +123,11 @@ class Editor:
 
     @current_layer.setter
     def current_layer(self, tileset: Optional[BaseTiledLayer]) -> None:
-        self._current_tileset = tileset
-        print(f"Current layer is {tileset.name}: {tileset.id}")
+        self._current_layer = tileset
+        if tileset is not None:
+            print(f"Current layer is {tileset.name}: {tileset.id}")
+        else:
+            print("No current layer")
 
     @property
     def current_object(self) -> Optional[TiledObject]:
@@ -118,7 +136,10 @@ class Editor:
     @current_object.setter
     def current_object(self, obj: Optional[TiledObject]) -> None:
         self._current_object = obj
-        print(f"Current object is {obj.name}: {obj.id}")
+        if obj is not None:
+            print(f"Current object is {obj.name}: {obj.id}")
+        else:
+            print("No current object")
 
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
         self.current_element = selected_element
@@ -185,8 +206,6 @@ class Editor:
 
         self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
 
-        pack(tk.Button(left_frame, text="Select Colour", command=self.select_colour), fill=X)
-
         return root
 
     def load_file(self) -> None:
@@ -235,11 +254,22 @@ class Editor:
 
         pygame.display.set_caption("Editor Window")
 
-    def select_colour(self) -> None:
-        color = colorchooser.askcolor()
-        print(color)
-        if color[0] is not None:
-            self.colour = color[0]
+    def render_map(self, surface: Surface, xo: int, yo: int) -> None:
+        tiled_map = self.tiled_map
+        if tiled_map is not None:
+            for layer in self.tiled_map.layers:
+                if layer.visible:
+                    layer.draw(surface, self.viewport, xo, yo)
+
+    def render_tileset(self, surface: Surface) -> None:
+        if self.current_tileset is not None:
+            rect = self.current_tileset.image_surface.get_rect()
+            rect.topleft = (self.screen_rect.width - rect.width - 10, self.screen_rect.height - rect.height - 10)
+            rect2 = pygame.Rect(rect)
+            rect2.move_ip(-2, -2)
+            rect2.inflate_ip(4, 4)
+            pygame.draw.rect(surface, (0, 0, 0), rect2, width=1)
+            surface.blit(self.current_tileset.image_surface, rect.topleft)
 
     def pygame_loop(self) -> None:
         mouse_pos = (0, 0)
@@ -248,23 +278,19 @@ class Editor:
                 if event.type == pygame.QUIT:
                     self.quit()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    self.draw = True
+                    pass
                 elif event.type == pygame.MOUSEBUTTONUP:
-                    self.draw = False
+                    pass
                 elif event.type == pygame.MOUSEMOTION:
-                    mouse_pos = event.pos[0] - self.draw_size[0] // 2, event.pos[1] - self.draw_size[1] // 2
-                    if self.draw:
-                        pygame.draw.rect(self.background, self.colour, (mouse_pos, self.draw_size))
+                    pass
 
-            self.screen.fill((0, 0, 0))
-            self.screen.blit(self.background, (0, 0))
+            self.screen.fill((200, 200, 200))
+            self.render_map(self.screen, self.offset_x, self.offset_y)
+            self.render_tileset(self.screen)
 
-            pygame.draw.rect(self.screen, self.colour, (mouse_pos, self.draw_size))
             pygame.display.flip()
             self.clock.tick(30)
             self.root.update()
-            # if self.popup is not None:
-            #     self.popup.update()
 
     def update_current_element_attribute(self, key: str, value: str) -> None:
         if self._current_element is not None:

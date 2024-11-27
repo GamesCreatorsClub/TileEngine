@@ -11,7 +11,7 @@ from engine.player import Player, Orientation
 from engine.utils import clip
 from engine.tmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, TileFlags, BaseTiledLayer
 
-offscreen_rendering = True
+offscreen_rendering = False
 
 
 class Level:
@@ -247,16 +247,9 @@ class Level:
 
     def render_to(self, surface: Surface, xo: int, yo: int) -> None:
         for layer in self.layers:
-            if isinstance(layer, TiledObjectGroup):
-                for obj in layer.objects:
-                    if obj.image and obj.visible:
-                        surface.blit(obj.image, (obj.x + xo, obj.y + yo))
-            else:
-                if layer.visible:
-                    if offscreen_rendering:
-                        layer.draw(surface, self.off_screen_viewport, xo, yo)
-                    else:
-                        layer.draw(surface, self.off_screen_viewport, xo, yo)
+            if layer.visible:
+                if offscreen_rendering:
+                    layer.draw(surface, self.off_screen_viewport, xo, yo)
 
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.viewport) as clip_rect:

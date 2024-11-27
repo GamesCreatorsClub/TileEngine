@@ -373,6 +373,10 @@ class BaseTiledLayer(TiledSubElement, ABC):
         self.name: str = ""
         self.visible: bool = True
 
+    @abstractmethod
+    def draw(self, surface: Surface, viewport: Rect, xo: int, yo: int, current_time: Optional[float] = None) -> None:
+        pass
+
 
 class TiledTileLayer(BaseTiledLayer):
     ATTRIBUTES = BaseTiledLayer.ATTRIBUTES | {
@@ -667,6 +671,11 @@ class TiledObjectGroup(BaseTiledLayer):
             obj._save(stream, indent)
 
         return close_tag
+
+    def draw(self, surface: Surface, viewport: Rect, xo: int, yo: int, current_time: Optional[float] = None) -> None:
+        for obj in self.objects:
+            if obj.image and obj.visible:
+                surface.blit(obj.image, (obj.x + xo, obj.y + yo))
 
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "object": NodeType(None, TiledObject, "add_object"),
