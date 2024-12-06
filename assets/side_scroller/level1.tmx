@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.11" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="47">
+<map version="1.11" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="64" height="16" tilewidth="18" tileheight="18" infinite="0" nextlayerid="14" nextobjectid="48">
  <properties>
   <property name="level_context" value="game.G24ImpossibleLevelContext"/>
   <property name="viewport" value="220, 180, 604, 288"/>
@@ -17,19 +17,19 @@
   </data>
  </layer>
  <objectgroup id="5" name="objects">
-  <object id="1" name="coin" gid="152" x="629.667" y="127.667" width="18" height="18"/>
-  <object id="2" name="coin" gid="152" x="738.333" y="89.6667" width="18" height="18"/>
-  <object id="3" name="coin" gid="152" x="811" y="55.6667" width="18" height="18"/>
-  <object id="4" name="coin" gid="152" x="902.333" y="181.667" width="18" height="18"/>
-  <object id="5" name="coin" gid="152" x="144.333" y="198.333" width="18" height="18">
+  <object id="1" name="coin" gid="152" x="630" y="128" width="18" height="18"/>
+  <object id="2" name="coin" gid="152" x="738" y="90" width="18" height="18"/>
+  <object id="3" name="coin" gid="152" x="811" y="56" width="18" height="18"/>
+  <object id="4" name="coin" gid="152" x="902" y="182" width="18" height="18"/>
+  <object id="5" name="coin" gid="152" x="144" y="198" width="18" height="18">
    <properties>
     <property name="on_collision">remove_object(obj)
 add_coins(1)</property>
    </properties>
   </object>
   <object id="6" name="coin" gid="152" x="397" y="181" width="18" height="18"/>
-  <object id="7" name="coin" gid="152" x="1045.67" y="107" width="18" height="18"/>
-  <object id="8" name="coin" gid="152" x="1079" y="90.3333" width="18" height="18">
+  <object id="7" name="coin" gid="152" x="1046" y="107" width="18" height="18"/>
+  <object id="8" name="coin" gid="152" x="1079" y="90" width="18" height="18">
    <properties>
     <property name="on_collision">remove_object(obj)
 add_coins(1)</property>
@@ -43,12 +43,12 @@ add_coins(1)</property>
    </properties>
   </object>
   <object id="24" name="player" gid="2147483829" x="18" y="216" width="24" height="24"/>
-  <object id="27" name="level_end" x="1102" y="256" width="49.3333" height="31.3333">
+  <object id="27" name="level_end" x="1102" y="256" width="49" height="31">
    <properties>
     <property name="on_collision" value="next_level()"/>
    </properties>
   </object>
-  <object id="28" name="move_level" x="504" y="0" width="360" height="288">
+  <object id="28" name="move_level" x="504" y="0" width="360" height="288" visible="0">
    <properties>
     <property name="on_enter" value="context.visible_levels[context.level] = MoveViewport(context.level, Rect(10, 10, 1004, 288), 120)"/>
    </properties>
@@ -68,6 +68,11 @@ context.move_object(obj, 0, 2)
 
 
 prevent_colliding()</property>
+   </properties>
+  </object>
+  <object id="47" x="504" y="0" width="360" height="288">
+   <properties>
+    <property name="on_enter" value="game.visible_levels[context.level] = MoveViewport(context.level, Rect(10, 10, 1004, 288), 120)"/>
    </properties>
   </object>
  </objectgroup>
