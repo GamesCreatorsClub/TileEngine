@@ -45,7 +45,7 @@ add_coins(1)</property>
   <object id="24" name="player" gid="2147483829" x="18" y="216" width="24" height="24"/>
   <object id="27" name="level_end" x="1102" y="256" width="49" height="31">
    <properties>
-    <property name="on_collision" value="next_level()"/>
+    <property name="on_collision" value="next_level(keep_others=True)"/>
    </properties>
   </object>
   <object id="28" name="move_level" x="504" y="0" width="360" height="288" visible="0">

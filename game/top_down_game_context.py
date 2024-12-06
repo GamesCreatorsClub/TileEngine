@@ -52,7 +52,7 @@ class TopDownGameContext(GameContext):
 
             if player_moved:
                 self.player.animate_walk()
-                self.level.update_map_position(self.player.rect)
+                self.level.update_map_position(self.player.rect.center)
                 self.level.invalidated = True
             else:
                 self.player.stop_walk()

@@ -52,11 +52,11 @@ class SideScrollerGameContext(GameContext):
                 player.hit_velocity = player.vy
                 player.vy = 0
         player_moved = player_moved_horizotanlly or player_moved_vertically
-        # player_moved = player_moved_horizotanlly
 
         if player_moved:
             self.player.animate_walk()
-            self.level.update_map_position(self.player.rect)
+            self.level.update_map_position(self.player.rect.center)
             self.level.invalidated = True
         else:
+            level = self.level
             self.player.stop_walk()

@@ -178,19 +178,9 @@ class GameContext(ABC):
             obj: PlayerOrObject,
             current_rect: Rect,
             next_rect: Rect,
-            x: float, y: float,
-            absolute: bool = False
     ) -> tuple[tuple[Union[int, float], Union[int, float]], Optional[CollisionResult]]:
 
         level = self.level
-        level_map = level.map
-
-        if absolute:
-            next_rect.x = x
-            next_rect.y = y
-        else:
-            next_rect.x = min(max(0, next_rect.x + x), level.width - level_map.tilewidth)
-            next_rect.y = min(max(0, next_rect.y + y), level.height - level_map.tileheight)
 
         if obj.collision_result is None:
             obj.collision_result = CollisionResult()
@@ -277,13 +267,30 @@ class GameContext(ABC):
         def test_if_obj_is_player(object_has_moved: bool) -> None:
             if object_has_moved:
                 if obj == self.player:
-                    self.level.update_map_position(self.player.rect)
+                    self.level.update_map_position(self.player.rect.center)
                 self.level.invalidated = True
 
         next_rect = obj.next_rect
         next_rect.update(obj.rect)
 
-        next_pos, collided_result = self.check_next_position(obj, obj.rect, obj.next_rect, x, y, absolute=absolute)
+        if absolute:
+            next_rect.x = x
+            next_rect.y = y
+        else:
+            level = self.level
+            level_map = level.map
+
+            next_rect.x = min(max(0, int(next_rect.x + x)), level.width - level_map.tilewidth)
+            next_rect.y = min(max(0, int(next_rect.y + y)), level.height - level_map.tileheight)
+
+        if isinstance(obj, Player):
+            if (next_rect.x < obj.restricted_rect.x
+               or next_rect.y < obj.restricted_rect.y
+               or next_rect.right > obj.restricted_rect.right
+               or next_rect.bottom > obj.restricted_rect.bottom):
+                return False
+
+        next_pos, collided_result = self.check_next_position(obj, obj.rect, next_rect)
 
         next_rect.topleft = next_pos
 
@@ -455,11 +462,12 @@ class GameContext(ABC):
     def teleport_to_object(self, who: PlayerOrObject, obj_name: str) -> None:
         for obj in self.level.objects:
             if obj.name == obj_name:
-                x = obj.rect.x + (obj.rect.width - who.rect.width) // 2
-                y = obj.rect.y + (obj.rect.height - who.rect.height) // 2
+                x = obj.rect.centerx
+                y = obj.rect.centery
                 self.move_object(who, x, y, absolute=True)
-                print(f"Teleported to {x}, {y}")
+                print(f"Teleported {who.name} to {x}, {y}")
                 self.prevent_moving()
+                self.level.invalidated = True
                 return
 
     @in_context

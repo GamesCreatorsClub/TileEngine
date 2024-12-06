@@ -5,7 +5,7 @@ from typing import Union, ChainMap, Optional
 from pygame.font import Font
 
 from engine.level import Level
-from engine.tmx import TiledObject
+from engine.tmx import TiledObject, TiledObjectGroup
 from engine.utils import Size, Position
 from game.overlays.inventory import Inventory
 from game.overlays.text_area import TextArea
@@ -50,6 +50,11 @@ class RPGGameContext(TopDownGameContext):
     @property
     @in_context
     def tiles_by_name(self) -> ChainMap[str, int]:
+        return self.level.map.tiles_by_name
+
+    @property
+    @in_context
+    def obj_by_name(self) -> ChainMap[str, int]:
         return self.level.map.tiles_by_name
 
     @in_context

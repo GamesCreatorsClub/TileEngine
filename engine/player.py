@@ -1,6 +1,8 @@
 import enum
 from typing import Union, cast
 
+import pygame
+
 from engine.collision_result import CollisionResult
 from engine.utils import int_tuple, NestedDict
 from engine.tmx import TiledObject
@@ -39,6 +41,8 @@ class Player(TiledObject):
         self.jump = 0
         self.player_speed = 2
         self.on_the_ground = True
+
+        self.restricted_rect = pygame.Rect(0, 0, 0, 0)
 
         self.save_previous_positions = False
         self.previous_positions_length = 400

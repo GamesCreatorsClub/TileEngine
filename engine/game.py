@@ -44,7 +44,13 @@ class Game:
             self.previous_keys = self.current_keys
             self.current_keys = pygame.key.get_pressed()
 
-            self.game_context.process_keys(self.previous_keys, self.current_keys)
+            if self.game_context.player_input_allowed:
+                self.game_context.process_keys(self.previous_keys, self.current_keys)
+
+            if self.game_context.level is not None:
+                level = self.game_context.level
+                if level.x_offset != level.required_x_offset or level.y_offset != level.required_y_offset:
+                    level.move_offset()
 
             elapsed_ms = self.frameclock.tick(60)
             self.game_context.animate(elapsed_ms)

@@ -955,6 +955,21 @@ class TiledMap(TiledElement):
         self.infinite: bool = False
         self.images: list[Surface] = []
         self.new_gids: dict[int, tuple[int, TileFlags]] = {}
+        self._map_rect: Optional[Rect] = None
+
+    @property
+    def rect(self) -> Rect:
+        if self._map_rect is None:
+            self._map_rect = Rect(0, 0, self.pixel_width, self.pixel_height)
+        return self._map_rect
+
+    @property
+    def pixel_width(self) -> int:
+        return self.width * self.tilewidth
+
+    @property
+    def pixel_height(self) -> int:
+        return self.height * self.tileheight
 
     @property
     def backgroundcolor(self) -> Optional[tuple[int, int, int]]:

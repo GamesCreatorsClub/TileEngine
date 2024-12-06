@@ -1,3 +1,4 @@
+import math
 import os.path
 from itertools import chain
 from typing import Union, Optional, cast, Any
@@ -12,6 +13,23 @@ from engine.utils import clip
 from engine.tmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, TileFlags, BaseTiledLayer
 
 offscreen_rendering = True
+
+
+class ObjectByNameWrapper:
+    def __init__(self, objects: dict[TiledObject, Rect]) -> None:
+        self.objects = objects
+
+    def __getitem__(self, key: str) -> TiledObject:
+        for obj in self.objects:
+            if obj.name == key:
+                return obj
+        raise KeyError(f"No object with name {key}")
+
+    def __setitem__(self, key: str, value: TiledObject) -> None:
+        raise NotImplemented()
+
+    def __delitem__(self, key: str, value: TiledObject) -> None:
+        raise NotImplemented()
 
 
 class Level:
@@ -58,6 +76,9 @@ class Level:
         self.viewport: Optional[Rect] = None
         self.x_offset = 0
         self.y_offset = 0
+        self.required_x_offset = 0
+        self.required_y_offset = 0
+        self.offset_speed = 0
         self.background_colour = (0, 224, 0) if tiled_map.backgroundcolor is None else tiled_map.backgroundcolor
 
         self.layers: list[Union[TiledTileLayer, TiledObjectGroup]] = []
@@ -68,6 +89,7 @@ class Level:
         self.objects_layer: Optional[TiledObjectGroup] = None
 
         self.objects: dict[TiledObject, Rect] = {}
+        self.objects_by_name = ObjectByNameWrapper(self.objects)
         self.player_object: Optional[TiledObject] = None
         self.player_orientation = Orientation.RIGHT
         self.player_left_animation: list[int] = []
@@ -116,7 +138,7 @@ class Level:
                 self.over_layer = cast(TiledTileLayer, layer)
             elif layer.name.startswith("object"):
                 self.objects_layer = cast(TiledObjectGroup, layer)
-                self.objects = {o: o.rect for o in self.objects_layer.objects if o.name != "player"}
+                self.objects.update({o: o.rect for o in self.objects_layer.objects if o.name != "player"})
 
         if self.background_layer is not None:
             self.layers.append(self.background_layer)
@@ -130,7 +152,7 @@ class Level:
                 raise ValueError("Missing player object")
 
             self.player_object.visible = False
-            self.update_map_position(self.player_object.rect)
+            self.update_map_position(self.player_object.rect.center)
 
             self._update_player_animation()
         else:
@@ -225,6 +247,7 @@ class Level:
         player.right_animation[:] = self.player_right_animation
         player.up_animation[:] = self.player_up_animation
         player.down_animation[:] = self.player_down_animation
+        player.restricted_rect.update(0, 0, self.map.pixel_width, self.map.pixel_height)
         self.player_object.visible = True
 
     def stop(self) -> None:
@@ -262,7 +285,7 @@ class Level:
             else:
                 self.render_to(surface, clip_rect.x - self.x_offset, clip_rect.y - self.y_offset)
 
-    def update_map_position(self, player_rect: Rect) -> None:
+    def update_map_position(self, xy: tuple[int, int], speed: int = 0) -> None:
         def place(screen_half: int, player_pos: float, map_width: int) -> int:
             player_pos = int(player_pos)
             offset = player_pos - screen_half
@@ -273,18 +296,36 @@ class Level:
         if self.map_rect.width < self.viewport.width:
             xo = -(self.viewport.width - self.map_rect.width) // 2
         else:
-            xo = place(self.viewport.width // 2, player_rect.x, self.map_rect.width)
+            xo = place(self.viewport.width // 2, xy[0], self.map_rect.width)
 
         if self.map_rect.height < self.viewport.height:
             yo = -(self.viewport.height - self.map_rect.height) // 2
         else:
-            yo = place(self.viewport.height // 2, player_rect.y, self.map_rect.height)
+            yo = place(self.viewport.height // 2, xy[1], self.map_rect.height)
 
         if xo != self.x_offset or yo != self.y_offset:
             self.invalidated = True
 
-        self.x_offset = xo
-        self.y_offset = yo
+        self.offset_speed = speed
+
+        self.required_x_offset = int(xo)
+        self.required_y_offset = int(yo)
+        if speed <= 0:
+            self.x_offset = int(xo)
+            self.y_offset = int(yo)
+        else:
+            self.move_offset()
+
+    def move_offset(self) -> None:
+        xo = self.required_x_offset
+        yo = self.required_y_offset
+        speed = self.offset_speed
+
+        d = math.sqrt((self.x_offset - xo) * (self.x_offset - xo) + (self.y_offset - yo) * (self.y_offset - yo))
+        if d > 0:
+            ratio = speed / d if speed < d else 1
+            self.x_offset = int(xo) if abs(xo - self.x_offset) < 1 else int(self.x_offset + (xo - self.x_offset) * ratio)
+            self.y_offset = int(yo) if abs(yo - self.y_offset) < 1 else int(self.y_offset + (yo - self.y_offset) * ratio)
 
     def collect_collided(self, rect: Rect, collision_result: CollisionResult) -> 'CollisionResult':
         collision_result.total = 0
