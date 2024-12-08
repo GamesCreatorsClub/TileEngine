@@ -5,6 +5,7 @@ This is an engine/framework for making games using Pygame and Tiled map editor. 
 This project also provides cut down version of editor where Tiled is not available.
 
 Tiled objects [reference docs](docs/reference.md#tiled-objects)
+
 Game context [reference docs](docs/reference.md#game-context)
 
 ## Quick start

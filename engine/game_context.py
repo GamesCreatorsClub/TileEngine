@@ -131,8 +131,8 @@ class GameContext(ABC):
 
     @property
     @in_context
-    def obj_by_name(self) -> ChainMap[str, int]:
-        return self.level.map.tiles_by_name
+    def object_by_name(self) -> ChainMap[str, int]:
+        return self.level.map.object_by_name
 
     @in_context
     def distance_from_player(self, obj: TiledObject) -> float:
