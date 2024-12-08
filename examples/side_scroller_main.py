@@ -1,4 +1,12 @@
+import os
 import pygame
+import sys
+
+# This is needed to ensure examples can be run from the subfolder
+if not os.path.exists("engine"):
+    os.chdir(os.path.dirname(os.path.abspath(".")))
+
+sys.path.append(os.getcwd())
 
 from engine.game import Game
 from engine.level import Level
