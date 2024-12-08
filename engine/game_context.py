@@ -2,7 +2,7 @@ import importlib
 import math
 from abc import ABC, abstractmethod
 from itertools import chain
-from typing import Optional, Union, cast, Callable, Any
+from typing import Optional, Union, cast, Callable, Any, ChainMap
 
 from pygame import Rect, Surface
 from pygame.key import ScancodeWrapper
@@ -124,6 +124,22 @@ class GameContext(ABC):
     def process_mouse_up(self, _pos: tuple) -> None:
         self.mouse_pressed_pos = None
 
+    @property
+    @in_context
+    def tiles_by_name(self) -> ChainMap[str, int]:
+        return self.level.map.tiles_by_name
+
+    @property
+    @in_context
+    def obj_by_name(self) -> ChainMap[str, int]:
+        return self.level.map.tiles_by_name
+
+    @in_context
+    def distance_from_player(self, obj: TiledObject) -> float:
+        dx = self.player.rect.x - obj.rect.x
+        dy = self.player.rect.y - obj.rect.y
+        return math.sqrt(dx * dx + dy * dy)
+
     @in_context
     def set_player_input_allowed(self, allowed) -> None:
         self.player_input_allowed = allowed
@@ -149,12 +165,16 @@ class GameContext(ABC):
         # Default resets
         self.player_input_allowed = True
 
+        if "on_create" in level.map.properties and "_on_create_executed" not in level.map.properties:
+            self._execute_script(level.map.properties["on_create"], {"level": level})
+            level.map.properties["_on_create_executed"] = True
+
         if "on_show" in level.map.properties:
             self._execute_script(level.map.properties["on_show"], {"level": level})
 
         for obj in self.level.objects:
             if "on_create" in obj.properties:
-                self._execute_script(obj.properties["on_create"], {"obj": obj})
+                self._execute_script(obj.properties["on_create"], {"obj": obj, "level": level})
 
     def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None, activate: bool = False) -> None:
         if level not in self.visible_levels:

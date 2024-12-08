@@ -1,11 +1,11 @@
 import math
 
-from typing import Union, ChainMap, Optional
+from typing import Union, Optional
 
 from pygame.font import Font
 
 from engine.level import Level
-from engine.tmx import TiledObject, TiledObjectGroup
+from engine.tmx import TiledObject
 from engine.utils import Size, Position
 from game.overlays.inventory import Inventory
 from game.overlays.text_area import TextArea
@@ -47,16 +47,6 @@ class RPGGameContext(TopDownGameContext):
 
         self._inventory.set_size(Size(width, height))
 
-    @property
-    @in_context
-    def tiles_by_name(self) -> ChainMap[str, int]:
-        return self.level.map.tiles_by_name
-
-    @property
-    @in_context
-    def obj_by_name(self) -> ChainMap[str, int]:
-        return self.level.map.tiles_by_name
-
     @in_context
     @property
     def inventory(self) -> Inventory:
@@ -70,6 +60,21 @@ class RPGGameContext(TopDownGameContext):
                 self._inventory["coin"] = coin_obj
 
     @in_context
+    def add_object_to_inventory(self, obj: TiledObject) -> None:
+        self.remove_object(obj)
+        k = obj.name
+        self.inventory[k] = obj
+        self.prevent_colliding()
+
+    @in_context
+    def give_object(self, obj_name: str) -> None:
+        for o in self.level.objects:
+            if o.name == obj_name:
+                self.remove_object(o)
+                self.add_object_to_inventory(o)
+                return
+
+    @in_context
     def set_inventory_visibility(self, visible: bool) -> None:
         self.inventory_visible = visible
 
@@ -80,12 +85,6 @@ class RPGGameContext(TopDownGameContext):
     @in_context
     def say_once(self, text: str, colour: Optional[Color] = None, expires_in: float = 0.0) -> None:
         self.text_area.say_once(text, colour, expires_in)
-
-    @in_context
-    def distance_from_player(self, obj: TiledObject) -> float:
-        dx = self.player.rect.x - obj.rect.x
-        dy = self.player.rect.y - obj.rect.y
-        return math.sqrt(dx * dx + dy * dy)
 
     @in_context
     def move_object_away(self, this: TiledObject, obj: TiledObject, at_distance: float, test_collisions: bool = False, above_everything: bool = True) -> None:
@@ -125,18 +124,3 @@ class RPGGameContext(TopDownGameContext):
                     this.rect.update(this.next_rect)
             else:
                 self.move_object(this, new_dx - dx, new_dy - dy, test_collisions)
-
-    @in_context
-    def add_object_to_inventory(self, obj: TiledObject) -> None:
-        self.remove_object(obj)
-        k = obj.name
-        self.inventory[k] = obj
-        self.prevent_colliding()
-
-    @in_context
-    def give_object(self, obj_name: str) -> None:
-        for o in self.level.objects:
-            if o.name == obj_name:
-                self.remove_object(o)
-                self.add_object_to_inventory(o)
-                return

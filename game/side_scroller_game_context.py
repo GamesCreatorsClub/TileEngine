@@ -58,5 +58,4 @@ class SideScrollerGameContext(GameContext):
             self.level.update_map_position(self.player.rect.center)
             self.level.invalidated = True
         else:
-            level = self.level
             self.player.stop_walk()
