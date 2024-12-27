@@ -3,7 +3,7 @@ import os
 import pygame
 import tkinter as tk
 
-from tkinter import colorchooser, X, filedialog, LEFT, BOTH, TOP
+from tkinter import X, filedialog, LEFT, BOTH, TOP
 
 from typing import Optional, cast
 from sys import exit
@@ -12,6 +12,7 @@ from pygame import Surface, Rect, Color
 
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
+from editor.pygame_components import ComponentCollection, TilesetCanvas, MapCanvas
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledGroupLayer
 
 WITH_PYGAME = True
@@ -28,7 +29,7 @@ class Editor:
         self.running = True
         self.colour = pygame.Color("yellow")
         self.speed = 10
-        self.screen = None
+        self.screen: Optional[Surface] = None
         self.screen_rect: Optional[Rect] = None
         self.main_properties: Optional[Properties] = None
         self.custom_properties: Optional[Properties] = None
@@ -53,6 +54,8 @@ class Editor:
         self.root = tk.Tk()
         # self.popup: Optional[tk.Tk] = None
         pygame.init()
+        self.previous_keys = pygame.key.get_pressed()
+        self.current_keys = pygame.key.get_pressed()
 
         self.clock = pygame.time.Clock()
 
@@ -60,9 +63,20 @@ class Editor:
         if WITH_PYGAME:
             self.setup_pygame()
 
+        self.font = pygame.font.SysFont("apple casual", 24)
+
         self.viewport = Rect(0, 0, 1150, 900)
-        self.offset_x = 50
-        self.offset_y = 50
+        self.map_canvas = MapCanvas(
+            Rect(0, 0, self.viewport.width - 300, self.viewport.height), None
+        )
+        self.tileset_canvas = TilesetCanvas(
+            Rect(self.viewport.width - 300, 50, 300, 500), None
+        )
+        self.components = ComponentCollection(self.viewport, self.map_canvas, self.tileset_canvas)
+
+        self.key_modifier = 0
+        self.mouse_x = 0
+        self.mouse_y = 0
 
     @property
     def tiled_map(self) -> Optional[TiledMap]:
@@ -89,7 +103,8 @@ class Editor:
             self.current_layer = None
             self.current_object = None
 
-        self.hierarchy_view.set_map(self.tiled_map)
+        self.hierarchy_view.set_map(tiled_map)
+        self.map_canvas.tiled_map = tiled_map
 
     @property
     def current_element(self) -> Optional[TiledElement]:
@@ -112,6 +127,7 @@ class Editor:
     @current_tileset.setter
     def current_tileset(self, tileset: Optional[TiledTileset]) -> None:
         self._current_tileset = tileset
+        self.tileset_canvas.tileset = tileset
         if tileset is not None:
             print(f"Current tileset is {tileset.name}: {tileset.image}")
         else:
@@ -254,39 +270,46 @@ class Editor:
 
         pygame.display.set_caption("Editor Window")
 
-    def render_map(self, surface: Surface, xo: int, yo: int) -> None:
-        tiled_map = self.tiled_map
-        if tiled_map is not None:
-            for layer in self.tiled_map.layers:
-                if layer.visible:
-                    layer.draw(surface, self.viewport, xo, yo)
-
-    def render_tileset(self, surface: Surface) -> None:
-        if self.current_tileset is not None:
-            rect = self.current_tileset.image_surface.get_rect()
-            rect.topleft = (self.screen_rect.width - rect.width - 10, self.screen_rect.height - rect.height - 10)
-            rect2 = pygame.Rect(rect)
-            rect2.move_ip(-2, -2)
-            rect2.inflate_ip(4, 4)
-            pygame.draw.rect(surface, (0, 0, 0), rect2, width=1)
-            surface.blit(self.current_tileset.image_surface, rect.topleft)
-
     def pygame_loop(self) -> None:
-        mouse_pos = (0, 0)
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.quit()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    pass
+                    self.components.mouse_down(self.mouse_x, self.mouse_y, self.key_modifier)
                 elif event.type == pygame.MOUSEBUTTONUP:
-                    pass
+                    self.components.mouse_up(self.mouse_x, self.mouse_y, self.key_modifier)
                 elif event.type == pygame.MOUSEMOTION:
-                    pass
+                    self.mouse_x = event.pos[0]
+                    self.mouse_y = event.pos[1]
+                    self.components.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
+                elif event.type == pygame.WINDOWLEAVE:
+                    self.components.mouse_out(0, 0)
+                elif event.type == pygame.MOUSEWHEEL:
+                    self.components.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
+                elif event.type == pygame.KEYDOWN:
+                    dx = 0
+                    dy = 0
+                    if event.key == pygame.K_RIGHT:
+                        dx = 1
+                    elif event.key == pygame.K_LEFT:
+                        dx = -1
+                    elif event.key == pygame.K_UP:
+                        dy = 1
+                    elif event.key == pygame.K_DOWN:
+                        dy = -1
+                    if dx != 0 or dy != 0:
+                        self.components.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
+                # elif event.type == pygame.KEYUP:
+                #     pass
+                # else:
+                #     print(f"event.type == {event.type}")
+
+            self.previous_keys = self.current_keys
+            self.current_keys = pygame.key.get_pressed()
 
             self.screen.fill((200, 200, 200))
-            self.render_map(self.screen, self.offset_x, self.offset_y)
-            self.render_tileset(self.screen)
+            self.components.draw(self.screen)
 
             pygame.display.flip()
             self.clock.tick(30)

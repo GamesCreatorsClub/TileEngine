@@ -492,11 +492,13 @@ class TiledTileLayer(BaseTiledLayer):
         tilewidth = self.map.tilewidth
         tileheight = self.map.tileheight
 
-        dy = -yo // tileheight
-        oy = yo % tileheight if yo >= 0 else -(-yo % tileheight)
+        dy = -(yo // tileheight) - 1  # -1 to ensure we always start one row above screen
+        oy = yo % tileheight if yo >= 0 else (yo % tileheight)
+        oy = oy - tileheight   # to ensure we always start one row above screen
 
-        start_dx = -xo // tilewidth
-        ox = xo % tilewidth if xo >= 0 else -(-xo % tilewidth)
+        start_dx = -(xo // tilewidth) - 1  # -1 to ensure we always start one row above screen
+        ox = xo % tilewidth if xo >= 0 else (xo % tilewidth)
+        ox = ox - tilewidth  # to ensure we always start one row above screen
 
         if self.animate_layer:
             for y in range(viewport.y + oy, viewport.bottom + tileheight, tileheight):
@@ -850,7 +852,9 @@ class TiledTileset(TiledElement):
         _height = int(image_element.get("width"))
         full_filename = os.path.join(os.path.join(self._parent_dir, os.path.dirname(self._source_filename)), self._source_image_filename)
         self.image_surface = pygame.image.load(full_filename)
-        # image_rect = self.image_surface.get_rect()
+        self.image_rect = self.image_surface.get_rect()
+        self.width = self.image_rect.width
+        self.height = self.image_rect.height
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
