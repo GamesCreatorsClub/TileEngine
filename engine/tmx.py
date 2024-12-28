@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from base64 import b64decode, b64encode
 from collections import defaultdict, ChainMap, namedtuple
 from copy import deepcopy
-from typing import Any, Optional, Callable, NamedTuple, Union, TypeVar, Iterable, cast
+from typing import Any, Optional, Callable, NamedTuple, Union, TypeVar, Iterable, cast, Mapping
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from xml.sax.saxutils import escape
@@ -354,7 +354,7 @@ class TiledSubElement(TiledElement, ABC):
     def __init__(self, parent: Optional['TiledElement'] = None) -> None:
         super().__init__(parent)
 
-        if parent:
+        if parent is not None:
             tiled_map = parent
             while not isinstance(tiled_map, TiledMap):
                 tiled_map = tiled_map.parent
@@ -644,7 +644,7 @@ class TiledObject(TiledSubElement):
         return None
 
 
-class TiledObjectGroup(BaseTiledLayer):
+class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
         "id": F(int, False), "name": F(str, True)
     }
@@ -659,6 +659,27 @@ class TiledObjectGroup(BaseTiledLayer):
     @property
     def objects(self) -> Iterable[TiledObject]:
         return self.objects_id_map.values()
+
+    def object_by_name(self) -> Mapping[str, TiledObject]:
+        return self
+
+    def __getitem__(self, name: str) -> TiledObject:
+        for o in self.objects_id_map.values():
+            if o.name == name:
+                return o
+        raise KeyError(f"No object with name {name}")
+
+    def __setitem__(self, key: str, object) -> TiledObject:
+        raise NotImplemented()
+
+    def __delitem__(self, key: str, object) -> TiledObject:
+        raise NotImplemented()
+
+    def __iter__(self) -> Iterable[str]:
+        return [o.name for o in self.objects_id_map.values()]
+
+    def __len__(self) -> int:
+        return len(self.objects_id_map)
 
     def add_object(self, obj: TiledObject):
         if obj.id == 0:
@@ -939,6 +960,8 @@ class TiledMap(TiledElement):
         self.tiles_by_name: ChainMap[str, int] = ChainMap()
         self.tile_animations: ChainMap[int, TiledTileAnimations] = ChainMap()
 
+        self.object_by_name: ChainMap[str, TiledObject] = ChainMap()
+
         self.version: str = "0.0"
         self.tiledversion: str = ""
         self.orientation: str = "orthogonal"
@@ -991,6 +1014,8 @@ class TiledMap(TiledElement):
 
     def add_layer(self, layer: BaseTiledLayer) -> None:
         self.layer_id_map[layer.id] = layer
+        if isinstance(layer, TiledObjectGroup):
+            self.object_by_name = ChainMap(*[layer.object_by_name for layer in self.layers if isinstance(layer, TiledObjectGroup)])
 
     def add_tileset(self, tileset: TiledTileset) -> None:
         self.tilesets.append(tileset)
