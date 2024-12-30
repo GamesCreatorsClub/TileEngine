@@ -12,7 +12,6 @@ from copy import deepcopy
 from typing import Any, Optional, Callable, NamedTuple, Union, TypeVar, Iterable, cast, Mapping
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
-from xml.sax.saxutils import escape
 
 import pygame
 from pygame import Surface, Rect, Color
@@ -36,9 +35,17 @@ TiledTileAnimation = namedtuple('TiledTileAnimation', ["tileid", "duration"])
 OUTPUT_ALWAYS = b"this is random value that will never appear in the value of attributes"
 
 
+def escape(data: str) -> str:
+    data = data.replace("&", "&amp;")
+    data = data.replace(">", "&gt;")
+    data = data.replace("<", "&lt;")
+    data = data.replace("\"", "&quot;")
+    return data
+
+
 class F:
-    def __init__(self, type: type, visible: bool, default: Any = OUTPUT_ALWAYS, adjust: Callable[['TiledObject', Any], Any] = lambda x, y: y) -> None:
-        self.type = type
+    def __init__(self, typ: type, visible: bool, default: Any = OUTPUT_ALWAYS, adjust: Callable[['TiledObject', Any], Any] = lambda x, y: y) -> None:
+        self.type = typ
         self.visible = visible
         self.default = default
         self.adjust = adjust
@@ -216,7 +223,10 @@ class TiledElement(ABC):
                 raise NotImplemented("Class being type of property")
             else:
                 if cls is None:
-                    properties[name] = subnode.get("value") or subnode.text
+                    value = subnode.get("value")
+                    if value is None:
+                        value = subnode.text
+                    properties[name] = value
                 else:
                     properties[name] = cls(subnode.get("value"))
         return properties
@@ -300,7 +310,7 @@ class TiledElement(ABC):
                     stream.write(escape(v))
                     stream.write(f"</property>\n")
                 else:
-                    stream.write(f"<property name=\"{k}\" value=\"{v}\"/>\n")
+                    stream.write(f"<property name=\"{k}\" value=\"{escape(v)}\"/>\n")
 
             stream.write(" " * indent)
             stream.write("</properties>\n")
@@ -433,7 +443,6 @@ class TiledTileLayer(BaseTiledLayer):
         d = [self.map.gid_to_original_gid_and_tile_flags(gid) for gid in itertools.chain.from_iterable(self.data)]
 
         s = b64encode(struct.pack("<%dL" % len(d), *d))
-        data = b64decode(s)
         stream.write(s.decode("ASCII"))
         stream.write("\n")
         stream.write(" " * indent)
@@ -537,6 +546,9 @@ class TiledGroupLayer(BaseTiledLayer):
         self.layers: list[BaseTiledLayer] = []
 
     def _tag_name(self) -> str: return "group"
+
+    def draw(self, surface: Surface, viewport: Rect, xo: int, yo: int, current_time: Optional[float] = None) -> None:
+        raise NotImplemented("TiledGroupLayer.draw")
 
 
 class TiledObject(TiledSubElement):
@@ -669,10 +681,10 @@ class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):
                 return o
         raise KeyError(f"No object with name {name}")
 
-    def __setitem__(self, key: str, object) -> TiledObject:
+    def __setitem__(self, key: str, _obj: Any) -> TiledObject:
         raise NotImplemented()
 
-    def __delitem__(self, key: str, object) -> TiledObject:
+    def __delitem__(self, key: str, _obj: Any) -> TiledObject:
         raise NotImplemented()
 
     def __iter__(self) -> Iterable[str]:

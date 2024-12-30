@@ -95,8 +95,8 @@ class Editor:
     def tiled_map(self, tiled_map: Optional[TiledMap]) -> None:
         self._tiled_map = tiled_map
         if tiled_map is not None:
-            self.file_menu.entryconfig("Save", state="normal")
-            self.file_menu.entryconfig("Save as...", state="normal")
+            self.file_menu.entryconfig("Save", state="normal", command=self.save_map)
+            self.file_menu.entryconfig("Save as...", state="normal", command=self.save_as_map)
             self.current_tileset = tiled_map.tilesets[0] if len(tiled_map.tilesets) > 0 else None
             # self.current_element = tiled_map
 
@@ -179,6 +179,17 @@ class Editor:
         self.root.destroy()  # destroy root window
         exit(0)
 
+    def save_map(self) -> None:
+        if self.tiled_map.filename is None:
+            self.save_as_map()
+        else:
+            self.tiled_map.save(self.tiled_map.filename)
+
+    def save_as_map(self) -> None:
+        filename = filedialog.asksaveasfilename(title="Save map", filetypes=(("Map file", "*.tmx"),))
+        self.tiled_map.filename = filename
+        self.save_map()
+
     def open_tk_window(self, root: tk.Tk) -> tk.Tk:
         root.geometry("300x900+10+30")
         root.protocol("WM_DELETE_WINDOW", self.quit)
@@ -191,7 +202,7 @@ class Editor:
         self.file_menu.add_command(label="Save", command=self.do_nothing, state="disabled")
         self.file_menu.add_command(label="Save as...", command=self.do_nothing, state="disabled")
         self.file_menu.add_separator()
-        self.file_menu.add_command(label="Exit", command=self.quit)
+        self.file_menu.add_command(label="Quit", command=self.quit)
         menubar.add_cascade(label="File", menu=self.file_menu)
 
         self.edit_menu = tk.Menu(menubar, tearoff=0)
