@@ -1,3 +1,4 @@
+import enum
 import os
 import subprocess
 import sys
@@ -15,11 +16,17 @@ from pygame import Surface, Rect, Color
 
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
-from editor.pygame_components import ComponentCollection, TilesetCanvas, MapCanvas
+from editor.pygame_components import ComponentCollection, TilesetCanvas, MapCanvas, Button
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledGroupLayer
 
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
+
+
+class MapAction(enum.Enum):
+    SELECT = enum.auto()
+    BRUSH = enum.auto()
+    RUBBER = enum.auto()
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -74,14 +81,48 @@ class Editor:
 
         self.font = pygame.font.SysFont("apple casual", 24)
 
+        self._action = MapAction.BRUSH
+
         self.viewport = Rect(0, 0, 1150, 900)
+        right_column = self.viewport.width - 300
+
+        self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "editor", "icons-small.png"))
+        image_size = 32
+        margin = 3
+
         self.map_canvas = MapCanvas(
-            Rect(0, 0, self.viewport.width - 300, self.viewport.height), None
+            Rect(0, 0, right_column, self.viewport.height), None
         )
         self.tileset_canvas = TilesetCanvas(
-            Rect(self.viewport.width - 300, 50, 300, 500), None
+            Rect(right_column, image_size + margin * 2, 300, 500), None
         )
-        self.components = ComponentCollection(self.viewport, self.map_canvas, self.tileset_canvas)
+
+        self.select_button = Button(
+            Rect(right_column + margin, margin, image_size, image_size),
+            self.icon_surface.subsurface(Rect(image_size * 7, 0, image_size, image_size)),
+            self.select_selected
+        )
+        self.brush_button = Button(
+            Rect(right_column + (image_size + margin) + margin, margin, image_size, image_size),
+            self.icon_surface.subsurface(Rect(0, 0, image_size, image_size)),
+            self.brush_selected
+        )
+        self.rubber_button = Button(
+            Rect(right_column + (image_size + margin) * 2 + margin, margin, image_size, image_size),
+            self.icon_surface.subsurface(Rect(image_size, 0, image_size, image_size)),
+            self.rubber_selected
+        )
+        self.brush_button.selected = True
+        self.buttons_panel = ComponentCollection(
+            Rect(right_column, 0, 300, image_size + margin * 2),
+            self.select_button, self.brush_button, self.rubber_button,
+        )
+        self.buttons_panel.visible = False
+
+        self.components = ComponentCollection(
+            self.viewport,
+            self.buttons_panel,
+            self.map_canvas, self.tileset_canvas)
 
         self.key_modifier = 0
         self.mouse_x = 0
@@ -104,6 +145,8 @@ class Editor:
 
             self.current_layer = main_layer
             self.current_object = None
+            self.buttons_panel.visible = True
+            self.tileset_canvas.selected_tile = self.tileset_canvas.tileset.firstgid
         else:
             self.file_menu.entryconfig("Save", state="disabled")
             self.file_menu.entryconfig("Save as...", state="disabled")
@@ -190,6 +233,24 @@ class Editor:
         self.tiled_map.filename = filename
         self.save_map()
 
+    def select_selected(self) -> None:
+        self.select_button.selected = True
+        self.brush_button.selected = False
+        self.rubber_button.selected = False
+        self._action = MapAction.SELECT
+
+    def brush_selected(self) -> None:
+        self.select_button.selected = False
+        self.brush_button.selected = True
+        self.rubber_button.selected = False
+        self._action = MapAction.BRUSH
+
+    def rubber_selected(self) -> None:
+        self.select_button.selected = False
+        self.brush_button.selected = False
+        self.rubber_button.selected = True
+        self._action = MapAction.BRUSH
+
     def open_tk_window(self, root: tk.Tk) -> tk.Tk:
         root.geometry("300x900+10+30")
         root.protocol("WM_DELETE_WINDOW", self.quit)
@@ -255,7 +316,7 @@ class Editor:
         self.remove_property = tk.Button(self.button_panel, text="-", state="disabled", command=self.custom_properties.remove_property)
         self.edit_property = tk.Button(
             self.button_panel, text="edit", state="disabled",
-            command=lambda : self.custom_properties.start_editing(self.custom_properties.selected_rowid)
+            command=lambda: self.custom_properties.start_editing(self.custom_properties.selected_rowid)
         )
 
         self.add_property.grid(row=0, column=0, pady=3, padx=3, sticky=tk.W)
