@@ -1,7 +1,10 @@
 import os
+import subprocess
+import sys
 
 import pygame
 import tkinter as tk
+from tkinter import messagebox
 
 from tkinter import X, filedialog, LEFT, BOTH, TOP
 
@@ -34,11 +37,16 @@ class Editor:
         self.main_properties: Optional[Properties] = None
         self.custom_properties: Optional[Properties] = None
         self.hierarchy_view: Optional[Hierarchy] = None
+        self.button_panel: Optional[tk.Canvas] = None
+        self.add_property: Optional[tk.Button] = None
+        self.remove_property: Optional[tk.Button] = None
+        self.edit_property: Optional[tk.Button] = None
 
         self._selected_object: Optional[TiledElement] = None
 
         self.file_menu: Optional[tk.Menu] = None
         self.edit_menu: Optional[tk.Menu] = None
+        self.run_menu: Optional[tk.Menu] = None
         self.help_menu: Optional[tk.Menu] = None
 
         self._tiled_map: Optional[TiledMap] = None
@@ -52,6 +60,7 @@ class Editor:
 
         # tk.Tk() and pygame.init() must be done in this order and before anything else (in tkinter world)
         self.root = tk.Tk()
+        self.root.title("Editor")
         # self.popup: Optional[tk.Tk] = None
         pygame.init()
         self.previous_keys = pygame.key.get_pressed()
@@ -89,7 +98,7 @@ class Editor:
             self.file_menu.entryconfig("Save", state="normal")
             self.file_menu.entryconfig("Save as...", state="normal")
             self.current_tileset = tiled_map.tilesets[0] if len(tiled_map.tilesets) > 0 else None
-            self.current_element = tiled_map
+            # self.current_element = tiled_map
 
             main_layer = next((l for l in tiled_map.layers if l.name == "main"), None)
 
@@ -113,6 +122,9 @@ class Editor:
     @current_element.setter
     def current_element(self, current_element: Optional[TiledElement]) -> None:
         self._current_element = current_element
+
+        self.add_property.configure(state="normal" if current_element is not None else "disabled")
+
         if isinstance(current_element, BaseTiledLayer):
             self.current_layer = cast(BaseTiledLayer, current_element)
         elif isinstance(current_element, TiledTileset):
@@ -175,7 +187,7 @@ class Editor:
         menubar = tk.Menu(root)
         self.file_menu = tk.Menu(menubar, tearoff=0)
         self.file_menu.add_command(label="New", command=self.create_new_map)
-        self.file_menu.add_command(label="Open", command=self.load_file)
+        self.file_menu.add_command(label="Open", command=self.browse_to_load_file)
         self.file_menu.add_command(label="Save", command=self.do_nothing, state="disabled")
         self.file_menu.add_command(label="Save as...", command=self.do_nothing, state="disabled")
         self.file_menu.add_separator()
@@ -193,6 +205,11 @@ class Editor:
         self.edit_menu.add_command(label="Select All", command=self.do_nothing, state="disabled")
 
         menubar.add_cascade(label="Edit", menu=self.edit_menu)
+
+        self.run_menu = tk.Menu(menubar, tearoff=0)
+        self.run_menu.add_command(label="Run", command=self.run_map, state="disabled")
+
+        menubar.add_cascade(label="Run", menu=self.run_menu)
 
         self.help_menu = tk.Menu(menubar, tearoff=0)
         self.help_menu.add_command(label="Help Index", command=self.do_nothing, state="disabled")
@@ -220,16 +237,87 @@ class Editor:
 
         self.custom_properties = Properties(left_frame, self.update_current_element_property)
 
+        self.button_panel = tk.Canvas(left_frame)
+        self.button_panel.columnconfigure(1, weight=1)
+
+        self.add_property = tk.Button(self.button_panel, text="+", state="disabled", command=self.custom_properties.start_add_new_property)
+        self.remove_property = tk.Button(self.button_panel, text="-", state="disabled", command=self.custom_properties.remove_property)
+        self.edit_property = tk.Button(
+            self.button_panel, text="edit", state="disabled",
+            command=lambda : self.custom_properties.start_editing(self.custom_properties.selected_rowid)
+        )
+
+        self.add_property.grid(row=0, column=0, pady=3, padx=3, sticky=tk.W)
+        self.remove_property.grid(row=0, column=1, pady=3, padx=3, sticky=tk.W)
+        self.edit_property.grid(row=0, column=2, pady=3, padx=3, sticky=tk.W)
+
+        pack(self.button_panel, fill=X)
+
         self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
+        self.custom_properties.update_buttons(self.add_property, self.remove_property, self.edit_property)
 
         return root
 
-    def load_file(self) -> None:
+    def browse_to_load_file(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
+        self.load_file(filename)
 
+    def load_file(self, filename: str) -> None:
         tiled_map = TiledMap()
         tiled_map.load(filename)
         self.tiled_map = tiled_map
+        map_name = self.tiled_map.name
+        if map_name is not None:
+            self.run_menu.entryconfig(1, label=f"Run '{map_name}'", state="normal")
+        else:
+            self.run_menu.entryconfig(1, label=f"Run", state="normal")
+
+    def run_map(self) -> None:
+        if "code" in self.tiled_map.properties:
+            python_file = self.tiled_map.properties["code"]
+            map_file = self.tiled_map.filename if self.tiled_map.filename is not None else os.getcwd()
+            map_file_dir = os.path.dirname(map_file)
+
+            full_python_file = python_file if os.path.isabs(python_file) else os.path.join(map_file_dir, python_file)
+
+            if not os.path.exists(full_python_file):
+                tk.messagebox.showerror(title="Error", message=f"No {full_python_file} file")
+                return
+
+            python_file_dir = os.path.dirname(full_python_file)
+
+            venv_dir = os.path.join(python_file_dir, "venv")
+            if not os.path.exists(venv_dir):
+                venv_dir = os.path.join(python_file_dir, ".venv")
+
+            if os.path.exists(venv_dir):
+                python_exec = os.path.join(venv_dir, "bin/python3")
+            elif "PATH" in os.environ:
+                paths = os.environ["PATH"].split(os.pathsep)
+
+                def find_python() -> Optional[str]:
+                    for p in paths:
+                        full_python_path = os.path.join(p, "python3")
+                        if os.path.exists(full_python_path):
+                            return full_python_path
+                    return None
+
+                python_exec = find_python()
+                if python_exec is None:
+                    tk.messagebox.showerror(title="Error", message=f"Cannot find python exec in PATH environment variable")
+                    return
+            else:
+                tk.messagebox.showerror(title="Error", message=f"Cannot find python exec")
+                return
+
+            python_exec = os.path.abspath(python_exec)
+            python_file = os.path.split(full_python_file)[-1]
+            python_file_dir = os.path.abspath(os.path.dirname(full_python_file))
+            print(f"Running '{python_exec} {python_file}' in {python_file_dir}")
+            subprocess.Popen([f"{python_exec}", python_file], cwd=python_file_dir)
+            return
+        else:
+            tk.messagebox.showerror(title="Error", message="No 'code' property in the map")
 
     def create_new_map(self) -> None:
         tiled_map = TiledMap()
@@ -266,6 +354,7 @@ class Editor:
 
         self.screen = pygame.display.set_mode((1150, 900))
         self.screen_rect = self.screen.get_rect()
+        pygame.display.set_caption("Editor")
         # self.clock = pygame.time.Clock()
 
         pygame.display.set_caption("Editor Window")
@@ -356,8 +445,15 @@ class Editor:
                 self._current_element.properties[key] = value
 
 
-editor = Editor()
-if WITH_PYGAME:
-    editor.pygame_loop()
-else:
-    editor.root.mainloop()
+if __name__ == '__main__':
+    editor = Editor()
+
+    if len(sys.argv) > 1:
+        editor.load_file(sys.argv[1])
+    else:
+        print("No arguments given")
+
+    if WITH_PYGAME:
+        editor.pygame_loop()
+    else:
+        editor.root.mainloop()

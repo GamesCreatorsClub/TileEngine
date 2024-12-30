@@ -1012,6 +1012,12 @@ class TiledMap(TiledElement):
     def layers(self) -> Iterable[BaseTiledLayer]:
         return self.layer_id_map.values()
 
+    @property
+    def name(self) -> Optional[str]:
+        if self.filename is not None:
+            return ".".join(os.path.split(self.filename)[-1].split(".")[:-1])
+        return None
+
     def add_layer(self, layer: BaseTiledLayer) -> None:
         self.layer_id_map[layer.id] = layer
         if isinstance(layer, TiledObjectGroup):

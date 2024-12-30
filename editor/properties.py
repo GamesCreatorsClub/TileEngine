@@ -10,6 +10,37 @@ def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
     return tk
 
 
+class AddNewPropertyText(tk.Toplevel):
+    def __init__(self, root: Union[tk.Widget, tk.Tk], callback: Callable[[str], None]) -> None:
+        super().__init__(root)
+        self.root = root
+        self.callback = callback
+        self.title(f"Add new property")
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.transient(root)
+        self.wait_visibility()
+        self.grab_set()
+        self.frame = tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5)
+        self.entry = tk.Entry(self, bd=0, highlightthickness=0, state="normal")
+        self.entry.insert(INSERT, "")
+        self.entry.pack(side=TOP, fill=BOTH, expand=True)
+        self.frame.pack(side=TOP, fill=BOTH, expand=True)
+        self.buttons_frame = tk.Frame(self, highlightthickness=0, bd=0)
+        self.buttons_frame.pack(side=BOTTOM, fill=X)
+        self.ok_btn = pack(tk.Button(self.buttons_frame, text="OK", command=self.ok, width=5), padx=5, pady=10, side=RIGHT)
+        self.cancel_btn = pack(tk.Button(self.buttons_frame, text="Cancel", command=self.close, width=5), padx=5, pady=10, side=RIGHT)
+
+    def ok(self) -> None:
+        new_value = self.entry.get()
+        if new_value.rstrip(" ").endswith("\n"):
+            new_value = new_value.rstrip(" ")[:-1]
+        self.callback(new_value)
+        self.destroy()
+
+    def close(self) -> None:
+        self.destroy()
+
+
 class EditText(tk.Toplevel):
     def __init__(self, root: Union[tk.Widget, tk.Tk], rowid: str, name: str, text: str, callback: Callable[[str, str], None]) -> None:
         super().__init__(root)
@@ -135,53 +166,98 @@ class Properties(ttk.Treeview):
         self.treeview_frame.pack(side=TOP, fill=X)
         self.entryPopup: Optional[EntryPopup] = None
         self.editorPopup: Optional[EditText] = None
+        self.addNewPropertyPopup: Optional[AddNewPropertyText] = None
 
         self.tag_configure("odd", background="gray95")
         self.tag_configure("disabled", foreground="gray")
+        self.add_button: Optional[tk.Button] = None
+        self.remove_button: Optional[tk.Button] = None
+        self.edit_button: Optional[tk.Button] = None
+
+        self.selected_rowid = None
+        self.properties: Optional[dict[str, Any]] = None
+
+        self.bind("<<TreeviewSelect>>", self.select_element)
+
+    def select_element(self, _event) -> None:
+        self.selected_rowid = self.selection()[0]
+
+        if self.remove_button is not None: self.remove_button.configure(state="normal")
+
+        tags = self.item(self.selected_rowid, "tags")
+
+        if self.edit_button is not None:
+            if "disabled" not in tags:
+                self.edit_button.configure(state="normal")
+            else:
+                self.edit_button.configure(state="disabled")
+
+    def update_buttons(self,
+                       add_button: tk.Button,
+                       remove_button: tk.Button,
+                       edit_button: tk.Button) -> None:
+        self.add_button = add_button
+        self.remove_button = remove_button
+        self.edit_button = edit_button
 
     def on_left_click(self, event) -> None:
-        rowid = self.identify_row(event.y)
+        self.selected_rowid = self.identify_row(event.y)
         column = self.identify_column(event.x)
-
-        tags = self.item(rowid, "tags")
-
-        if column == "#1" and "disabled" not in tags:
-            info = self.bbox(rowid, column)
-            if info:
-                x, y, width, height = info
-                text = self.item(rowid, "values")[0]
-
-                if "Color" in tags:
-                    def extract_color(v: str) -> str:
-                        return "#" + "".join(f"{int(s.strip()):02x}" for s in v[1:-1].split(","))
-
-                    initial_color = extract_color(text) if text != "" and text is not None else None
-                    color = colorchooser.askcolor(color=initial_color)
-                    if color[0] is not None:
-                        self.update_value(rowid, str(color[0]))
-                elif "\n" not in text:
-                    self.entryPopup = EntryPopup(
-                        self.root, self,
-                        x=x, y=y,
-                        width=5,  # width - self.scrollbar.winfo_width(),
-                        height=height,
-                        rowid=rowid, text=text,
-                        update_value_callback=self.update_value,
-                        open_text_editor_callback=self.open_text_editor)
-                else:
-                    self.open_text_editor(rowid)
+        tags = self.item(self.selected_rowid, "tags")
+        info = self.bbox(self.selected_rowid, column)
+        if info:
+            if "disabled" not in tags:
+                if column == "#1":
+                    self.start_editing(self.selected_rowid)
 
     def on_double_left_click(self, event) -> None:
-        rowid = self.identify_row(event.y)
+        self.selected_rowid = self.identify_row(event.y)
         column = self.identify_column(event.x)
 
         if column == "#1":
-            self.open_text_editor(rowid)
+            self.open_text_editor(self.selected_rowid)
 
     def open_text_editor(self, rowid: str) -> None:
         name = self.item(rowid, "text")
         text = self.item(rowid, "values")[0]
         self.editorPopup = EditText(self.root, rowid, name, text, self.update_value)
+
+    def start_editing(self, selected_rowid: str) -> None:
+        info = self.bbox(selected_rowid, "#1")
+        x, y, width, height = info
+        tags = self.item(selected_rowid, "tags")
+
+        text = self.item(selected_rowid, "values")[0]
+
+        if "Color" in tags:
+            def extract_color(v: str) -> str:
+                return "#" + "".join(f"{int(s.strip()):02x}" for s in v[1:-1].split(","))
+
+            initial_color = extract_color(text) if text != "" and text is not None else None
+            color = colorchooser.askcolor(color=initial_color)
+            if color[0] is not None:
+                self.update_value(selected_rowid, str(color[0]))
+        elif "\n" not in text:
+            self.entryPopup = EntryPopup(
+                self.root, self,
+                x=x, y=y,
+                width=5,  # width - self.scrollbar.winfo_width(),
+                height=height,
+                rowid=selected_rowid, text=text,
+                update_value_callback=self.update_value,
+                open_text_editor_callback=self.open_text_editor)
+        else:
+            self.open_text_editor(selected_rowid)
+
+    def start_add_new_property(self) -> None:
+        def add_new_property(new_property_name: str) -> None:
+            # print(f"Adding new property {new_property_name}")
+            self.properties[new_property_name] = ""
+
+            even = len(self.get_children()) % 2 == 0
+            self.insert('', tk.END, iid=new_property_name, text=new_property_name, values=("",), tags=("even" if even else "odd", True, str))
+
+        self.addNewPropertyPopup = AddNewPropertyText(self.root, add_new_property)
 
     def update_value(self, rowid: str, new_value: str) -> None:
         self.item(rowid, values=(new_value,))
@@ -192,6 +268,8 @@ class Properties(ttk.Treeview):
     def update_properties(self, properties: dict[str, Any], types_and_visibility: Optional[dict[str, F]] = None) -> None:
         self.delete(*self.get_children())
         # self.types_and_visibility = types_and_visibility
+
+        self.properties = properties
         even = True
         for k, v in properties.items():
             enabled = "enabled" if types_and_visibility is None or types_and_visibility[k].visible else "disabled"
@@ -200,3 +278,13 @@ class Properties(ttk.Treeview):
                 v = "(" + ",".join(str(s) for s in v) + ")" if v is not None and v != "" else ""
             self.insert('', tk.END, iid=k, text=k, values=(v, ), tags=("even" if even else "odd", enabled, typ))
             even = not even
+
+    def remove_property(self) -> None:
+        if self.selected_rowid is not None:
+            print(f"Removing {self.selected_rowid}")
+            self.delete(self.selected_rowid)
+            del self.properties[self.selected_rowid]
+
+    def edit_selected_property(self) -> None:
+        if self.selected_rowid is not None:
+            self.open_text_editor(self.selected_rowid)
