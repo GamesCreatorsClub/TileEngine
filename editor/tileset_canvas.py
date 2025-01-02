@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Callable
 
 import pygame.draw
 from pygame import Rect, Surface
@@ -8,9 +8,13 @@ from engine.tmx import TiledTileset
 
 
 class TilesetCanvas(ScrollableCanvas):
-    def __init__(self, rect: Rect, tileset: Optional[TiledTileset]) -> None:
+    def __init__(self,
+                 rect: Rect,
+                 tileset: Optional[TiledTileset],
+                 tile_selected_callback: Callable[[Optional[int]], None]) -> None:
         super().__init__(rect, allow_over=False)
         self._tileset = tileset
+        self.tile_selected_callback = tile_selected_callback
         self._tileset_rect: Optional[Rect] = None
         self._tileset_rect2: Optional[Rect] = None
         self._tileset_rect3: Optional[Rect] = None
@@ -27,10 +31,12 @@ class TilesetCanvas(ScrollableCanvas):
         tiledset = self._tileset
         if tile_id < tiledset.firstgid or tile_id > tiledset.tilecount + tiledset.firstgid:
             self._selected_tile = None
+            self.tile_selected_callback(tile_id)
             return
         self._selected_tile = tile_id
 
         self._calc_tileset_rect(self._selected_tile - tiledset.firstgid)
+        self.tile_selected_callback(tile_id)
 
     @property
     def tileset(self) -> TiledTileset:

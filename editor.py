@@ -93,7 +93,8 @@ class Editor:
             self._mouse_down_map_callback
         )
         self.tileset_canvas = TilesetCanvas(
-            Rect(right_column, image_size + margin * 2, 300, 500), None
+            Rect(right_column, image_size + margin * 2, 300, 500), None,
+            self._tile_selected_callback
         )
 
         self.map_action_panel.visible = False
@@ -125,6 +126,9 @@ class Editor:
             # self.current_layer = main_layer
             self.current_object = None
             self.map_action_panel.visible = True
+            self.map_canvas.tiled_map = tiled_map
+            self.hierarchy_view.set_map(tiled_map)
+
             self.tileset_canvas.selected_tile = self.tileset_canvas.tileset.firstgid
         else:
             self.file_menu.entryconfig("Save", state="disabled")
@@ -134,8 +138,8 @@ class Editor:
             self.current_layer = None
             self.current_object = None
 
-        self.hierarchy_view.set_map(tiled_map)
-        self.map_canvas.tiled_map = tiled_map
+            self.map_canvas.tiled_map = None
+            self.tileset_canvas.selected_tile = None
 
     @property
     def current_element(self) -> Optional[TiledElement]:
@@ -193,6 +197,9 @@ class Editor:
 
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
         self.current_element = selected_element
+
+    def _tile_selected_callback(self, tile_id: Optional[int]) -> None:
+        self.map_canvas.selected_tile = tile_id
 
     def quit(self) -> None:
         self.running = False

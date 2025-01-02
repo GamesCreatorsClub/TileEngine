@@ -76,6 +76,8 @@ class MapCanvas(ScrollableCanvas):
         super().__init__(rect)
         self.font = font
         self._selected_layer: Optional[BaseTiledLayer] = None
+        self._selected_tile: Optional[int] = None
+
         self._tiled_map = tiled_map
         self.map_actions_panel = map_actions_panel
         self.map_actions_panel.action_selected_callback = self._action_changed
@@ -113,6 +115,29 @@ class MapCanvas(ScrollableCanvas):
     @selected_layer.setter
     def selected_layer(self, layer: Optional[BaseTiledLayer]) -> None:
         self._selected_layer = layer
+        if layer is not None and isinstance(layer, TiledTileLayer):
+            self._calc_mouse_over_rect(self.mouse_x, self.mouse_y)
+        else:
+            self.mouse_over_rect = None
+
+    @property
+    def selected_tile(self) -> Optional[int]:
+        return self._selected_tile
+
+    @selected_tile.setter
+    def selected_tile(self, selected_tile: Optional[int]) -> None:
+        self._selected_tile = selected_tile
+
+        if selected_tile is not None:
+            tiled_map = self.tiled_map
+            self.overlay_surface = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
+            self.overlay_surface.blit(tiled_map.images[selected_tile], (0, 0))
+            # self.overlay_surface.fill((255, 255, 0, 64))
+            self.overlay_surface.set_alpha(128)
+            self._calc_mouse_over_rect(self.mouse_x, self.mouse_y)
+        else:
+            self.mouse_over_rect = None
+            self.overlay_surface = None
 
     def _action_changed(self, action: MapAction) -> None:
         self._action = action
@@ -146,8 +171,7 @@ class MapCanvas(ScrollableCanvas):
             if obj.visible:
                 if ("_old_rect" not in obj.properties
                         or obj.properties["_old_rect"] != obj.rect
-                        or obj.properties["_old_name"] != obj.name
-                ):
+                        or obj.properties["_old_name"] != obj.name):
                     self._calculate_new_obj_text(obj, rect.x + x_offset, rect.y + y_offset)
                 if obj.properties["_old_x_offset"] != x_offset or obj.properties["_old_y_offset"] != y_offset:
                     dx = x_offset - obj.properties["_old_x_offset"]
@@ -176,10 +200,9 @@ class MapCanvas(ScrollableCanvas):
                     else:
                         layer.draw(surface, self.rect, self.h_scrollbar.offset, self.v_scrollbar.offset)
 
-            if self._selected_layer is not None and isinstance(self._selected_layer, TiledTileLayer):
-                if self.mouse_over_rect is not None:
-                    surface.blit(self.overlay_surface, self.mouse_over_rect)
-                    pygame.draw.rect(surface, (255, 255, 255), self.mouse_over_rect, width=1)
+            if self.mouse_over_rect is not None:
+                surface.blit(self.overlay_surface, self.mouse_over_rect)
+                pygame.draw.rect(surface, (255, 255, 255), self.mouse_over_rect, width=1)
 
     def scrollbars_moved(self) -> None:
         self._calc_mouse_over_rect(self.mouse_x, self.mouse_y)
@@ -193,6 +216,10 @@ class MapCanvas(ScrollableCanvas):
         return tile_x, tile_y
 
     def _calc_mouse_over_rect(self, x: int, y: int) -> None:
+        if self.overlay_surface is None or self._selected_layer is None or not isinstance(self._selected_layer, TiledTileLayer) or self._action == MapAction.SELECT:
+            self.mouse_over_rect = None
+            return
+
         tilemap = self.tiled_map
         tile_x, tile_y = self._calc_mouse_to_tile(x, y)
         if 0 <= tile_x < tilemap.width and 0 <= tile_y < tilemap.height:
