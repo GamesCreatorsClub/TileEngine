@@ -28,14 +28,14 @@ class TilesetCanvas(ScrollableCanvas):
 
     @selected_tile.setter
     def selected_tile(self, tile_id: int) -> None:
-        tiledset = self._tileset
-        if tile_id < tiledset.firstgid or tile_id > tiledset.tilecount + tiledset.firstgid:
+        tileset = self._tileset
+        if tile_id < tileset.firstgid or tile_id > tileset.tilecount + tileset.firstgid:
             self._selected_tile = None
             self.tile_selected_callback(tile_id)
             return
         self._selected_tile = tile_id
 
-        self._calc_tileset_rect(self._selected_tile - tiledset.firstgid)
+        self._calc_tileset_rect(self._selected_tile - tileset.firstgid)
         self.tile_selected_callback(tile_id)
 
     @property
@@ -53,6 +53,12 @@ class TilesetCanvas(ScrollableCanvas):
             self.h_scrollbar.visible = True
             self.h_scrollbar.width = tileset.width
             self.v_scrollbar.width = tileset.height
+
+            if self._selected_tile is not None:
+                if self._selected_tile < tileset.firstgid or self._selected_tile >= tileset.firstgid + tileset.tilecount:
+                    self._selected_tile = tileset.firstgid
+
+                self._calc_tileset_rect(self._selected_tile - tileset.firstgid)
 
     def _calc_tileset_rect(self, gid: int) -> None:
         tiledset = self._tileset

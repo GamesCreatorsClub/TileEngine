@@ -97,7 +97,7 @@ class Editor:
         )
 
         self.map_action_panel.visible = False
-        self.map_action_panel.action = MapAction.BRUSH
+        self.map_action_panel.action = MapAction.BRUSH_TILE
 
         self.components = ComponentCollection(
             self.viewport,
@@ -194,7 +194,8 @@ class Editor:
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
         self.current_element = selected_element
 
-    def _tile_selected_callback(self, tile_id: Optional[int]) -> None:
+    def _tile_selected_callback(self, _tile_id: Optional[int]) -> None:
+        # TODO do we want to have it exposed in properties (hierarchy)?
         self.map_canvas.tile_selection_changed()
 
     def quit(self) -> None:
