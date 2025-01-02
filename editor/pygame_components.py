@@ -112,18 +112,30 @@ class ComponentCollection(Component):
 
 
 class Button(Component):
-    def __init__(self, rect: Rect, image: Surface, callback: Callable[[], None]) -> None:
+    def __init__(self,
+                 rect: Rect,
+                 image: Surface,
+                 callback: Callable[[], None],
+                 mouse_over_image: Optional[Surface] = None,
+                 selected_image: Optional[Surface] = None,
+                 mouse_over_color: Optional[tuple[int, int, int]] = (220, 220, 220),
+                 selected_color: Optional[tuple[int, int, int]] = (128, 128, 128),
+                 border_color: Optional[tuple[int, int, int]] = (0, 0, 0)
+                 ) -> None:
         super().__init__(rect)
         self._image = image
         self._image_rect: Optional[Rect] = None
         self.image = image
+        self.mouse_over_image = mouse_over_image
+        self.selected_image = selected_image
+        self.mouse_over_color = mouse_over_color
+        self.border_color = border_color
+        self.selected_color = selected_color
+        self.callback = callback
+
         self._selected = False
         self.mouse_over = False
         self.mouse_pressed = False
-        self.mouse_over_color = (220, 220, 220)
-        self.border_color = (0, 0, 0)
-        self.selected_color = (128, 128, 128)
-        self.callback = callback
 
     @property
     def image(self) -> Surface:
@@ -146,12 +158,24 @@ class Button(Component):
     def draw(self, surface: Surface) -> None:
         if self.visible:
             if self.mouse_over:
-                pygame.draw.rect(surface, self.mouse_over_color, self.rect, border_radius=4)
-                pygame.draw.rect(surface, self.border_color, self.rect, border_radius=4, width=1)
+                if self.mouse_over_color is not None:
+                    pygame.draw.rect(surface, self.mouse_over_color, self.rect, border_radius=4)
+                if self.mouse_over_image is not None:
+                    surface.blit(self.mouse_over_image, self._image_rect)
+                else:
+                    surface.blit(self._image, self._image_rect)
+                if self.border_color is not None:
+                    pygame.draw.rect(surface, self.border_color, self.rect, border_radius=4, width=1)
             else:
                 if self.selected:
-                    pygame.draw.rect(surface, self.selected_color, self.rect, border_radius=4)
-            surface.blit(self._image, self._image_rect)
+                    if self.selected_color is not None:
+                        pygame.draw.rect(surface, self.selected_color, self.rect, border_radius=4)
+                    if self.selected_image is not None:
+                        surface.blit(self.selected_image, self._image_rect)
+                    else:
+                        surface.blit(self._image, self._image_rect)
+                else:
+                    surface.blit(self._image, self._image_rect)
 
     def mouse_up(self, x: int, y: int, modifier) -> bool:
         if self.rect.collidepoint(x, y):

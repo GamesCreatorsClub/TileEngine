@@ -240,6 +240,9 @@ class MapCanvas(ScrollableCanvas):
                  object_added_callback: Callable[[TiledObjectGroup, TiledObject], None]) -> None:
         super().__init__(rect)
         self.font = font
+
+        self.arrows_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "arrows-small.png"))
+
         self._selected_layer: Optional[BaseTiledLayer] = None
         self.object_added_callback = object_added_callback
 
