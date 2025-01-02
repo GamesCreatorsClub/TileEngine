@@ -74,7 +74,8 @@ class Editor:
         if WITH_PYGAME:
             self.setup_pygame()
 
-        self.font = pygame.font.SysFont("apple casual", 24)
+        # self.font = pygame.font.Font(os.path.join(os.path.dirname(__file__), "editor", "raleway-medium-webfont.ttf"), 17)
+        self.font = pygame.font.Font(os.path.join(os.path.dirname(__file__), "editor", "test_fixed.otf"), 17)
 
         self.viewport = Rect(0, 0, 1150, 900)
         right_column = self.viewport.width - 300
@@ -85,7 +86,9 @@ class Editor:
         self.map_action_panel = MapActionsPanel(Rect(right_column, 0, 300, 50), margin=margin)
 
         self.map_canvas = MapCanvas(
-            Rect(0, 0, right_column, self.viewport.height), None,
+            Rect(0, 0, right_column, self.viewport.height),
+            self.font,
+            None,
             self.map_action_panel,
             self._mouse_down_map_callback
         )

@@ -4,9 +4,10 @@ from typing import Optional, Callable
 
 import pygame.draw
 from pygame import Rect, Surface
+from pygame.font import Font
 
 from editor.pygame_components import ScrollableCanvas, ComponentCollection, Button
-from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup
+from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup, TiledObject
 
 
 class MapAction(enum.Enum):
@@ -16,7 +17,10 @@ class MapAction(enum.Enum):
 
 
 class MapActionsPanel(ComponentCollection):
-    def __init__(self, rect: Rect, action_selected_callback: Optional[Callable[[MapAction], None]] = None, margin: int = 3) -> None:
+    def __init__(self,
+                 rect: Rect,
+                 action_selected_callback: Optional[Callable[[MapAction], None]] = None,
+                 margin: int = 3) -> None:
         super().__init__(rect)
 
         self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "icons-small.png"))
@@ -65,10 +69,12 @@ class MapActionsPanel(ComponentCollection):
 class MapCanvas(ScrollableCanvas):
     def __init__(self,
                  rect: Rect,
+                 font: Font,
                  tiled_map: Optional[TiledMap],
                  map_actions_panel: MapActionsPanel,
                  mouse_down_callback: Callable[[int, int, int, int], None]) -> None:
         super().__init__(rect)
+        self.font = font
         self._selected_layer: Optional[BaseTiledLayer] = None
         self._tiled_map = tiled_map
         self.map_actions_panel = map_actions_panel
@@ -111,10 +117,53 @@ class MapCanvas(ScrollableCanvas):
     def _action_changed(self, action: MapAction) -> None:
         self._action = action
 
+    def _calculate_new_obj_text(self, obj: TiledObject, x_offset, y_offset) -> None:
+        text_white = self.font.render(obj.name, True, (255, 255, 255))
+        # text_white = self.font.render(obj.name, False, (255, 255, 255))
+        text_black = self.font.render(obj.name, False, (0, 0, 0))
+        surface = Surface((text_white.get_size()[0] + 4, text_white.get_size()[1] + 5), pygame.SRCALPHA, 32)
+        r = surface.get_rect().inflate(-1, -1)
+        r.update(1, 1, r.width, r.height)
+        pygame.draw.rect(surface, (0, 0, 0), r, border_radius=4)
+        r.update(0, 0, r.width, r.height)
+        pygame.draw.rect(surface, (128, 128, 128), r, border_radius=4)
+        r.update(3, 2, r.width, r.height)
+        surface.blit(text_black, r)
+        r.update(2, 1, r.width, r.height)
+        surface.blit(text_white, r)
+        obj.properties["_text_surface"] = surface
+        obj.properties["_old_rect"] = obj.rect.copy()
+        obj.properties["_old_name"] = obj.name
+        obj.properties["_old_x_offset"] = x_offset
+        obj.properties["_old_y_offset"] = y_offset
+        r.center = obj.rect.center
+        r.move_ip(x_offset, y_offset)
+        r.move_ip(0, -obj.rect.height / 2 - r.height / 2 - 4)
+        obj.properties["_text_position"] = r
+
     def _draw_object_layer(self, layer: TiledObjectGroup, surface: Surface, rect: Rect, x_offset: int, y_offset: int) -> None:
         for obj in layer.objects:
-            if obj.image and obj.visible:
-                surface.blit(obj.image, (obj.x + x_offset, obj.y + y_offset))
+            if obj.visible:
+                if ("_old_rect" not in obj.properties
+                        or obj.properties["_old_rect"] != obj.rect
+                        or obj.properties["_old_name"] != obj.name
+                ):
+                    self._calculate_new_obj_text(obj, rect.x + x_offset, rect.y + y_offset)
+                if obj.properties["_old_x_offset"] != x_offset or obj.properties["_old_y_offset"] != y_offset:
+                    dx = x_offset - obj.properties["_old_x_offset"]
+                    dy = y_offset - obj.properties["_old_y_offset"]
+                    obj.properties["_old_x_offset"] = x_offset
+                    obj.properties["_old_y_offset"] = y_offset
+                    obj.properties["_text_position"].move_ip(dx, dy)
+
+                surface.blit(obj.properties["_text_surface"], obj.properties["_text_position"])
+                if obj.image:
+                    surface.blit(obj.image, (self.rect.x + obj.x + x_offset, self.rect.y + obj.y + y_offset))
+                else:
+                    r = obj.rect.move(rect.x + x_offset + 1, rect.y + y_offset + 1)
+                    pygame.draw.rect(surface, (0, 0, 0), r, width=1)
+                    r.move_ip(-1, -1)
+                    pygame.draw.rect(surface, (128, 128, 128), r, width=1)
 
     def _local_draw(self, surface: Surface) -> None:
         if self._tiled_map is not None:
