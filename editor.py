@@ -85,16 +85,15 @@ class Editor:
 
         self.map_action_panel = MapActionsPanel(Rect(right_column, 0, 300, 50), margin=margin)
 
-        self.map_canvas = MapCanvas(
-            Rect(0, 0, right_column, self.viewport.height),
-            self.font,
-            None,
-            self.map_action_panel,
-            self._mouse_down_map_callback
-        )
         self.tileset_canvas = TilesetCanvas(
             Rect(right_column, image_size + margin * 2, 300, 500), None,
             self._tile_selected_callback
+        )
+        self.map_canvas = MapCanvas(
+            Rect(0, 0, right_column, self.viewport.height),
+            self.font,
+            self.map_action_panel,
+            self.tileset_canvas
         )
 
         self.map_action_panel.visible = False
@@ -192,14 +191,11 @@ class Editor:
         else:
             print("No current object")
 
-    def _mouse_down_map_callback(self, x: int, y: int, tile_x: int, tile_y: int) -> None:
-        pass
-
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
         self.current_element = selected_element
 
     def _tile_selected_callback(self, tile_id: Optional[int]) -> None:
-        self.map_canvas.selected_tile = tile_id
+        self.map_canvas.tile_selection_changed()
 
     def quit(self) -> None:
         self.running = False
