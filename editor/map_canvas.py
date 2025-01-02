@@ -6,7 +6,7 @@ import pygame.draw
 from pygame import Rect, Surface
 
 from editor.pygame_components import ScrollableCanvas, ComponentCollection, Button
-from engine.tmx import TiledMap
+from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer
 
 
 class MapAction(enum.Enum):
@@ -30,7 +30,7 @@ class MapActionsPanel(ComponentCollection):
             lambda: self._select_action(MapAction.SELECT)
         )
         self.brush_button = Button(
-            Rect(rect.x + (image_size + self.margin) +self. margin, self.margin, image_size, image_size),
+            Rect(rect.x + (image_size + self.margin) + self. margin, self.margin, image_size, image_size),
             self.icon_surface.subsurface(Rect(0, 0, image_size, image_size)),
             lambda: self._select_action(MapAction.BRUSH)
         )
@@ -66,16 +66,20 @@ class MapCanvas(ScrollableCanvas):
     def __init__(self,
                  rect: Rect,
                  tiled_map: Optional[TiledMap],
+                 map_actions_panel: MapActionsPanel,
                  mouse_down_callback: Callable[[int, int, int, int], None]) -> None:
         super().__init__(rect)
+        self._selected_layer: Optional[BaseTiledLayer] = None
         self._tiled_map = tiled_map
+        self.map_actions_panel = map_actions_panel
+        self.map_actions_panel.action_selected_callback = self._action_changed
+        self._action = self.map_actions_panel.action
         self.h_scrollbar.visible = tiled_map is not None
         self.v_scrollbar.visible = tiled_map is not None
         self.mouse_over_rect: Optional[Rect] = None
         self.mouse_x = 0
         self.mouse_y = 0
         self.overlay_surface: Optional[Surface] = None
-        self.mouse_over_allowed = False
         self.mouse_down_callback = mouse_down_callback
 
     @property
@@ -95,7 +99,17 @@ class MapCanvas(ScrollableCanvas):
             self.v_scrollbar.width = tiled_map.height * tiled_map.tileheight
             self.overlay_surface = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
             self.overlay_surface.fill((255, 255, 0, 64))
-            # self.overlay_surface.set_alpha(128)
+
+    @property
+    def selected_layer(self) -> Optional[BaseTiledLayer]:
+        return self._selected_layer
+
+    @selected_layer.setter
+    def selected_layer(self, layer: Optional[BaseTiledLayer]) -> None:
+        self._selected_layer = layer
+
+    def _action_changed(self, action: MapAction) -> None:
+        self._action = action
 
     def _local_draw(self, surface: Surface) -> None:
         if self._tiled_map is not None:
@@ -105,9 +119,10 @@ class MapCanvas(ScrollableCanvas):
                 if layer.visible:
                     layer.draw(surface, self.rect, self.h_scrollbar.offset, self.v_scrollbar.offset)
 
-            if self.mouse_over_allowed and self.mouse_over_rect is not None:
-                surface.blit(self.overlay_surface, self.mouse_over_rect)
-                pygame.draw.rect(surface, (255, 255, 255), self.mouse_over_rect, width=1)
+            if self._selected_layer is not None and isinstance(self._selected_layer, TiledTileLayer):
+                if self.mouse_over_rect is not None:
+                    surface.blit(self.overlay_surface, self.mouse_over_rect)
+                    pygame.draw.rect(surface, (255, 255, 255), self.mouse_over_rect, width=1)
 
     def scrollbars_moved(self) -> None:
         self._calc_mouse_over_rect(self.mouse_x, self.mouse_y)

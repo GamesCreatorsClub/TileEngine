@@ -86,6 +86,7 @@ class Editor:
 
         self.map_canvas = MapCanvas(
             Rect(0, 0, right_column, self.viewport.height), None,
+            self.map_action_panel,
             self._mouse_down_map_callback
         )
         self.tileset_canvas = TilesetCanvas(
@@ -115,11 +116,10 @@ class Editor:
             self.file_menu.entryconfig("Save", state="normal", command=self.save_map)
             self.file_menu.entryconfig("Save as...", state="normal", command=self.save_as_map)
             self.current_tileset = tiled_map.tilesets[0] if len(tiled_map.tilesets) > 0 else None
-            # self.current_element = tiled_map
 
-            main_layer = next((l for l in tiled_map.layers if l.name == "main"), None)
-
-            self.current_layer = main_layer
+            # main_layer = next((l for l in tiled_map.layers if l.name == "main"), None)
+            #
+            # self.current_layer = main_layer
             self.current_object = None
             self.map_action_panel.visible = True
             self.tileset_canvas.selected_tile = self.tileset_canvas.tileset.firstgid
@@ -169,12 +169,9 @@ class Editor:
         return self._current_layer
 
     @current_layer.setter
-    def current_layer(self, tileset: Optional[BaseTiledLayer]) -> None:
-        self._current_layer = tileset
-        if tileset is not None:
-            self.map_canvas.mouse_over_allowed = True
-        else:
-            self.map_canvas.mouse_over_allowed = False
+    def current_layer(self, tile_layer: Optional[BaseTiledLayer]) -> None:
+        self._current_layer = tile_layer
+        self.map_canvas.selected_layer = tile_layer
 
     @property
     def current_object(self) -> Optional[TiledObject]:

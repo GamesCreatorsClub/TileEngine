@@ -33,6 +33,7 @@ class Hierarchy(ttk.Treeview):
         self.custom_properties: Optional[Properties] = None
 
         self._selected_object: Optional[TiledElement] = None
+        self._selected_layer: Optional[BaseTiledLayer] = None
 
         self.tag_configure("odd", background="gray95")
 
@@ -54,15 +55,23 @@ class Hierarchy(ttk.Treeview):
                 type(selected_object).ATTRIBUTES
             )
             self.custom_properties.update_properties(selected_object.properties)
+            if isinstance(selected_object, BaseTiledLayer):
+                self._selected_layer = selected_object
+
+                for i, layer in enumerate(self.tiled_map.layers):
+                    self.item(f"l_{layer.id}", values=(self._obj_visibility(layer),))
+
         else:
             self.main_properties.update_properties({})
             self.custom_properties.update_properties({})
 
         self.selected_object_callback(selected_object)
 
-    @staticmethod
-    def _obj_visibility(e: TiledObject | BaseTiledLayer) -> str:
-        return "o" if e.visible else "-"
+    def _obj_visibility(self, obj: TiledObject | BaseTiledLayer) -> str:
+        if isinstance(obj, BaseTiledLayer):
+            if obj is self._selected_layer:
+                return "o <-" if obj.visible else "- <-"
+        return "o" if obj.visible else "-"
 
     def set_map(self, tiled_map: TiledMap) -> None:
         self.tiled_map = tiled_map
@@ -77,12 +86,17 @@ class Hierarchy(ttk.Treeview):
             self.move(f"ts_{i}", "tilesets", i)
 
         for i, layer in enumerate(tiled_map.layers):
+            if layer.name == "main": self._selected_layer = layer
+
             self.insert('', tk.END, iid=f"l_{layer.id}", text=f"{layer.name}", values=(self._obj_visibility(layer), ), open=False)
             self.move(f"l_{layer.id}", "layers", i)
             if isinstance(layer, TiledObjectGroup):
                 for j, obj in enumerate(layer.objects):
                     self.insert('', tk.END, iid=f"o_{layer.id}_{obj.id}", text=f"{obj.name}", values=(self._obj_visibility(obj), ), open=True)
                     self.move(f"o_{layer.id}_{obj.id}", f"l_{layer.id}", j)
+
+        if self._selected_layer is not None:
+            self.selected_object_callback(self._selected_layer)
 
         def tag(el, even: bool) -> bool:
             for child in self.get_children() if el is None else self.get_children(el):
