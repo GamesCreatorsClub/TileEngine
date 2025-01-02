@@ -73,6 +73,13 @@ class Hierarchy(ttk.Treeview):
                 return "o <-" if obj.visible else "- <-"
         return "o" if obj.visible else "-"
 
+    def update_object_name(self, obj: TiledObject) -> None:
+        rowid = f"o_{obj.layer.id}_{obj.id}"
+        self.item(rowid, text=f"{obj.name}")
+
+    def update_layer_name(self, obj: TiledObject) -> None:
+        pass
+
     def set_map(self, tiled_map: TiledMap) -> None:
         self.tiled_map = tiled_map
         self.delete(*self.get_children())
@@ -111,6 +118,10 @@ class Hierarchy(ttk.Treeview):
         self.custom_properties.update_properties({})
 
         self.bind("<<TreeviewSelect>>", self.on_tree_select)
+
+    def add_object(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
+        self.insert('', tk.END, iid=f"o_{layer.id}_{obj.id}", text=f"{obj.name}", values=(self._obj_visibility(obj),), open=True)
+        self.move(f"o_{layer.id}_{obj.id}", f"l_{layer.id}", len(list(layer.objects)))
 
     def on_tree_select(self, _event):
         for rowid in self.selection():

@@ -18,7 +18,7 @@ from editor.properties import Properties
 from editor.pygame_components import ComponentCollection
 from editor.map_canvas import MapCanvas, MapActionsPanel, MapAction
 from editor.tileset_canvas import TilesetCanvas
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledGroupLayer
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledGroupLayer, TiledObjectGroup
 
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
@@ -93,7 +93,8 @@ class Editor:
             Rect(0, 0, right_column, self.viewport.height),
             self.font,
             self.map_action_panel,
-            self.tileset_canvas
+            self.tileset_canvas,
+            self._object_added_callback
         )
 
         self.map_action_panel.visible = False
@@ -190,6 +191,9 @@ class Editor:
             print(f"Current object is {obj.name}: {obj.id}")
         else:
             print("No current object")
+
+    def _object_added_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
+        self.hierarchy_view.add_object(layer, obj)
 
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
         self.current_element = selected_element
@@ -466,6 +470,12 @@ class Editor:
                 print(f"Got incorrect color value '{value}'")
             else:
                 setattr(self._current_element, key, value)
+
+            if key == "name":
+                if isinstance(self._current_element, TiledObject):
+                    self.hierarchy_view.update_object_name(cast(TiledObject, self._current_element))
+                elif isinstance(self._current_element, BaseTiledLayer):
+                    self.hierarchy_view.update_level_name(cast(BaseTiledLayer, self._current_element))
 
     def update_current_element_property(self, key: str, value: str) -> None:
         if self._current_element is not None:

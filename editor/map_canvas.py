@@ -65,6 +65,7 @@ class MapActionsPanel(ComponentCollection):
 
         self._action = MapAction.BRUSH_TILE
         self.action_selected_callback = action_selected_callback
+        self.action = MapAction.BRUSH_TILE
 
     def _select_action(self, action: MapAction) -> None:
         self.action = action
@@ -82,6 +83,12 @@ class MapActionsPanel(ComponentCollection):
         for b in self.tile_buttons.values():
             b.visible = not object_layer
 
+        if self._action.object_layer != object_layer:
+            if object_layer:
+                self.action = MapAction.SELECT_OBJECT
+            else:
+                self.action = MapAction.SELECT_TILE
+
     @property
     def action(self) -> MapAction:
         return self._action
@@ -91,6 +98,9 @@ class MapActionsPanel(ComponentCollection):
         self._action = action
         if self._object_layer:
             for k, v in self.object_buttons.items():
+                v.selected = k == action
+        else:
+            for k, v in self.tile_buttons.items():
                 v.selected = k == action
 
         if self.action_selected_callback is not None:
@@ -143,6 +153,18 @@ class AddImageObjectMouseAdapter(MouseAdapter):
         super().__init__(map_canvas)
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
+        tilemap = self.map_canvas.tiled_map
+        if tilemap is not None and self.map_canvas.tileset_canvas.selected_tile is not None:
+            layer = cast(TiledObjectGroup, self.map_canvas.selected_layer)
+
+            obj = TiledObject(layer)
+            obj.id = len(layer.objects_id_map)
+            obj.gid = self.map_canvas.tileset_canvas.selected_tile
+            img = tilemap.images[obj.gid]
+            obj.rect = img.get_rect()
+            obj.rect.center = x, y
+            layer.objects_id_map[obj.id] = obj
+            self.map_canvas.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -154,6 +176,16 @@ class AddAreaObjectMouseAdapter(MouseAdapter):
         super().__init__(map_canvas)
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
+        tilemap = self.map_canvas.tiled_map
+        if tilemap is not None and self.map_canvas.tileset_canvas.selected_tile is not None:
+            layer = cast(TiledObjectGroup, self.map_canvas.selected_layer)
+
+            obj = TiledObject(layer)
+            obj.id = len(layer.objects_id_map)
+            obj.gid = self.map_canvas.tileset_canvas.selected_tile
+            img = tilemap.images[obj.gid]
+            obj.rect = img.get_rect().center = x, y
+            layer.objects_id_map[obj.id] = obj
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -204,10 +236,12 @@ class MapCanvas(ScrollableCanvas):
                  rect: Rect,
                  font: Font,
                  map_actions_panel: MapActionsPanel,
-                 tileset_canvas: TilesetCanvas) -> None:
+                 tileset_canvas: TilesetCanvas,
+                 object_added_callback: Callable[[TiledObjectGroup, TiledObject], None]) -> None:
         super().__init__(rect)
         self.font = font
         self._selected_layer: Optional[BaseTiledLayer] = None
+        self.object_added_callback = object_added_callback
 
         self._null_mouse_adapter = NullMouseAdapter(self)
 

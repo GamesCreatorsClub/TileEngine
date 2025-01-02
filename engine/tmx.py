@@ -567,6 +567,7 @@ class TiledObject(TiledSubElement):
 
     def __init__(self, parent: Optional[TiledElement]) -> None:
         super().__init__(parent)
+        self.layer = cast(TiledObjectGroup, parent)
         self.id: int = 0
         self.name: str = ""
 
