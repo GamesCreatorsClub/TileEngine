@@ -77,7 +77,8 @@ class Hierarchy(ttk.Treeview):
         rowid = f"o_{obj.layer.id}_{obj.id}"
         self.item(rowid, text=f"{obj.name}")
 
-    def update_layer_name(self, obj: TiledObject) -> None:
+    def update_layer_name(self, layer: BaseTiledLayer) -> None:
+        # TODO
         pass
 
     def set_map(self, tiled_map: TiledMap) -> None:

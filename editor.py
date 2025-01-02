@@ -94,7 +94,8 @@ class Editor:
             self.font,
             self.map_action_panel,
             self.tileset_canvas,
-            self._object_added_callback
+            self._object_added_callback,
+            self._object_selected_callback
         )
 
         self.map_action_panel.visible = False
@@ -187,13 +188,18 @@ class Editor:
     @current_object.setter
     def current_object(self, obj: Optional[TiledObject]) -> None:
         self._current_object = obj
-        if obj is not None:
-            print(f"Current object is {obj.name}: {obj.id}")
-        else:
-            print("No current object")
+        # if obj is not None:
+        #     print(f"Current object is {obj.name}: {obj.id}")
+        # else:
+        #     print("No current object")
 
     def _object_added_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.add_object(layer, obj)
+        self.hierarchy_view.selected_object = obj
+
+    def _object_selected_callback(self, obj: TiledObject) -> None:
+        # self.current_element = obj
+        self.hierarchy_view.selected_object = obj
 
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
         self.current_element = selected_element
@@ -475,7 +481,7 @@ class Editor:
                 if isinstance(self._current_element, TiledObject):
                     self.hierarchy_view.update_object_name(cast(TiledObject, self._current_element))
                 elif isinstance(self._current_element, BaseTiledLayer):
-                    self.hierarchy_view.update_level_name(cast(BaseTiledLayer, self._current_element))
+                    self.hierarchy_view.update_layer_name(cast(BaseTiledLayer, self._current_element))
 
     def update_current_element_property(self, key: str, value: str) -> None:
         if self._current_element is not None:
