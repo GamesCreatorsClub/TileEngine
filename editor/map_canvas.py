@@ -6,7 +6,7 @@ import pygame.draw
 from pygame import Rect, Surface
 
 from editor.pygame_components import ScrollableCanvas, ComponentCollection, Button
-from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer
+from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup
 
 
 class MapAction(enum.Enum):
@@ -111,13 +111,21 @@ class MapCanvas(ScrollableCanvas):
     def _action_changed(self, action: MapAction) -> None:
         self._action = action
 
+    def _draw_object_layer(self, layer: TiledObjectGroup, surface: Surface, rect: Rect, x_offset: int, y_offset: int) -> None:
+        for obj in layer.objects:
+            if obj.image and obj.visible:
+                surface.blit(obj.image, (obj.x + x_offset, obj.y + y_offset))
+
     def _local_draw(self, surface: Surface) -> None:
         if self._tiled_map is not None:
             colour = self._tiled_map.backgroundcolor if self._tiled_map.backgroundcolor else (0, 0, 0)
             pygame.draw.rect(surface, colour, self.rect)
             for layer in self._tiled_map.layers:
                 if layer.visible:
-                    layer.draw(surface, self.rect, self.h_scrollbar.offset, self.v_scrollbar.offset)
+                    if isinstance(layer, TiledObjectGroup):
+                        self._draw_object_layer(layer, surface, self.rect, self.h_scrollbar.offset, self.v_scrollbar.offset)
+                    else:
+                        layer.draw(surface, self.rect, self.h_scrollbar.offset, self.v_scrollbar.offset)
 
             if self._selected_layer is not None and isinstance(self._selected_layer, TiledTileLayer):
                 if self.mouse_over_rect is not None:
@@ -146,21 +154,25 @@ class MapCanvas(ScrollableCanvas):
             self.mouse_over_rect = None
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
-        tile_x, tile_y = self._calc_mouse_to_tile(x, y)
-        self.mouse_down_callback(x, y, tile_x, tile_y)
+        if not super().mouse_down(x, y, modifier):
+            tile_x, tile_y = self._calc_mouse_to_tile(x, y)
+            self.mouse_down_callback(x, y, tile_x, tile_y)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
-        self._calc_mouse_over_rect(x, y)
+        if not super().mouse_move(x, y, modifier):
+            self._calc_mouse_over_rect(x, y)
         return True
 
     # def mouse_wheel(self, x: int, y: int, dx: int, dy: int, modifier) -> bool:
     #     return False
 
     def mouse_in(self, x: int, y: int) -> bool:
-        self._calc_mouse_over_rect(x, y)
+        if not super().mouse_in(x, y):
+            self._calc_mouse_over_rect(x, y)
         return True
 
     def mouse_out(self, x: int, y: int) -> bool:
-        self.mouse_over_rect = None
+        if not super().mouse_out(x, y):
+            self.mouse_over_rect = None
         return True

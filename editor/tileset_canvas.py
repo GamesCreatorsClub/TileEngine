@@ -72,14 +72,17 @@ class TilesetCanvas(ScrollableCanvas):
                 pygame.draw.rect(surface, (128, 255, 255), self._tileset_rect2, width=1)
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
-        if self._tileset is not None:
-            tileset = self._tileset
-            x = x - self.h_scrollbar.offset - self.rect.x
-            y = y - self.v_scrollbar.offset - self.rect.y
-            x = x // tileset.tilewidth
-            y = y // tileset.tileheight
-            gid = x + y * (tileset.width // tileset.tilewidth)
-            if gid < tileset.tilecount:
-                gid = gid + tileset.firstgid
-                self.selected_tile = gid
-            return True
+        other = super().mouse_down(x, y, modifier)
+        if not other:
+            if self._tileset is not None:
+                tileset = self._tileset
+                x = x - self.h_scrollbar.offset - self.rect.x
+                y = y - self.v_scrollbar.offset - self.rect.y
+                x = x // tileset.tilewidth
+                y = y // tileset.tileheight
+                gid = x + y * (tileset.width // tileset.tilewidth)
+                if gid < tileset.tilecount:
+                    gid = gid + tileset.firstgid
+                    self.selected_tile = gid
+                    return True
+        return other

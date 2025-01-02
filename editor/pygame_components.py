@@ -313,7 +313,7 @@ class Scrollbar(Component):
                 self.offset += dy * self._width / self.bar_screen_range
                 self.mouse_pressed_x = x
                 self.mouse_pressed_y = y
-        return False
+        return True
 
 
 class ScrollableCanvas(ComponentCollection, ABC):
