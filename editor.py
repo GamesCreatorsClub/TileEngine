@@ -31,6 +31,7 @@ def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
 
 class Editor:
     def __init__(self) -> None:
+        self.macos = False
         self.running = True
         self.colour = pygame.Color("yellow")
         self.speed = 10
@@ -63,7 +64,7 @@ class Editor:
         # tk.Tk() and pygame.init() must be done in this order and before anything else (in tkinter world)
         self.root = tk.Tk()
         self.root.title("Editor")
-        # self.popup: Optional[tk.Tk] = None
+
         pygame.init()
         self.previous_keys = pygame.key.get_pressed()
         self.current_keys = pygame.key.get_pressed()
@@ -153,10 +154,14 @@ class Editor:
 
         if isinstance(current_element, BaseTiledLayer):
             self.current_layer = cast(BaseTiledLayer, current_element)
+            self.edit_menu.entryconfig("Delete", state="disabled")
         elif isinstance(current_element, TiledTileset):
             self.current_tileset = cast(TiledTileset, current_element)
+            self.edit_menu.entryconfig("Delete", state="disabled")
         elif isinstance(current_element, TiledObject):
             self.current_object = cast(TiledObject, current_element)
+        else:
+            self.edit_menu.entryconfig("Delete", state="disabled")
 
     @property
     def current_tileset(self) -> Optional[TiledTileset]:
@@ -187,6 +192,9 @@ class Editor:
     @current_object.setter
     def current_object(self, obj: Optional[TiledObject]) -> None:
         self._current_object = obj
+        if obj is not None:
+            self.edit_menu.entryconfig("Delete", state="normal")
+            self.map_canvas.select_object(obj)
         # if obj is not None:
         #     print(f"Current object is {obj.name}: {obj.id}")
         # else:
@@ -197,7 +205,7 @@ class Editor:
         self.hierarchy_view.selected_object = obj
 
     def _object_selected_callback(self, obj: TiledObject) -> None:
-        # self.current_element = obj
+        self.current_element = obj
         self.hierarchy_view.selected_object = obj
 
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
@@ -245,10 +253,13 @@ class Editor:
         self.edit_menu.add_command(label="Undo", command=self.do_nothing, state="disabled")
         self.edit_menu.add_separator()
         self.edit_menu.add_command(label="Cut", command=self.do_nothing, state="disabled")
-        self.edit_menu.add_command(label="Copy", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_command(label="Copy", command=self.copy_action, state="normal", accelerator="Command+C")
         self.edit_menu.add_command(label="Paste", command=self.do_nothing, state="disabled")
-        self.edit_menu.add_command(label="Delete", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_command(label="Delete", command=self.delete_action, state="disabled", accelerator="Delete")
         self.edit_menu.add_command(label="Select All", command=self.do_nothing, state="disabled")
+
+        root.bind_all("<Delete>", self.delete_action)
+        root.bind_all("<Command-c>", self.copy_action)
 
         menubar.add_cascade(label="Edit", menu=self.edit_menu)
 
@@ -303,6 +314,17 @@ class Editor:
         self.custom_properties.update_buttons(self.add_property, self.remove_property, self.edit_property)
 
         return root
+
+    def copy_action(self, _event=None) -> None:
+        print(f"Got COPY for {self.current_element}")
+
+    def delete_action(self, _event=None) -> None:
+        if isinstance(self.current_element, TiledObject):
+            obj = cast(TiledObject, self.current_element)
+            layer = cast(TiledObjectGroup, obj.parent)
+            del layer.objects_id_map[obj.id]
+            self.hierarchy_view.delete_object(obj)
+            self.map_canvas.deselect_object()
 
     def browse_to_load_file(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
@@ -394,6 +416,7 @@ class Editor:
     def setup_pygame(self) -> None:
         import platform
         if platform.system() == "Darwin":
+            self.macos = True
             os.environ['SDL_VIDEO_WINDOW_POS'] = "315,58"
         else:
             os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
@@ -406,14 +429,19 @@ class Editor:
         pygame.display.set_caption("Editor Window")
 
     def pygame_loop(self) -> None:
+        self.root.update()
+
+        has_focus = False
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.quit()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     self.components.mouse_down(self.mouse_x, self.mouse_y, self.key_modifier)
+                    self.root.update()
                 elif event.type == pygame.MOUSEBUTTONUP:
                     self.components.mouse_up(self.mouse_x, self.mouse_y, self.key_modifier)
+                    self.root.update()
                 elif event.type == pygame.MOUSEMOTION:
                     self.mouse_x = event.pos[0]
                     self.mouse_y = event.pos[1]
@@ -423,32 +451,65 @@ class Editor:
                 elif event.type == pygame.MOUSEWHEEL:
                     self.components.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
                 elif event.type == pygame.KEYDOWN:
+                    key = event.key
                     dx = 0
                     dy = 0
-                    if event.key == pygame.K_RIGHT:
-                        dx = 1
-                    elif event.key == pygame.K_LEFT:
-                        dx = -1
-                    elif event.key == pygame.K_UP:
-                        dy = 1
-                    elif event.key == pygame.K_DOWN:
-                        dy = -1
+                    if key == pygame.K_RIGHT:
+                        dx = 16
+                    elif key == pygame.K_LEFT:
+                        dx = -16
+                    elif key == pygame.K_UP:
+                        dy = 16
+                    elif key == pygame.K_DOWN:
+                        dy = -16
+                    elif key == pygame.K_DELETE:
+                        self.delete_action()
+                        self.root.update()
+                    elif key == pygame.K_c:
+                        if event.mod & (pygame.KMOD_META if self.macos else pygame.KMOD_CTRL) != 0:
+                            self.copy_action()
+                        else:
+                            print(f"Mods = {event.mod}")
+                    elif key == pygame.K_q:
+                        if event.mod & (pygame.KMOD_META if self.macos else pygame.KMOD_CTRL) != 0:
+                            self.quit()
+                        else:
+                            print(f"Mods = {event.mod}")
                     if dx != 0 or dy != 0:
-                        self.components.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
-                # elif event.type == pygame.KEYUP:
-                #     pass
-                # else:
-                #     print(f"event.type == {event.type}")
+                        self.components.mouse_wheel(self.mouse_x, self.mouse_y, dx, dy, self.key_modifier)
+
+                elif event.type == pygame.KEYUP:
+                    # print(f"Key up {event}")
+                    pass
+                elif event.type == pygame.ACTIVEEVENT:
+                    print(f"Active Event")
+                    pass
+                elif event.type == pygame.WINDOWENTER:
+                    # print(f"Window Enter")
+                    pass
+                elif event.type == pygame.WINDOWLEAVE:
+                    # print(f"Window Leave")
+                    pass
+                elif event.type == pygame.WINDOWFOCUSGAINED:
+                    has_focus = True
+                elif event.type == pygame.WINDOWFOCUSLOST:
+                    has_focus = False
+                else:
+                    # print(f"event.type == {event.type}")
+                    pass
 
             self.previous_keys = self.current_keys
             self.current_keys = pygame.key.get_pressed()
+            # if self.previous_keys != self.current_keys:
+            #     print(f"keys={self.current_keys}")
 
             self.screen.fill((200, 200, 200))
             self.components.draw(self.screen)
 
             pygame.display.flip()
             self.clock.tick(30)
-            self.root.update()
+            if not has_focus:
+                self.root.update()
 
     def update_current_element_attribute(self, key: str, value: str) -> None:
         if self._current_element is not None:

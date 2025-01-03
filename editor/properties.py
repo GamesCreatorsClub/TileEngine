@@ -180,17 +180,19 @@ class Properties(ttk.Treeview):
         self.bind("<<TreeviewSelect>>", self.select_element)
 
     def select_element(self, _event) -> None:
-        self.selected_rowid = self.selection()[0]
+        selection = self.selection()
+        if selection is not None and len(selection) > 0:
+            self.selected_rowid = self.selection()[0]
 
-        if self.remove_button is not None: self.remove_button.configure(state="normal")
+            if self.remove_button is not None: self.remove_button.configure(state="normal")
 
-        tags = self.item(self.selected_rowid, "tags")
+            tags = self.item(self.selected_rowid, "tags")
 
-        if self.edit_button is not None:
-            if "disabled" not in tags:
-                self.edit_button.configure(state="normal")
-            else:
-                self.edit_button.configure(state="disabled")
+            if self.edit_button is not None:
+                if "disabled" not in tags:
+                    self.edit_button.configure(state="normal")
+                else:
+                    self.edit_button.configure(state="disabled")
 
     def update_buttons(self,
                        add_button: tk.Button,
@@ -272,12 +274,13 @@ class Properties(ttk.Treeview):
         self.properties = properties
         even = True
         for k, v in properties.items():
-            enabled = "enabled" if types_and_visibility is None or types_and_visibility[k].visible else "disabled"
-            typ = types_and_visibility[k].type.__name__ if types_and_visibility is not None and k in types_and_visibility else "unknown_type"
-            if typ == "Color":
-                v = "(" + ",".join(str(s) for s in v) + ")" if v is not None and v != "" else ""
-            self.insert('', tk.END, iid=k, text=k, values=(v, ), tags=("even" if even else "odd", enabled, typ))
-            even = not even
+            if not k.startswith("__"):
+                enabled = "enabled" if types_and_visibility is None or types_and_visibility[k].visible else "disabled"
+                typ = types_and_visibility[k].type.__name__ if types_and_visibility is not None and k in types_and_visibility else "unknown_type"
+                if typ == "Color":
+                    v = "(" + ",".join(str(s) for s in v) + ")" if v is not None and v != "" else ""
+                self.insert('', tk.END, iid=k, text=k, values=(v, ), tags=("even" if even else "odd", enabled, typ))
+                even = not even
 
     def remove_property(self) -> None:
         if self.selected_rowid is not None:

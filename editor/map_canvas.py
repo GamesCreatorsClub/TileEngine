@@ -164,7 +164,6 @@ class SelectObjectMouseAdapter(MouseAdapter):
     def movement_callback(self, button: ResizeButton, distance_x: int, distance_y: int) -> None:
         if self.selected_object is not None:
             rect = self.selected_object.rect
-            r = rect.copy()
             pos = button.position
             dx = pos.dx
             dy = pos.dy
@@ -413,6 +412,23 @@ class MapCanvas(ScrollableCanvas):
             self.overlay_surface = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
             self.overlay_surface.fill((255, 255, 0, 64))
 
+    def deselect_object(self) -> None:
+        if isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
+            cast(SelectObjectMouseAdapter, self._mouse_adapter).hide_buttons()
+
+    def select_object(self, obj: TiledObject) -> None:
+        if not isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
+            self._mouse_adapter.deselected()
+            self._mouse_adapter = self._mouse_object_adapters[MapAction.SELECT_OBJECT]
+        self.map_actions_panel.object_layer = True
+        self.map_actions_panel.action = MapAction.SELECT_OBJECT
+        cast(SelectObjectMouseAdapter, self._mouse_adapter).selected_object = obj
+        cx = self.rect.width // 2
+        cy = self.rect.height // 2
+        ox, oy = obj.rect.center
+        self.h_scrollbar.offset = cx - ox
+        self.v_scrollbar.offset = cy - oy
+
     @property
     def selected_layer(self) -> Optional[BaseTiledLayer]:
         return self._selected_layer
@@ -470,31 +486,31 @@ class MapCanvas(ScrollableCanvas):
         surface.blit(text_black, r)
         r.update(2, 1, r.width, r.height)
         surface.blit(text_white, r)
-        obj.properties["_text_surface"] = surface
-        obj.properties["_old_rect"] = obj.rect.copy()
-        obj.properties["_old_name"] = obj.name
-        obj.properties["_old_x_offset"] = x_offset
-        obj.properties["_old_y_offset"] = y_offset
+        obj.properties["__text_surface"] = surface
+        obj.properties["__old_rect"] = obj.rect.copy()
+        obj.properties["__old_name"] = obj.name
+        obj.properties["__old_x_offset"] = x_offset
+        obj.properties["__old_y_offset"] = y_offset
         r.center = obj.rect.center
         r.move_ip(x_offset, y_offset)
         r.move_ip(0, -obj.rect.height / 2 - r.height / 2 - 4)
-        obj.properties["_text_position"] = r
+        obj.properties["__text_position"] = r
 
     def _draw_object_layer(self, layer: TiledObjectGroup, surface: Surface, rect: Rect, x_offset: int, y_offset: int) -> None:
         for obj in layer.objects:
             if obj.visible:
-                if ("_old_rect" not in obj.properties
-                        or obj.properties["_old_rect"] != obj.rect
-                        or obj.properties["_old_name"] != obj.name):
+                if ("__old_rect" not in obj.properties
+                        or obj.properties["__old_rect"] != obj.rect
+                        or obj.properties["__old_name"] != obj.name):
                     self._calc_new_obj_text(obj, rect.x + x_offset, rect.y + y_offset)
-                if obj.properties["_old_x_offset"] != x_offset or obj.properties["_old_y_offset"] != y_offset:
-                    dx = x_offset - obj.properties["_old_x_offset"]
-                    dy = y_offset - obj.properties["_old_y_offset"]
-                    obj.properties["_old_x_offset"] = x_offset
-                    obj.properties["_old_y_offset"] = y_offset
-                    obj.properties["_text_position"].move_ip(dx, dy)
+                if obj.properties["__old_x_offset"] != x_offset or obj.properties["__old_y_offset"] != y_offset:
+                    dx = x_offset - obj.properties["__old_x_offset"]
+                    dy = y_offset - obj.properties["__old_y_offset"]
+                    obj.properties["__old_x_offset"] = x_offset
+                    obj.properties["__old_y_offset"] = y_offset
+                    obj.properties["__text_position"].move_ip(dx, dy)
 
-                surface.blit(obj.properties["_text_surface"], obj.properties["_text_position"])
+                surface.blit(obj.properties["__text_surface"], obj.properties["__text_position"])
                 if obj.image is not None:
                     surface.blit(obj.image, (self.rect.x + obj.x + x_offset, self.rect.y + obj.y + y_offset))
                 else:
