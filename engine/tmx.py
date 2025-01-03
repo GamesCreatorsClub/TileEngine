@@ -304,13 +304,14 @@ class TiledElement(ABC):
             stream.write(" " * indent)
             stream.write("<properties>\n")
             for k, v in self.properties.items():
-                stream.write(" " * (indent + 1))
-                if "\n" in v:
-                    stream.write(f"<property name=\"{k}\">")
-                    stream.write(escape(v))
-                    stream.write(f"</property>\n")
-                else:
-                    stream.write(f"<property name=\"{k}\" value=\"{escape(v)}\"/>\n")
+                if not k.startswith("_"):
+                    stream.write(" " * (indent + 1))
+                    if "\n" in v:
+                        stream.write(f"<property name=\"{k}\">")
+                        stream.write(escape(v))
+                        stream.write(f"</property>\n")
+                    else:
+                        stream.write(f"<property name=\"{k}\" value=\"{escape(v)}\"/>\n")
 
             stream.write(" " * indent)
             stream.write("</properties>\n")

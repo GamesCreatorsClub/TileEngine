@@ -103,8 +103,7 @@ class Editor:
 
         self.components = ComponentCollection(
             self.viewport,
-            self.map_action_panel,
-            self.map_canvas, self.tileset_canvas)
+            self.map_canvas, self.map_action_panel, self.tileset_canvas)
 
         self.key_modifier = 0
         self.mouse_x = 0

@@ -367,11 +367,10 @@ class ScrollableCanvas(ComponentCollection, ABC):
 
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.rect):
-            surface.set_clip(self.rect)
             # if self.map_width > 0:
-            super().draw(surface)
             surface.set_clip(self.content_rect)
             self._local_draw(surface)
+        super().draw(surface)
 
     @abstractmethod
     def _local_draw(self, surface: Surface) -> None:

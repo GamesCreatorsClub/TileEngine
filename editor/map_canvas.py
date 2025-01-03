@@ -8,6 +8,7 @@ from pygame import Rect, Surface
 from pygame.font import Font
 
 from editor.pygame_components import ScrollableCanvas, ComponentCollection, Button
+from editor.resize_component import ResizeButton, ResizePosition
 from editor.tileset_canvas import TilesetCanvas
 from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup, TiledObject
 
@@ -120,6 +121,12 @@ class MouseAdapter(ABC):
     def mouse_move(self, _x: int, _y: int, _modifier: int) -> bool:
         return False
 
+    def selected(self) -> None:
+        pass
+
+    def deselected(self) -> None:
+        pass
+
 
 class NullMouseAdapter(MouseAdapter):
     def __init__(self, map_canvas: 'MapCanvas') -> None:
@@ -130,8 +137,47 @@ class SelectObjectMouseAdapter(MouseAdapter):
     def __init__(self, map_canvas: 'MapCanvas') -> None:
         super().__init__(map_canvas)
         self.selected_object: Optional[TiledObject] = None
+        self.mouse_is_down = False
         self.touch_x = 0
         self.touch_y = 0
+
+    def selected(self) -> None:
+        # for b in self.map_canvas.arrow_buttons:
+        #     b.visible = True
+        pass
+
+    def deselected(self) -> None:
+        self.hide_buttons()
+
+    def hide_buttons(self) -> None:
+        for b in self.map_canvas.arrow_buttons:
+            b.visible = False
+
+    def update_buttons(self) -> None:
+        if self.selected_object is not None:
+            r = self.selected_object.rect.move(self.map_canvas.rect.x + self.map_canvas.h_scrollbar.offset, self.map_canvas.rect.y + self.map_canvas.v_scrollbar.offset)
+
+            for b in self.map_canvas.arrow_buttons:
+                b.update_rect(r)
+                b.visible = True
+
+    def movement_callback(self, button: ResizeButton, distance_x: int, distance_y: int) -> None:
+        if self.selected_object is not None:
+            rect = self.selected_object.rect
+            r = rect.copy()
+            pos = button.position
+            dx = pos.dx
+            dy = pos.dy
+
+            if dx < 0:
+                rect.x += dx * distance_x
+            rect.width += abs(dx) * distance_x
+
+            if dy < 0:
+                rect.y += dy * distance_y
+            rect.height += abs(dy) * distance_y
+
+            self.update_buttons()
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
         def find_object(layer: TiledObjectGroup, x: int, y: int) -> Optional[TiledObject]:
@@ -149,19 +195,28 @@ class SelectObjectMouseAdapter(MouseAdapter):
 
             obj = find_object(layer, corrected_x, corrected_y)
             if obj is not None:
+                self.mouse_is_down = True
                 self.selected_object = obj
                 self.map_canvas.object_selected_callback(obj)
                 self.touch_x = x
                 self.touch_y = y
+                if obj.image is None:
+                    self.update_buttons()
+            else:
+                self.selected_object = None
+                self.hide_buttons()
+        else:
+            self.selected_object = None
+            self.hide_buttons()
 
         return False
 
     def mouse_up(self, x: int, y: int, modifier) -> bool:
-        self.selected_object = None
+        self.mouse_is_down = False
         return False
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
-        if self.selected_object:
+        if self.selected_object is not None and self.mouse_is_down:
             dx = x - self.touch_x
             dy = y - self.touch_y
             self.selected_object.x += dx
@@ -171,8 +226,7 @@ class SelectObjectMouseAdapter(MouseAdapter):
             self.touch_y = y
             self.map_canvas.object_selected_callback(self.selected_object)
             if self.selected_object.image is None:
-                # TODO move size_buttons
-                pass
+                self.update_buttons()
 
         return False
 
@@ -211,10 +265,10 @@ class AddAreaObjectMouseAdapter(MouseAdapter):
 
             obj = TiledObject(layer)
             obj.id = len(layer.objects_id_map)
-            obj.gid = self.map_canvas.tileset_canvas.selected_tile
-            img = tilemap.images[obj.gid]
-            obj.rect = img.get_rect().center = x, y
+            obj.gid = 0
+            obj.rect = Rect(x, y, 32, 32)
             layer.objects_id_map[obj.id] = obj
+            self.map_canvas.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -304,25 +358,26 @@ class MapCanvas(ScrollableCanvas):
 
         arrow_image_size = self.arrows_surface.get_size()[1]
 
-        def size_button(img: int, sel_img: int, callback: Callable[[], None]) -> Button:
-            button = Button(
+        def size_button(img: int, sel_img: int, position: ResizePosition) -> ResizeButton:
+            button = ResizeButton(
+                position,
                 Rect(0, 0, arrow_image_size, arrow_image_size),
                 self.arrows_surface.subsurface(Rect(arrow_image_size * img, 0, arrow_image_size, arrow_image_size)),
-                callback,
+                cast(SelectObjectMouseAdapter, self._mouse_object_adapters[MapAction.SELECT_OBJECT]).movement_callback,
                 mouse_over_image=self.arrows_surface.subsurface(Rect(arrow_image_size * sel_img, 0, arrow_image_size, arrow_image_size)),
-                selected_image=self.arrows_surface.subsurface(Rect(arrow_image_size * sel_img, 0, arrow_image_size, arrow_image_size)),
             )
             button.visible = False
+            return button
 
         self.arrow_buttons = [
-            size_button(0, 2, lambda: None),
-            size_button(5, 7, lambda: None),
-            size_button(1, 3, lambda: None),
-            size_button(4, 6, lambda: None),
-            size_button(0, 2, lambda: None),
-            size_button(5, 7, lambda: None),
-            size_button(1, 3, lambda: None),
-            size_button(4, 6, lambda: None),
+            size_button(0, 2, ResizePosition.W),
+            size_button(5, 7, ResizePosition.SW),
+            size_button(1, 3, ResizePosition.S),
+            size_button(4, 6, ResizePosition.SE),
+            size_button(0, 2, ResizePosition.E),
+            size_button(5, 7, ResizePosition.NE),
+            size_button(1, 3, ResizePosition.N),
+            size_button(4, 6, ResizePosition.NW)
         ]
         self.components.extend(self.arrow_buttons)
 
@@ -385,6 +440,8 @@ class MapCanvas(ScrollableCanvas):
 
     def _action_changed(self, action: MapAction) -> None:
         self._action = action
+        if self._mouse_adapter is not None:
+            self._mouse_adapter.deselected()
         if self._selected_layer is not None:
             self.map_actions_panel.object_layer = not isinstance(self._selected_layer, TiledTileLayer)
 
@@ -397,6 +454,7 @@ class MapCanvas(ScrollableCanvas):
             self._mouse_adapter = self._mouse_object_adapters[self._action] if self.map_actions_panel.object_layer else self._mouse_tile_adapters[self._action]
         else:
             self._mouse_adapter = self._null_mouse_adapter
+        self._mouse_adapter.selected()
 
     def _calc_new_obj_text(self, obj: TiledObject, x_offset, y_offset) -> None:
         text_white = self.font.render(obj.name, True, (255, 255, 255))
