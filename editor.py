@@ -23,7 +23,7 @@ from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, Til
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
 
-MOUSE_DOWN_COUNTER = 15
+MOUSE_DOWN_COUNTER = 1
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -434,19 +434,16 @@ class Editor:
         self.root.update()
 
         has_focus = False
-        mouse_is_down = False
         mouse_down_counter = 0
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.quit()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_is_down = True
                     mouse_down_counter = MOUSE_DOWN_COUNTER
                     self.components.mouse_down(self.mouse_x, self.mouse_y, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.MOUSEBUTTONUP:
-                    mouse_is_down = False
                     mouse_down_counter = 0
                     self.components.mouse_up(self.mouse_x, self.mouse_y, self.key_modifier)
                     self.root.update()

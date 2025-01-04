@@ -11,6 +11,10 @@ from editor.pygame_components import ScrollableCanvas, ComponentCollection, Butt
 from editor.resize_component import ResizeButton, ResizePosition
 from editor.tileset_canvas import TilesetCanvas
 from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup, TiledObject
+from engine.utils import clip
+
+SCROLLING_MARGIN = 10
+SCROLLING_STEP = 10
 
 
 class MapAction(enum.Enum):
@@ -121,6 +125,9 @@ class MouseAdapter(ABC):
     def mouse_move(self, _x: int, _y: int, _modifier: int) -> bool:
         return False
 
+    def mouse_out(self, _x: int, _y: int) -> bool:
+        return False
+
     def selected(self) -> None:
         pass
 
@@ -134,16 +141,23 @@ class NullMouseAdapter(MouseAdapter):
 
 
 class SelectObjectMouseAdapter(MouseAdapter):
-    def __init__(self, map_canvas: 'MapCanvas') -> None:
+    def __init__(self, map_canvas: 'MapCanvas',
+                 scrolling_margin: int = SCROLLING_MARGIN,
+                 scrolling_step: int = SCROLLING_STEP) -> None:
         super().__init__(map_canvas)
+        self.scrolling_margin = scrolling_margin
+        self.scrolling_step = scrolling_step
         self.selected_object: Optional[TiledObject] = None
         self.mouse_is_down = False
         self.touch_x = 0
         self.touch_y = 0
+        self.viewport = Rect(
+            -self.map_canvas.h_scrollbar.offset,
+            -self.map_canvas.v_scrollbar.offset,
+            self.map_canvas.rect.width - self.map_canvas.v_scrollbar.rect.width,
+            self.map_canvas.rect.height - self.map_canvas.h_scrollbar.rect.height)
 
     def selected(self) -> None:
-        # for b in self.map_canvas.arrow_buttons:
-        #     b.visible = True
         pass
 
     def deselected(self) -> None:
@@ -215,18 +229,39 @@ class SelectObjectMouseAdapter(MouseAdapter):
         return False
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
-        if self.selected_object is not None and self.mouse_is_down:
+        if self.selected_object is not None and self.mouse_is_down and self.viewport.collidepoint(x, y):
             dx = x - self.touch_x
             dy = y - self.touch_y
-            self.selected_object.x += dx
-            self.selected_object.y += dy
+            if dx == 0 and dy == 0:
+                if x <= self.scrolling_margin:
+                    dx = -self.scrolling_step
+                    self.map_canvas.h_scrollbar.offset += self.scrolling_step
+                elif x >= self.viewport.right - self.scrolling_margin:
+                    dx = +self.scrolling_step
+                    self.map_canvas.h_scrollbar.offset -= self.scrolling_step
+                if y <= self.scrolling_margin:
+                    dy = -self.scrolling_step
+                    self.map_canvas.v_scrollbar.offset += self.scrolling_step
+                elif y >= self.viewport.bottom - self.scrolling_margin:
+                    dy = self.scrolling_step
+                    self.map_canvas.v_scrollbar.offset -= self.scrolling_step
 
-            self.touch_x = x
-            self.touch_y = y
-            self.map_canvas.object_selected_callback(self.selected_object)
-            if self.selected_object.image is None:
-                self.update_buttons()
+                self.selected_object.x += dx
+                self.selected_object.y += dy
+            else:
+                self.selected_object.x += dx
+                self.selected_object.y += dy
 
+                self.touch_x = x
+                self.touch_y = y
+                self.map_canvas.object_selected_callback(self.selected_object)
+                if self.selected_object.image is None:
+                    self.update_buttons()
+
+        return True
+
+    def mouse_out(self, x: int, y: int) -> bool:
+        self.mouse_is_down = False
         return False
 
 
@@ -422,12 +457,21 @@ class MapCanvas(ScrollableCanvas):
             self._mouse_adapter = self._mouse_object_adapters[MapAction.SELECT_OBJECT]
         self.map_actions_panel.object_layer = True
         self.map_actions_panel.action = MapAction.SELECT_OBJECT
-        cast(SelectObjectMouseAdapter, self._mouse_adapter).selected_object = obj
-        cx = self.rect.width // 2
-        cy = self.rect.height // 2
-        ox, oy = obj.rect.center
-        self.h_scrollbar.offset = cx - ox
-        self.v_scrollbar.offset = cy - oy
+        select_object_mouse_adapter = cast(SelectObjectMouseAdapter, self._mouse_adapter)
+        if select_object_mouse_adapter.selected_object != obj:
+            select_object_mouse_adapter.selected_object = obj
+
+            viewport = Rect(-self.h_scrollbar.offset,
+                            -self.v_scrollbar.offset,
+                            self.rect.width - self.v_scrollbar.rect.width,
+                            self.rect.height - self.h_scrollbar.rect.height)
+
+            if not viewport.colliderect(obj.rect):
+                cx = self.rect.width // 2
+                cy = self.rect.height // 2
+                ox, oy = obj.rect.center
+                self.h_scrollbar.offset = cx - ox
+                self.v_scrollbar.offset = cy - oy
 
     @property
     def selected_layer(self) -> Optional[BaseTiledLayer]:
@@ -534,6 +578,17 @@ class MapCanvas(ScrollableCanvas):
                 surface.blit(self.overlay_surface, self.mouse_over_rect)
                 pygame.draw.rect(surface, (255, 255, 255), self.mouse_over_rect, width=1)
 
+    def draw(self, surface: Surface) -> None:
+        with clip(surface, self.rect):
+            surface.set_clip(self.content_rect)
+            self._local_draw(surface)
+            for a in self.arrow_buttons:
+                if a.visible:
+                    a.draw(surface)
+        for c in self.components:
+            if c not in self.arrow_buttons and c.visible:
+                c.draw(surface)
+
     def scrollbars_moved(self) -> None:
         self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
 
@@ -574,4 +629,9 @@ class MapCanvas(ScrollableCanvas):
     def mouse_in(self, x: int, y: int) -> bool:
         if not super().mouse_in(x, y):
             self.calc_mouse_over_rect(x, y)
+        return True
+
+    def mouse_out(self, x: int, y: int) -> bool:
+        super().mouse_out(x, y)
+        self._mouse_adapter.mouse_out(x, y)
         return True
