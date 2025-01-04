@@ -23,6 +23,8 @@ from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, Til
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
 
+MOUSE_DOWN_COUNTER = 15
+
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
     tk.pack(**kwargs)
@@ -432,24 +434,34 @@ class Editor:
         self.root.update()
 
         has_focus = False
+        mouse_is_down = False
+        mouse_down_counter = 0
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.quit()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_is_down = True
+                    mouse_down_counter = MOUSE_DOWN_COUNTER
                     self.components.mouse_down(self.mouse_x, self.mouse_y, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.MOUSEBUTTONUP:
+                    mouse_is_down = False
+                    mouse_down_counter = 0
                     self.components.mouse_up(self.mouse_x, self.mouse_y, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.MOUSEMOTION:
                     self.mouse_x = event.pos[0]
                     self.mouse_y = event.pos[1]
                     self.components.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
+                    mouse_down_counter = MOUSE_DOWN_COUNTER
+                    self.root.update()
                 elif event.type == pygame.WINDOWLEAVE:
                     self.components.mouse_out(0, 0)
+                    self.root.update()
                 elif event.type == pygame.MOUSEWHEEL:
                     self.components.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
+                    self.root.update()
                 elif event.type == pygame.KEYDOWN:
                     key = event.key
                     dx = 0
@@ -497,6 +509,12 @@ class Editor:
                 else:
                     # print(f"event.type == {event.type}")
                     pass
+
+            if mouse_down_counter > 0:
+                mouse_down_counter -= 1
+                if mouse_down_counter == 0:
+                    mouse_down_counter = MOUSE_DOWN_COUNTER
+                    self.components.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
 
             self.previous_keys = self.current_keys
             self.current_keys = pygame.key.get_pressed()
