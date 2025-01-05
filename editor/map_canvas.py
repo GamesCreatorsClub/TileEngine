@@ -1,6 +1,7 @@
 import enum
 import os
 from abc import ABC
+from random import Random
 from typing import Optional, Callable, cast
 
 import pygame.draw
@@ -273,12 +274,12 @@ class AddImageObjectMouseAdapter(MouseAdapter):
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
         tilemap = self.map_canvas.tiled_map
-        if tilemap is not None and self.map_canvas.tileset_canvas.selected_tile is not None:
+        if tilemap is not None and self.map_canvas.tileset_canvas.selection is not None:
             layer = cast(TiledObjectGroup, self.map_canvas.selected_layer)
 
             obj = TiledObject(layer)
             obj.id = max(map(lambda o: o.id, layer.objects_id_map.values())) + 1
-            obj.gid = self.map_canvas.tileset_canvas.selected_tile
+            obj.gid = self.map_canvas.tileset_canvas.selection[0][0]
             img = tilemap.images[obj.gid]
             obj.rect = img.get_rect()
             obj.rect.center = x, y
@@ -296,7 +297,7 @@ class AddAreaObjectMouseAdapter(MouseAdapter):
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
         tilemap = self.map_canvas.tiled_map
-        if tilemap is not None and self.map_canvas.tileset_canvas.selected_tile is not None:
+        if tilemap is not None and self.map_canvas.tileset_canvas.selection is not None:
             layer = cast(TiledObjectGroup, self.map_canvas.selected_layer)
 
             obj = TiledObject(layer)
@@ -329,6 +330,16 @@ class BrushTileMouseAdapter(MouseAdapter):
         self.last_tile_x = -1
         self.last_tile_y = -1
 
+    def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
+        layer = cast(TiledTileLayer, self.map_canvas.selected_layer)
+        width = len(data)
+        height = len(data[0])
+        for iy in range(width):
+            for ix in range(height):
+                gid = data[iy][ix]
+                if gid != 0:
+                    layer.data[iy + y][ix + x] = gid
+
     def mouse_up(self, x: int, y: int, modifier) -> bool:
         self.mouse_is_down = False
         return False
@@ -337,20 +348,27 @@ class BrushTileMouseAdapter(MouseAdapter):
         if not super().mouse_down(x, y, modifier):
             self.mouse_is_down = True
             tilemap = self.map_canvas.tiled_map
-            if tilemap is not None and self.map_canvas.tileset_canvas.selected_tile is not None:
+            if tilemap is not None and self.map_canvas.tileset_canvas.selection is not None:
                 self.last_tile_x, self.last_tile_y = self.map_canvas.calc_mouse_to_tile(x, y)
-                cast(TiledTileLayer, self.map_canvas.selected_layer).data[self.last_tile_y][self.last_tile_x] = self.map_canvas.tileset_canvas.selected_tile
+
+                #cast(TiledTileLayer, self.map_canvas.selected_layer).data[self.last_tile_y][self.last_tile_x] = self.map_canvas.tileset_canvas.selected_tile
+                # self.update_map(self.last_tile_x, self.last_tile_y, [[self.map_canvas.tileset_canvas.selected_tile]])
+                data = self.map_canvas.tileset_canvas.selection
+                self.update_map(self.last_tile_x, self.last_tile_y, data)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
         if self.mouse_is_down:
             tilemap = self.map_canvas.tiled_map
-            if tilemap is not None and self.map_canvas.tileset_canvas.selected_tile is not None:
+            if tilemap is not None and self.map_canvas.tileset_canvas.selection is not None:
                 tile_x, tile_y = self.map_canvas.calc_mouse_to_tile(x, y)
                 if tile_x != self.last_tile_x or tile_y != self.last_tile_y:
-                    cast(TiledTileLayer, self.map_canvas.selected_layer).data[tile_y][tile_x] = self.map_canvas.tileset_canvas.selected_tile
+                    # cast(TiledTileLayer, self.map_canvas.selected_layer).data[tile_y][tile_x] = self.map_canvas.tileset_canvas.selected_tile
                     self.last_tile_x = tile_x
                     self.last_tile_y = tile_y
+                    # self.update_map(self.last_tile_x, self.last_tile_y, [[self.map_canvas.tileset_canvas.selected_tile]])
+                    data = self.map_canvas.tileset_canvas.selection
+                    self.update_map(self.last_tile_x, self.last_tile_y, data)
 
         self.map_canvas.calc_mouse_over_rect(x, y)
         return True
@@ -359,6 +377,18 @@ class BrushTileMouseAdapter(MouseAdapter):
 class RandomBrushTileMouseAdapter(BrushTileMouseAdapter):
     def __init__(self, map_canvas: 'MapCanvas') -> None:
         super().__init__(map_canvas)
+        self.random = Random()
+
+    def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
+        layer = cast(TiledTileLayer, self.map_canvas.selected_layer)
+        rx = self.random.randint(0, len(data) - 1)
+        ry = self.random.randint(0, len(data[0]) - 1)
+        try:
+            gid = data[ry][rx]
+            if gid != 0:
+                layer.data[y][x] = gid
+        except IndexError:
+            print(f"*** {rx}, {ry} in {len(data)},{len(data[0])}")
 
 
 class RubberTileMouseAdapter(BrushTileMouseAdapter):
@@ -494,14 +524,44 @@ class MapCanvas(ScrollableCanvas):
             self.mouse_over_rect = None
         self._action_changed(self._action)
 
+    def calc_mouse_over_rect(self, x: int, y: int) -> None:
+        if (self.overlay_surface is None or self._selected_layer is None or not isinstance(self._selected_layer, TiledTileLayer)
+                or self._action not in [MapAction.BRUSH_TILE, MapAction.RANDOM_BRUSH_TILE, MapAction.RUBBER_TILE]):
+            self.mouse_over_rect = None
+            return
+
+        tilemap = self.tiled_map
+        tile_x, tile_y = self.calc_mouse_to_tile(x, y)
+        if 0 <= tile_x < tilemap.width and 0 <= tile_y < tilemap.height:
+            x = tile_x * tilemap.tilewidth + self.h_scrollbar.offset
+            y = tile_y * tilemap.tileheight + self.v_scrollbar.offset
+            if self._action == MapAction.BRUSH_TILE:
+                selection = self.tileset_canvas.selection
+                w = len(selection) * tilemap.tilewidth if selection is not None else tilemap.tilewidth
+                h = len(selection[0]) * tilemap.tileheight if selection is not None else tilemap.tileheight
+            else:
+                w = tilemap.tilewidth
+                h = tilemap.tileheight
+            self.mouse_over_rect = Rect(x, y, w, h)
+        else:
+            self.mouse_over_rect = None
+
     def tile_selection_changed(self) -> None:
-        if self.tileset_canvas.selected_tile is not None:
+        selection = self.tileset_canvas.selection
+        if selection is not None:
             tileset = self.tileset_canvas.tileset
-            self.overlay_surface = Surface((tileset.tilewidth, tileset.tileheight), pygame.SRCALPHA, 32)
-            self.overlay_surface.blit(self.tiled_map.images[self.tileset_canvas.selected_tile], (0, 0))
-            # self.overlay_surface.fill((255, 255, 0, 64))
-            self.overlay_surface.set_alpha(128)
-            self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
+            if self._action == MapAction.BRUSH_TILE:
+                self.overlay_surface = Surface((len(selection[0]) * tileset.tilewidth, len(selection) * tileset.tileheight), pygame.SRCALPHA, 32)
+                for y in range(len(selection)):
+                    for x in range(len(selection[0])):
+                        self.overlay_surface.blit(self.tiled_map.images[selection[y][x]], (x * tileset.tilewidth, y * tileset.tileheight))
+                self.overlay_surface.set_alpha(128)
+                self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
+            elif self._action == MapAction.RANDOM_BRUSH_TILE:
+                self.overlay_surface = Surface((tileset.tilewidth, tileset.tileheight), pygame.SRCALPHA, 32)
+                self.overlay_surface.blit(self.tiled_map.images[selection[0][0]], (0, 0))
+                self.overlay_surface.set_alpha(128)
+                self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
         else:
             self.mouse_over_rect = None
             self.overlay_surface = None
@@ -520,6 +580,7 @@ class MapCanvas(ScrollableCanvas):
                     self._action = MapAction.SELECT_TILE
 
             self._mouse_adapter = self._mouse_object_adapters[self._action] if self.map_actions_panel.object_layer else self._mouse_tile_adapters[self._action]
+            self.tile_selection_changed()
         else:
             self._mouse_adapter = self._null_mouse_adapter
         self._mouse_adapter.selected()
@@ -607,21 +668,6 @@ class MapCanvas(ScrollableCanvas):
         tile_x = ((x - self.h_scrollbar.offset) // tilemap.tilewidth)
         tile_y = ((y - self.v_scrollbar.offset) // tilemap.tileheight)
         return tile_x, tile_y
-
-    def calc_mouse_over_rect(self, x: int, y: int) -> None:
-        if (self.overlay_surface is None or self._selected_layer is None or not isinstance(self._selected_layer, TiledTileLayer)
-                or self._action not in [MapAction.BRUSH_TILE, MapAction.RANDOM_BRUSH_TILE, MapAction.RUBBER_TILE]):
-            self.mouse_over_rect = None
-            return
-
-        tilemap = self.tiled_map
-        tile_x, tile_y = self.calc_mouse_to_tile(x, y)
-        if 0 <= tile_x < tilemap.width and 0 <= tile_y < tilemap.height:
-            x = tile_x * tilemap.tilewidth + self.h_scrollbar.offset
-            y = tile_y * tilemap.tileheight + self.v_scrollbar.offset
-            self.mouse_over_rect = Rect(x, y, tilemap.tilewidth, tilemap.tileheight)
-        else:
-            self.mouse_over_rect = None
 
     def mouse_up(self, x: int, y: int, modifier) -> bool:
         if not super().mouse_up(x, y, modifier):

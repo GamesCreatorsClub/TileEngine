@@ -132,7 +132,7 @@ class Editor:
             self.map_canvas.tiled_map = tiled_map
             self.hierarchy_view.set_map(tiled_map)
 
-            self.tileset_canvas.selected_tile = self.tileset_canvas.tileset.firstgid
+            self.tileset_canvas.select_tile(self.tileset_canvas.tileset.firstgid)
         else:
             self.file_menu.entryconfig("Save", state="disabled")
             self.file_menu.entryconfig("Save as...", state="disabled")
@@ -142,7 +142,7 @@ class Editor:
             self.current_object = None
 
             self.map_canvas.tiled_map = None
-            self.tileset_canvas.selected_tile = None
+            self.tileset_canvas.select_tile(None)
 
     @property
     def current_element(self) -> Optional[TiledElement]:

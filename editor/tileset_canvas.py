@@ -11,7 +11,7 @@ class TilesetCanvas(ScrollableCanvas):
     def __init__(self,
                  rect: Rect,
                  tileset: Optional[TiledTileset],
-                 tile_selected_callback: Callable[[Optional[int]], None]) -> None:
+                 tile_selected_callback: Callable[[Optional[list[list[int]]]], None]) -> None:
         super().__init__(rect, allow_over=False)
         self._tileset = tileset
         self.tile_selected_callback = tile_selected_callback
@@ -21,7 +21,8 @@ class TilesetCanvas(ScrollableCanvas):
         self.h_scrollbar.visible = tileset is not None
         self.v_scrollbar.visible = tileset is not None
         self._selected_tile: Optional[int] = None
-        self._selection = Rect(0, 0, 1, 1)
+        self._selection_rect = Rect(0, 0, 1, 1)
+        self._selection: Optional[list[list[int]]] = None
         self._mouse_is_down = False
 
     @property
@@ -30,7 +31,7 @@ class TilesetCanvas(ScrollableCanvas):
 
         tileset = self._tileset
         if tileset is not None:
-            return self._selection.y * (tileset.width // tileset.tilewidth) + self._selection.x + tileset.firstgid
+            return self._selection_rect.y * tileset.width + self._selection_rect.x + tileset.firstgid
 
         return None
 
@@ -40,13 +41,12 @@ class TilesetCanvas(ScrollableCanvas):
         if tile_id < tileset.firstgid or tile_id > tileset.tilecount + tileset.firstgid:
             self._selected_tile = None
             self.tile_selected_callback(tile_id)
-            self._selection.width = 0
-            self._selection.height = 0
+            self._selection_rect.width = 0
+            self._selection_rect.height = 0
             return
         self._selected_tile = tile_id
         gid = tile_id - tileset.firstgid
-        w = (tileset.width // tileset.tilewidth)
-        self._selection.update(gid % w, gid // w, 1, 1)
+        self._selection_rect.update(gid % tileset.width, gid // tileset.width, 1, 1)
 
         self._calc_tileset_rect()
         self.tile_selected_callback(tile_id)
@@ -61,11 +61,13 @@ class TilesetCanvas(ScrollableCanvas):
         if tileset is None:
             self.v_scrollbar.visible = False
             self.h_scrollbar.visible = False
+            self._selection = None
+            self._tileset_rect = None
         else:
             self.v_scrollbar.visible = True
             self.h_scrollbar.visible = True
-            self.h_scrollbar.width = tileset.width
-            self.v_scrollbar.width = tileset.height
+            self.h_scrollbar.width = tileset.width * tileset.tilewidth
+            self.v_scrollbar.width = tileset.height * tileset.tileheight
 
             if self._selected_tile is not None:
                 if self._selected_tile < tileset.firstgid or self._selected_tile >= tileset.firstgid + tileset.tilecount:
@@ -73,11 +75,31 @@ class TilesetCanvas(ScrollableCanvas):
 
                 self._calc_tileset_rect()
 
+    def select_tile(self, gid: Optional[int]) -> None:
+        if self._tileset is not None:
+            g = gid - self._tileset.firstgid
+            x = g % self._tileset.width
+            y = g // self._tileset.width
+            self._selection_rect.update(x, y, 1, 1)
+            self._selection = [[gid]]
+        else:
+            self._tileset_rect = None
+            self._selection = None
+
+    @property
+    def selection(self) -> Optional[list[list[int]]]:
+        return self._selection
+
+    @selection.setter
+    def selection(self, data: Optional[list[list[int]]]) -> None:
+        self._selection = data
+        self.tile_selected_callback(data)
+
     def _calc_tileset_rect(self) -> None:
         tileset = self._tileset
-        x = self._selection.x * tileset.tilewidth + self.h_scrollbar.offset
-        y = self._selection.y * tileset.tileheight + self.v_scrollbar.offset
-        self._tileset_rect = Rect(x + self.rect.x, y + self.rect.y, tileset.tilewidth * self._selection.width, tileset.tileheight * self._selection.height)
+        x = self._selection_rect.x * tileset.tilewidth + self.h_scrollbar.offset
+        y = self._selection_rect.y * tileset.tileheight + self.v_scrollbar.offset
+        self._tileset_rect = Rect(x + self.rect.x, y + self.rect.y, tileset.tilewidth * self._selection_rect.width, tileset.tileheight * self._selection_rect.height)
         self._tileset_rect3 = self._tileset_rect.inflate(2, 2)
         self._tileset_rect2 = self._tileset_rect.inflate(4, 4)
 
@@ -92,7 +114,7 @@ class TilesetCanvas(ScrollableCanvas):
             pygame.draw.rect(surface, (0, 0, 0), self.rect)
             surface.blit(self._tileset.image_surface, (x + self.h_scrollbar.offset, y + self.v_scrollbar.offset))
 
-            if self._selected_tile is not None:
+            if self._tileset_rect is not None:
                 pygame.draw.rect(surface, (128, 0, 0), self._tileset_rect3, width=1)
                 pygame.draw.rect(surface, (128, 255, 255), self._tileset_rect2, width=1)
 
@@ -107,13 +129,11 @@ class TilesetCanvas(ScrollableCanvas):
                 x = x // tileset.tilewidth
                 y = y // tileset.tileheight
 
-                self._selection.update(x, y, 1, 1)
-                self._calc_tileset_rect()
+                if x < tileset.width and y < tileset.height:
+                    self._selection_rect.update(x, y, 1, 1)
+                    self.selection = [[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)]
 
-                gid = x + y * (tileset.width // tileset.tilewidth)
-                if gid < tileset.tilecount:
-                    gid = gid + tileset.firstgid
-                    self.selected_tile = gid
+                    self._calc_tileset_rect()
                     return True
         return other
 
@@ -133,17 +153,24 @@ class TilesetCanvas(ScrollableCanvas):
                 y = y // tileset.tileheight
 
                 # print(f"Move: {x}, {y} - {self._selection}")
-                if not self._selection.collidepoint(x, y):
-                    if x < self._selection.x:
-                        self._selection.width += self._selection.x - x
-                        self._selection.x = x
-                    elif x + 1 > self._selection.right:
-                        self._selection.width += x + 1 - self._selection.right
-                    if y < self._selection.y:
-                        self._selection.height += self._selection.y - y
-                        self._selection.y = y
-                    elif y + 1 > self._selection.bottom:
-                        self._selection.height += y + 1 - self._selection.bottom
+                if not self._selection_rect.collidepoint(x, y):
+                    updated = False
+                    if self._selection_rect.x > x >= 0:
+                        self._selection_rect.width += self._selection_rect.x - x
+                        self._selection_rect.x = x
+                        updated = True
+                    elif tileset.width > x + 1 > self._selection_rect.right:
+                        self._selection_rect.width += x + 1 - self._selection_rect.right
+                        updated = True
+                    if 0 <= y < self._selection_rect.y:
+                        self._selection_rect.height += self._selection_rect.y - y
+                        self._selection_rect.y = y
+                        updated = True
+                    elif tileset.height > y + 1 > self._selection_rect.bottom:
+                        self._selection_rect.height += y + 1 - self._selection_rect.bottom
+                        updated = True
+                    if updated:
+                        self.selection = [[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)]
 
                 self._calc_tileset_rect()
                 return True

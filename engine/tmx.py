@@ -888,8 +888,8 @@ class TiledTileset(TiledElement):
         full_filename = os.path.join(os.path.join(self._parent_dir, os.path.dirname(self._source_filename)), self._source_image_filename)
         self.image_surface = pygame.image.load(full_filename)
         self.image_rect = self.image_surface.get_rect()
-        self.width = self.image_rect.width
-        self.height = self.image_rect.height
+        self.width = self.image_rect.width // self.tilewidth
+        self.height = self.image_rect.height // self.tileheight
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
