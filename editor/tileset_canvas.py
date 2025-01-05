@@ -103,7 +103,7 @@ class TilesetCanvas(ScrollableCanvas):
         self._tileset_rect3 = self._tileset_rect.inflate(2, 2)
         self._tileset_rect2 = self._tileset_rect.inflate(4, 4)
 
-    def scrollbars_moved(self) -> None:
+    def scrollbars_moved(self, dx: int, dy: int) -> None:
         if self._selected_tile is not None:
             self._calc_tileset_rect()
 

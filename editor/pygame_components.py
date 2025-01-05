@@ -201,7 +201,7 @@ class Scrollbar(Component):
                  horizontal: bool,
                  allow_over: bool = True,
                  min_width: int = 50,
-                 callback: Optional[Callable[[], None]] = None) -> None:
+                 callback: Optional[Callable[[int], None]] = None) -> None:
         super().__init__(rect)
         self.horizontal = horizontal
         self.allow_over = allow_over
@@ -281,9 +281,10 @@ class Scrollbar(Component):
 
         value = int(o)
         if self._offset != value:
+            diff = value - self._offset
             self._offset = value
             if self.callback is not None:
-                self.callback()
+                self.callback(diff)
         self._recalculate_bar_rect()
 
     def draw(self, surface: Surface) -> None:
@@ -354,15 +355,21 @@ class ScrollableCanvas(ComponentCollection, ABC):
         r = rect.move(0, rect.height - scrollbar_width)
         r.width -= scrollbar_width
         r.height = scrollbar_width
-        self.h_scrollbar = Scrollbar(r, True, allow_over=allow_over, callback=self.scrollbars_moved)
+        self.h_scrollbar = Scrollbar(r, True, allow_over=allow_over, callback=self._scrollbar_h_moved)
 
         r = rect.move(rect.width - scrollbar_width, 0)
         r.width = scrollbar_width
         r.height -= scrollbar_width
-        self.v_scrollbar = Scrollbar(r, False, allow_over=allow_over, callback=self.scrollbars_moved)
+        self.v_scrollbar = Scrollbar(r, False, allow_over=allow_over, callback=self._scrollbar_v_moved)
         self.components += [self.h_scrollbar, self.v_scrollbar]
 
-    def scrollbars_moved(self) -> None:
+    def _scrollbar_h_moved(self, diff: int) -> None:
+        self.scrollbars_moved(diff, 0)
+
+    def _scrollbar_v_moved(self, diff: int) -> None:
+        self.scrollbars_moved(0, diff)
+
+    def scrollbars_moved(self, dx: int, dy: int) -> None:
         pass
 
     def draw(self, surface: Surface) -> None:

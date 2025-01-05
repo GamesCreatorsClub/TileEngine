@@ -11,7 +11,7 @@ from tkinter import X, filedialog, LEFT, BOTH, TOP
 from typing import Optional, cast
 from sys import exit
 
-from pygame import Surface, Rect, Color
+from pygame import Surface, Rect, Color, K_BACKSPACE
 
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
@@ -197,10 +197,6 @@ class Editor:
         if obj is not None:
             self.edit_menu.entryconfig("Delete", state="normal")
             self.map_canvas.select_object(obj)
-        # if obj is not None:
-        #     print(f"Current object is {obj.name}: {obj.id}")
-        # else:
-        #     print("No current object")
 
     def _object_added_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.add_object(layer, obj)
@@ -236,6 +232,8 @@ class Editor:
         self.save_map()
 
     def open_tk_window(self, root: tk.Tk) -> tk.Tk:
+        control_modifier = "Command" if self.macos else "Control"
+
         root.geometry("300x900+10+30")
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.title("Edit object")
@@ -255,13 +253,17 @@ class Editor:
         self.edit_menu.add_command(label="Undo", command=self.do_nothing, state="disabled")
         self.edit_menu.add_separator()
         self.edit_menu.add_command(label="Cut", command=self.do_nothing, state="disabled")
-        self.edit_menu.add_command(label="Copy", command=self.copy_action, state="normal", accelerator="Command+C")
+        self.edit_menu.add_command(label="Copy", command=self.copy_action, state="normal", accelerator=f"{control_modifier}+C")
         self.edit_menu.add_command(label="Paste", command=self.do_nothing, state="disabled")
         self.edit_menu.add_command(label="Delete", command=self.delete_action, state="disabled", accelerator="Delete")
-        self.edit_menu.add_command(label="Select All", command=self.do_nothing, state="disabled")
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="Select All", command=self.do_nothing, state="disabled", accelerator=f"{control_modifier}+A")
+        self.edit_menu.add_command(label="Select None", command=self.do_nothing, state="disabled", accelerator=f"Shift+{control_modifier}+A")
 
         root.bind_all("<Delete>", self.delete_action)
-        root.bind_all("<Command-c>", self.copy_action)
+        root.bind_all(f"<{control_modifier}-c>", self.copy_action)
+        root.bind_all(f"<{control_modifier}-a>", self.select_all_action)
+        root.bind_all(f"<Shift-{control_modifier}-c>", self.select_none_action)
 
         menubar.add_cascade(label="Edit", menu=self.edit_menu)
 
@@ -320,6 +322,12 @@ class Editor:
     def copy_action(self, _event=None) -> None:
         print(f"Got COPY for {self.current_element}")
 
+    def select_all_action(self, _event=None) -> None:
+        self.map_canvas.select_all()
+
+    def select_none_action(self, _event=None) -> None:
+        self.map_canvas.select_none()
+
     def delete_action(self, _event=None) -> None:
         if isinstance(self.current_element, TiledObject):
             obj = cast(TiledObject, self.current_element)
@@ -327,6 +335,11 @@ class Editor:
             del layer.objects_id_map[obj.id]
             self.hierarchy_view.delete_object(obj)
             self.map_canvas.deselect_object()
+        elif isinstance(self.current_element, TiledTileLayer):
+            print(f"Selected delete action")
+            self.map_canvas.delete_tiles()
+        else:
+            print(f"No layer selected")
 
     def browse_to_load_file(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
@@ -431,6 +444,8 @@ class Editor:
         pygame.display.set_caption("Editor Window")
 
     def pygame_loop(self) -> None:
+        control_modifier = pygame.KMOD_META if self.macos else pygame.KMOD_CTRL
+        self.key_modifier = 0
         self.root.update()
 
         has_focus = False
@@ -463,7 +478,16 @@ class Editor:
                     key = event.key
                     dx = 0
                     dy = 0
-                    if key == pygame.K_RIGHT:
+                    # print(f"key={key} + mod={event.mod}")
+                    if key == pygame.K_RSHIFT or key == pygame.K_LSHIFT:
+                        self.key_modifier |= pygame.KMOD_SHIFT
+                    elif key == pygame.K_RCTRL or key == pygame.K_LCTRL:
+                        self.key_modifier |= pygame.KMOD_CTRL
+                    elif key == pygame.K_RMETA or key == pygame.K_LMETA:
+                        self.key_modifier |= pygame.KMOD_META
+                    elif key == pygame.K_RALT or key == pygame.K_LALT:
+                        self.key_modifier |= pygame.KMOD_ALT
+                    elif key == pygame.K_RIGHT:
                         dx = 16
                     elif key == pygame.K_LEFT:
                         dx = -16
@@ -471,25 +495,34 @@ class Editor:
                         dy = 16
                     elif key == pygame.K_DOWN:
                         dy = -16
-                    elif key == pygame.K_DELETE:
+                    elif key == pygame.K_DELETE or key == K_BACKSPACE:
                         self.delete_action()
                         self.root.update()
                     elif key == pygame.K_c:
-                        if event.mod & (pygame.KMOD_META if self.macos else pygame.KMOD_CTRL) != 0:
+                        if event.mod & control_modifier != 0:
                             self.copy_action()
-                        else:
-                            print(f"Mods = {event.mod}")
+                    elif key == pygame.K_a:
+                        if event.mod & control_modifier != 0:
+                            if event.mod & pygame.KMOD_SHIFT:
+                                self.select_none_action()
+                            else:
+                                self.select_all_action()
                     elif key == pygame.K_q:
-                        if event.mod & (pygame.KMOD_META if self.macos else pygame.KMOD_CTRL) != 0:
+                        if event.mod & control_modifier != 0:
                             self.quit()
-                        else:
-                            print(f"Mods = {event.mod}")
                     if dx != 0 or dy != 0:
                         self.components.mouse_wheel(self.mouse_x, self.mouse_y, dx, dy, self.key_modifier)
 
                 elif event.type == pygame.KEYUP:
-                    # print(f"Key up {event}")
-                    pass
+                    key = event.key
+                    if key == pygame.K_RSHIFT or key == pygame.K_LSHIFT:
+                        self.key_modifier -= pygame.KMOD_SHIFT
+                    elif key == pygame.K_RCTRL or key == pygame.K_LCTRL:
+                        self.key_modifier -= pygame.KMOD_CTRL
+                    elif key == pygame.K_RMETA or key == pygame.K_LMETA:
+                        self.key_modifier -= pygame.KMOD_META
+                    elif key == pygame.K_RALT or key == pygame.K_LALT:
+                        self.key_modifier -= pygame.KMOD_ALT
                 elif event.type == pygame.ACTIVEEVENT:
                     print(f"Active Event")
                     pass
