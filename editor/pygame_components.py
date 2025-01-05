@@ -56,7 +56,7 @@ class ComponentCollection(Component):
             if c.visible:
                 c.draw(surface)
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
+    def mouse_up(self, x: int, y: int, modifier: int) -> bool:
         self.mouse_pressed = False
         for c in self.components:
             if c.visible and c.rect.collidepoint(x, y):
@@ -65,7 +65,7 @@ class ComponentCollection(Component):
                     return True
         return False
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
+    def mouse_down(self, x: int, y: int, modifier: int) -> bool:
         self.mouse_pressed = True
         for c in self.components:
             if c.visible and c.rect.collidepoint(x, y):
@@ -74,7 +74,7 @@ class ComponentCollection(Component):
                     return True
         return False
 
-    def mouse_move(self, x: int, y: int, modifier) -> bool:
+    def mouse_move(self, x: int, y: int, modifier: int) -> bool:
         if self.mouse_pressed and self.over_component is not None:
             self.over_component.mouse_move(x, y, modifier)
         else:

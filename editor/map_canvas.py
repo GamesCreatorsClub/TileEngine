@@ -24,6 +24,7 @@ class MapAction(enum.Enum):
 
     SELECT_TILE = (False,)
     BRUSH_TILE = (False,)
+    RANDOM_BRUSH_TILE = (False,)
     RUBBER_TILE = (False,)
 
     def __new__(cls, object_layer: bool):
@@ -63,7 +64,8 @@ class MapActionsPanel(ComponentCollection):
         self.tile_buttons = {
             MapAction.SELECT_TILE: button(0, 7, lambda: self._select_action(MapAction.SELECT_TILE)),
             MapAction.BRUSH_TILE: button(1, 0, lambda: self._select_action(MapAction.BRUSH_TILE)),
-            MapAction.RUBBER_TILE: button(2, 1, lambda: self._select_action(MapAction.RUBBER_TILE))
+            MapAction.RANDOM_BRUSH_TILE: button(2, 8, lambda: self._select_action(MapAction.RANDOM_BRUSH_TILE)),
+            MapAction.RUBBER_TILE: button(3, 1, lambda: self._select_action(MapAction.RUBBER_TILE))
         }
         self.components.extend(self.object_buttons.values())
         self.components.extend(self.tile_buttons.values())
@@ -354,6 +356,11 @@ class BrushTileMouseAdapter(MouseAdapter):
         return True
 
 
+class RandomBrushTileMouseAdapter(BrushTileMouseAdapter):
+    def __init__(self, map_canvas: 'MapCanvas') -> None:
+        super().__init__(map_canvas)
+
+
 class RubberTileMouseAdapter(BrushTileMouseAdapter):
     def __init__(self, map_canvas: 'MapCanvas') -> None:
         super().__init__(map_canvas)
@@ -386,6 +393,7 @@ class MapCanvas(ScrollableCanvas):
         self._mouse_tile_adapters = {
             MapAction.SELECT_TILE: SelectTileMouseAdapter(self),
             MapAction.BRUSH_TILE: BrushTileMouseAdapter(self),
+            MapAction.RANDOM_BRUSH_TILE: RandomBrushTileMouseAdapter(self),
             MapAction.RUBBER_TILE: RubberTileMouseAdapter(self)
         }
         self._mouse_adapter = self._null_mouse_adapter
@@ -601,7 +609,8 @@ class MapCanvas(ScrollableCanvas):
         return tile_x, tile_y
 
     def calc_mouse_over_rect(self, x: int, y: int) -> None:
-        if self.overlay_surface is None or self._selected_layer is None or not isinstance(self._selected_layer, TiledTileLayer) or self._action not in [MapAction.BRUSH_TILE, MapAction.RUBBER_TILE]:
+        if (self.overlay_surface is None or self._selected_layer is None or not isinstance(self._selected_layer, TiledTileLayer)
+                or self._action not in [MapAction.BRUSH_TILE, MapAction.RANDOM_BRUSH_TILE, MapAction.RUBBER_TILE]):
             self.mouse_over_rect = None
             return
 
