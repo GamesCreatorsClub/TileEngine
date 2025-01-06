@@ -3,17 +3,21 @@ from typing import Optional, Callable
 import pygame.draw
 from pygame import Rect, Surface
 
+from editor.actions_controller import ActionsController
 from editor.pygame_components import ScrollableCanvas
 from engine.tmx import TiledTileset
 
 
-class TilesetCanvas(ScrollableCanvas):
+class TilesetController(ScrollableCanvas):
     def __init__(self,
                  rect: Rect,
                  tileset: Optional[TiledTileset],
+                 action_controller: ActionsController,
                  tile_selected_callback: Callable[[Optional[list[list[int]]]], None]) -> None:
         super().__init__(rect, allow_over=False)
         self._tileset = tileset
+        self.action_controller = action_controller
+        action_controller.current_tileset_callbacks.append(self._current_tileset_callback)
         self.tile_selected_callback = tile_selected_callback
         self._tileset_rect: Optional[Rect] = None
         self._tileset_rect2: Optional[Rect] = None
@@ -24,12 +28,7 @@ class TilesetCanvas(ScrollableCanvas):
         self._selection: Optional[list[list[int]]] = None
         self._mouse_is_down = False
 
-    @property
-    def tileset(self) -> TiledTileset:
-        return self._tileset
-
-    @tileset.setter
-    def tileset(self, tileset: TiledTileset) -> None:
+    def _current_tileset_callback(self, tileset: TiledTileset) -> None:
         new_tileset = self._tileset != tileset
         self._tileset = tileset
         if tileset is None:
@@ -45,7 +44,7 @@ class TilesetCanvas(ScrollableCanvas):
 
             if new_tileset:
                 self._selection_rect = Rect(0, 0, 1, 1)
-                self._selection = [[tileset.firstgid]]
+                self.selection = [[tileset.firstgid]]
 
             self._calc_tileset_rect()
 

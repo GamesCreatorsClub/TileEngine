@@ -13,12 +13,13 @@ from sys import exit
 
 from pygame import Surface, Rect, Color, K_BACKSPACE
 
+from editor.actions_controller import ActionsController
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
 from editor.pygame_components import ComponentCollection
-from editor.map_canvas import MapCanvas, MapActionsPanel, MapAction
-from editor.tileset_canvas import TilesetCanvas
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledGroupLayer, TiledObjectGroup
+from editor.map_controller import MapController, MapActionsPanel, MapAction
+from editor.tileset_controller import TilesetController
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledObjectGroup
 
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
@@ -57,9 +58,9 @@ class Editor:
         self._tiled_map: Optional[TiledMap] = None
 
         self._current_element: Optional[TiledElement] = None
-        self._current_object: Optional[TiledElement] = None
+        # self._current_object: Optional[TiledObject] = None
+        # self._current_layer: Optional[BaseTiledLayer] = None
         self._current_tileset: Optional[TiledTileset] = None
-        self._current_layer: Optional[BaseTiledLayer] = None
 
         # Initialisation of other components
 
@@ -88,15 +89,21 @@ class Editor:
 
         self.map_action_panel = MapActionsPanel(Rect(right_column, 0, 300, 50), margin=margin)
 
-        self.tileset_canvas = TilesetCanvas(
+        self.actions_controller = ActionsController()
+        self.actions_controller.tiled_map_callbacks.append(self._tiled_map_callback)
+        self.actions_controller.current_object_callbacks.append(self._current_object_callback)
+
+        self.tileset_controller = TilesetController(
             Rect(right_column, image_size + margin * 2, 300, 500), None,
+            self.actions_controller,
             self._tile_selected_callback
         )
-        self.map_canvas = MapCanvas(
+        self.map_controller = MapController(
             Rect(0, 0, right_column, self.viewport.height),
             self.font,
             self.map_action_panel,
-            self.tileset_canvas,
+            self.tileset_controller,
+            self.actions_controller,
             self._object_added_callback,
             self._object_selected_callback,
             self._selection_changed_callback
@@ -107,7 +114,7 @@ class Editor:
 
         self.components = ComponentCollection(
             self.viewport,
-            self.map_canvas, self.map_action_panel, self.tileset_canvas)
+            self.map_controller, self.map_action_panel, self.tileset_controller)
 
         self.key_modifier = 0
         self.mouse_x = 0
@@ -170,9 +177,6 @@ class Editor:
         left_frame = tk.Frame(root)
         left_frame.pack(side=LEFT, fill=BOTH, expand=True)
         right_frame = left_frame
-        # pack(tk.Label(text="|"), side=LEFT, fill=Y)
-        # right_frame = tk.Frame(root)
-        # right_frame.pack(side=LEFT, fill=BOTH, expand=True)
 
         pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
         self.hierarchy_view = Hierarchy(right_frame, self._set_selected_element)
@@ -223,38 +227,24 @@ class Editor:
 
         pygame.display.set_caption("Editor Window")
 
-    @property
-    def tiled_map(self) -> Optional[TiledMap]:
-        return self._tiled_map
-
-    @tiled_map.setter
-    def tiled_map(self, tiled_map: Optional[TiledMap]) -> None:
+    def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
         if tiled_map is not None:
             self.file_menu.entryconfig("Save", state="normal", command=self._save_map_action)
             self.file_menu.entryconfig("Save as...", state="normal", command=self._save_as_map_action)
-            self.current_tileset = tiled_map.tilesets[0] if len(tiled_map.tilesets) > 0 else None
 
-            # main_layer = next((l for l in tiled_map.layers if l.name == "main"), None)
-            #
-            # self.current_layer = main_layer
-            self.current_object = None
             self.map_action_panel.visible = True
-            self.map_canvas.tiled_map = tiled_map
             self.hierarchy_view.set_map(tiled_map)
 
-            if self.current_tileset is not None:
-                self.tileset_canvas.select_tile(self.tileset_canvas.tileset.firstgid)
         else:
             self.file_menu.entryconfig("Save", state="disabled")
             self.file_menu.entryconfig("Save as...", state="disabled")
-            self.current_tileset = None
-            self.current_element = None
-            self.current_layer = None
-            self.current_object = None
 
-            self.map_canvas.tiled_map = None
-            self.tileset_canvas.select_tile(None)
+    def _current_object_callback(self, current_object: Optional[TiledObject]) -> None:
+        self.edit_menu.entryconfig("Delete", state="normal" if current_object is not None else "disabled")
+
+    def _current_tileset_callback(self, current_tileset: Optional[TiledTileset]) -> None:
+        self._current_tileset = current_tileset
 
     @property
     def current_element(self) -> Optional[TiledElement]:
@@ -267,48 +257,20 @@ class Editor:
         self.add_property.configure(state="normal" if current_element is not None else "disabled")
 
         if isinstance(current_element, BaseTiledLayer):
-            self.current_layer = cast(BaseTiledLayer, current_element)
+            self.actions_controller.current_layer = cast(BaseTiledLayer, current_element)
+
+            # TODO Move to approporiate callback
             self.edit_menu.entryconfig("Delete", state="disabled")
         elif isinstance(current_element, TiledTileset):
-            self.current_tileset = cast(TiledTileset, current_element)
+            self.actions_controller.current_tileset = cast(TiledTileset, current_element)
+
+            # TODO Move to approporiate callback
             self.edit_menu.entryconfig("Delete", state="disabled")
         elif isinstance(current_element, TiledObject):
-            self.current_object = cast(TiledObject, current_element)
+            self.actions_controller.current_object = cast(TiledObject, current_element)
         else:
+            # TODO Move to approporiate callback
             self.edit_menu.entryconfig("Delete", state="disabled")
-
-    @property
-    def current_tileset(self) -> Optional[TiledTileset]:
-        return self._current_tileset
-
-    @current_tileset.setter
-    def current_tileset(self, tileset: Optional[TiledTileset]) -> None:
-        self._current_tileset = tileset
-        self.tileset_canvas.tileset = tileset
-        if tileset is not None:
-            print(f"Current tileset is {tileset.name}: {tileset.image}")
-        else:
-            print("No current tileset")
-
-    @property
-    def current_layer(self) -> Optional[BaseTiledLayer]:
-        return self._current_layer
-
-    @current_layer.setter
-    def current_layer(self, tile_layer: Optional[BaseTiledLayer]) -> None:
-        self._current_layer = tile_layer
-        self.map_canvas.selected_layer = tile_layer
-
-    @property
-    def current_object(self) -> Optional[TiledObject]:
-        return self._current_object
-
-    @current_object.setter
-    def current_object(self, obj: Optional[TiledObject]) -> None:
-        self._current_object = obj
-        if obj is not None:
-            self.edit_menu.entryconfig("Delete", state="normal")
-            self.map_canvas.select_object(obj)
 
     def _object_added_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.add_object(layer, obj)
@@ -337,7 +299,7 @@ class Editor:
 
     def _tile_selected_callback(self, _tile_id: Optional[int]) -> None:
         # TODO do we want to have it exposed in properties (hierarchy)?
-        self.map_canvas.tile_selection_changed()
+        self.map_controller.tile_selection_changed()
 
     def _quit_action(self, _event=None) -> None:
         self.running = False
@@ -351,14 +313,14 @@ class Editor:
         self.load_file(filename)
 
     def _save_map_action(self, _event=None) -> None:
-        if self.tiled_map.filename is None:
+        if self._tiled_map.filename is None:
             self._save_as_map_action()
         else:
-            self.tiled_map.save(self.tiled_map.filename)
+            self._tiled_map.save(self._tiled_map.filename)
 
     def _save_as_map_action(self, _event=None) -> None:
         filename = filedialog.asksaveasfilename(title="Save map", filetypes=(("Map file", "*.tmx"),))
-        self.tiled_map.filename = filename
+        self._tiled_map.filename = filename
         self._save_map_action()
 
     def _cut_action(self, _event=None) -> None:
@@ -371,10 +333,10 @@ class Editor:
         print(f"PASTE for {self.current_element}")
 
     def _select_all_action(self, _event=None) -> None:
-        self.map_canvas.select_all()
+        self.map_controller.select_all()
 
     def _select_none_action(self, _event=None) -> None:
-        self.map_canvas.select_none()
+        self.map_controller.select_none()
 
     def _create_new_map_action(self, _event=None) -> None:
         tiled_map = TiledMap()
@@ -400,21 +362,20 @@ class Editor:
         tiled_map.add_layer(main_layer)
         tiled_map.add_layer(background_layer)
 
-        self.tiled_map = tiled_map
+        self.actions_controller.tiled_map = tiled_map
 
     def _run_map_action(self, _event=None) -> None:
         self.run_map()
 
     def _delete_action(self, _event=None) -> None:
-        if isinstance(self.current_element, TiledObject):
-            obj = cast(TiledObject, self.current_element)
+        if self.actions_controller.current_object is not None and self.actions_controller.object_layer is not None:
+            obj = self.actions_controller.current_object
             layer = cast(TiledObjectGroup, obj.parent)
             del layer.objects_id_map[obj.id]
             self.hierarchy_view.delete_object(obj)
-            self.map_canvas.deselect_object()
-        elif isinstance(self.current_element, TiledTileLayer):
-            print(f"Selected delete action")
-            self.map_canvas.delete_tiles()
+            self.map_controller.deselect_object()
+        elif self.actions_controller.tiled_layer is not None:
+            self.map_controller.delete_tiles()
         else:
             print(f"No layer selected")
 
@@ -425,17 +386,17 @@ class Editor:
     def load_file(self, filename: str) -> None:
         tiled_map = TiledMap()
         tiled_map.load(filename)
-        self.tiled_map = tiled_map
-        map_name = self.tiled_map.name
+        self.actions_controller.tiled_map = tiled_map
+        map_name = self._tiled_map.name
         if map_name is not None:
             self.run_menu.entryconfig(1, label=f"Run '{map_name}'", state="normal")
         else:
             self.run_menu.entryconfig(1, label=f"Run", state="normal")
 
     def run_map(self) -> None:
-        if "code" in self.tiled_map.properties:
-            python_file = self.tiled_map.properties["code"]
-            map_file = self.tiled_map.filename if self.tiled_map.filename is not None else os.getcwd()
+        if "code" in self._tiled_map.properties:
+            python_file = self._tiled_map.properties["code"]
+            map_file = self._tiled_map.filename if self._tiled_map.filename is not None else os.getcwd()
             map_file_dir = os.path.dirname(map_file)
 
             full_python_file = python_file if os.path.isabs(python_file) else os.path.join(map_file_dir, python_file)
@@ -478,7 +439,6 @@ class Editor:
             return
         else:
             tk.messagebox.showerror(title="Error", message="No 'code' property in the map")
-
 
     def pygame_loop(self) -> None:
         control_modifier = pygame.KMOD_META if self.macos else pygame.KMOD_CTRL
@@ -583,7 +543,7 @@ class Editor:
                     elif key == pygame.K_RALT or key == pygame.K_LALT:
                         self.key_modifier -= pygame.KMOD_ALT
                 elif event.type == pygame.ACTIVEEVENT:
-                    print(f"Active Event")
+                    # print(f"Active Event")
                     pass
                 elif event.type == pygame.WINDOWENTER:
                     # print(f"Window Enter")

@@ -76,7 +76,7 @@ class ComponentCollection(Component):
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:
         if self.mouse_pressed and self.over_component is not None:
-            self.over_component.mouse_move(x, y, modifier)
+            return self.over_component.mouse_move(x, y, modifier)
         else:
             for c in self.components:
                 if c.visible and c.rect.collidepoint(x, y):
