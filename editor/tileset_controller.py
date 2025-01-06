@@ -18,15 +18,19 @@ class TilesetController(ScrollableCanvas):
         self._tileset = tileset
         self.action_controller = action_controller
         action_controller.current_tileset_callbacks.append(self._current_tileset_callback)
+
         self.tile_selected_callback = tile_selected_callback
-        self._tileset_rect: Optional[Rect] = None
-        self._tileset_rect2: Optional[Rect] = None
-        self._tileset_rect3: Optional[Rect] = None
-        self.h_scrollbar.visible = tileset is not None
-        self.v_scrollbar.visible = tileset is not None
+
         self._selection_rect = Rect(0, 0, 1, 1)
         self._selection: Optional[list[list[int]]] = None
         self._mouse_is_down = False
+
+        self._tileset_rect: Optional[Rect] = None
+        self._tileset_rect2: Optional[Rect] = None
+        self._tileset_rect3: Optional[Rect] = None
+
+        self.h_scrollbar.visible = tileset is not None
+        self.v_scrollbar.visible = tileset is not None
 
     def _current_tileset_callback(self, tileset: TiledTileset) -> None:
         new_tileset = self._tileset != tileset
@@ -44,27 +48,15 @@ class TilesetController(ScrollableCanvas):
 
             if new_tileset:
                 self._selection_rect = Rect(0, 0, 1, 1)
-                self.selection = [[tileset.firstgid]]
+                self._set_selection([[tileset.firstgid]])
 
             self._calc_tileset_rect()
-
-    def select_tile(self, gid: Optional[int]) -> None:
-        if self._tileset is not None:
-            g = gid - self._tileset.firstgid
-            x = g % self._tileset.width
-            y = g // self._tileset.width
-            self._selection_rect.update(x, y, 1, 1)
-            self._selection = [[gid]]
-        else:
-            self._tileset_rect = None
-            self._selection = None
 
     @property
     def selection(self) -> Optional[list[list[int]]]:
         return self._selection
 
-    @selection.setter
-    def selection(self, data: Optional[list[list[int]]]) -> None:
+    def _set_selection(self, data: Optional[list[list[int]]]) -> None:
         self._selection = data
         self.tile_selected_callback(data)
 
@@ -104,7 +96,7 @@ class TilesetController(ScrollableCanvas):
 
                 if x < tileset.width and y < tileset.height:
                     self._selection_rect.update(x, y, 1, 1)
-                    self.selection = [[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)]
+                    self._set_selection([[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)])
                     print(f"* 2 - updated selected {self.selection}")
 
                     self._calc_tileset_rect()
@@ -144,7 +136,7 @@ class TilesetController(ScrollableCanvas):
                         self._selection_rect.height += y + 1 - self._selection_rect.bottom
                         updated = True
                     if updated:
-                        self.selection = [[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)]
+                        self._set_selection([[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)])
                         print(f"* 1 - updated selected {self.selection}")
 
                 self._calc_tileset_rect()

@@ -1,4 +1,5 @@
 import os
+import platform
 import subprocess
 import sys
 
@@ -11,7 +12,7 @@ from tkinter import X, filedialog, LEFT, BOTH, TOP
 from typing import Optional, cast
 from sys import exit
 
-from pygame import Surface, Rect, Color, K_BACKSPACE
+from pygame import Surface, Rect, K_BACKSPACE
 
 from editor.actions_controller import ActionsController
 from editor.hierarchy import Hierarchy
@@ -19,7 +20,7 @@ from editor.properties import Properties
 from editor.pygame_components import ComponentCollection
 from editor.map_controller import MapController, MapActionsPanel, MapAction
 from editor.tileset_controller import TilesetController
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledTileLayer, TiledObjectGroup
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
 WITH_PYGAME = True
 WITH_SCROLLBAR = True
@@ -34,7 +35,7 @@ def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
 
 class Editor:
     def __init__(self) -> None:
-        self.macos = False
+        self.macos = platform.system() == "Darwin"
         self.running = True
         self.colour = pygame.Color("yellow")
         self.speed = 10
@@ -184,12 +185,16 @@ class Editor:
 
         pack(tk.Label(left_frame, text="Properties"), fill=X)
 
-        self.main_properties = Properties(left_frame, self.update_current_element_attribute)
+        self.main_properties = Properties(left_frame, self.macos, None, self.update_current_element_attribute, None)
 
         pack(tk.Label(left_frame, text=""), fill=X)
         pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
 
-        self.custom_properties = Properties(left_frame, self.update_current_element_property)
+        self.custom_properties = Properties(left_frame,
+                                            self.macos,
+                                            self.add_current_element_property,
+                                            self.update_current_element_property,
+                                            self.delete_current_element_property)
 
         self.button_panel = tk.Canvas(left_frame)
         self.button_panel.columnconfigure(1, weight=1)
@@ -213,9 +218,7 @@ class Editor:
         return root
 
     def setup_pygame(self) -> None:
-        import platform
-        if platform.system() == "Darwin":
-            self.macos = True
+        if self.macos:
             os.environ['SDL_VIDEO_WINDOW_POS'] = "315,58"
         else:
             os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
@@ -339,30 +342,7 @@ class Editor:
         self.map_controller.select_none()
 
     def _create_new_map_action(self, _event=None) -> None:
-        tiled_map = TiledMap()
-        tiled_map.tilewidth = 16
-        tiled_map.tileheight = 16
-        tiled_map.width = 64
-        tiled_map.height = 64
-        foreground_layer = TiledTileLayer(tiled_map)
-        foreground_layer.id = 1
-        foreground_layer.name = "foreground"
-        objects_layer = TiledObjectGroup(tiled_map)
-        objects_layer.id = 2
-        objects_layer.name = "objects"
-        main_layer = TiledTileLayer(tiled_map)
-        main_layer.id = 3
-        main_layer.name = "main"
-        background_layer = TiledTileLayer(tiled_map)
-        background_layer.id = 4
-        background_layer.name = "background"
-
-        tiled_map.add_layer(foreground_layer)
-        tiled_map.add_layer(objects_layer)
-        tiled_map.add_layer(main_layer)
-        tiled_map.add_layer(background_layer)
-
-        self.actions_controller.tiled_map = tiled_map
+        self.actions_controller.create_new_map()
 
     def _run_map_action(self, _event=None) -> None:
         self.run_map()
@@ -370,14 +350,37 @@ class Editor:
     def _delete_action(self, _event=None) -> None:
         if self.actions_controller.current_object is not None and self.actions_controller.object_layer is not None:
             obj = self.actions_controller.current_object
-            layer = cast(TiledObjectGroup, obj.parent)
-            del layer.objects_id_map[obj.id]
+            self.actions_controller.delete_object(obj)
+
             self.hierarchy_view.delete_object(obj)
             self.map_controller.deselect_object()
         elif self.actions_controller.tiled_layer is not None:
             self.map_controller.delete_tiles()
         else:
             print(f"No layer selected")
+
+    def update_current_element_attribute(self, key: str, value: str) -> None:
+        if self._current_element is not None:
+
+            self.actions_controller.update_element_attribute(self._current_element, key, value)
+
+            if key == "name":
+                if isinstance(self._current_element, TiledObject):
+                    self.hierarchy_view.update_object_name(cast(TiledObject, self._current_element))
+                elif isinstance(self._current_element, BaseTiledLayer):
+                    self.hierarchy_view.update_layer_name(cast(BaseTiledLayer, self._current_element))
+
+    def add_current_element_property(self, key: str, value: str) -> None:
+        if self._current_element is not None:
+            self.actions_controller.add_element_property(self._current_element, key, value)
+
+    def update_current_element_property(self, key: str, value: str) -> None:
+        if self._current_element is not None:
+            self.actions_controller.update_element_property(self._current_element, key, value)
+
+    def delete_current_element_property(self, key: str) -> None:
+        if self._current_element is not None:
+            self.actions_controller.delete_element_property(self._current_element, key)
 
     @staticmethod
     def _do_nothing_action(_event=None) -> None:
@@ -577,52 +580,6 @@ class Editor:
             self.clock.tick(30)
             if not has_focus:
                 self.root.update()
-
-    def update_current_element_attribute(self, key: str, value: str) -> None:
-        if self._current_element is not None:
-
-            attrs = type(self._current_element).ATTRIBUTES
-            typ = attrs[key].type if key in attrs else type(getattr(self._current_element, key))
-
-            if typ is None:
-                setattr(self._current_element, key, value)
-            elif typ is bool:
-                setattr(self._current_element, key, bool(value))
-            elif typ is int:
-                setattr(self._current_element, key, int(value))
-            elif typ is float:
-                setattr(self._current_element, key, float(value))
-            elif typ is Color:
-                if value == "":
-                    setattr(self._current_element, key, None)
-                elif len(value) >= 7 and value[0] == "(" and value[-1] == ")":
-                    s = [f"{int(s.strip()):02x}" for s in value[1:-1].split(",")]
-                    if len(s) == 3:
-                        setattr(self._current_element, key, "#" + "".join(s))
-                        return
-                print(f"Got incorrect color value '{value}'")
-            else:
-                setattr(self._current_element, key, value)
-
-            if key == "name":
-                if isinstance(self._current_element, TiledObject):
-                    self.hierarchy_view.update_object_name(cast(TiledObject, self._current_element))
-                elif isinstance(self._current_element, BaseTiledLayer):
-                    self.hierarchy_view.update_layer_name(cast(BaseTiledLayer, self._current_element))
-
-    def update_current_element_property(self, key: str, value: str) -> None:
-        if self._current_element is not None:
-            current_value = self._current_element.properties[key]
-            if current_value is None:
-                self._current_element.properties[key] = value
-            elif isinstance(current_value, bool):
-                self._current_element.properties[key] = bool(value)
-            elif isinstance(current_value, int):
-                self._current_element.properties[key] = int(value)
-            elif isinstance(current_value, float):
-                self._current_element.properties[key] = float(value)
-            else:
-                self._current_element.properties[key] = value
 
 
 if __name__ == '__main__':

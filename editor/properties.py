@@ -21,28 +21,32 @@ class AddNewPropertyText(tk.Toplevel):
         self.wait_visibility()
         self.grab_set()
         self.frame = tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5)
-        self.entry = tk.Entry(self, bd=0, highlightthickness=0, state="normal")
+        self.entry = tk.Entry(self.frame, bd=0, highlightthickness=0, state="normal")
         self.entry.insert(INSERT, "")
         self.entry.pack(side=TOP, fill=BOTH, expand=True)
+        self.entry.bind("<Return>", self.ok)
+        self.entry.bind("<Escape>", self.close)
         self.frame.pack(side=TOP, fill=BOTH, expand=True)
         self.buttons_frame = tk.Frame(self, highlightthickness=0, bd=0)
         self.buttons_frame.pack(side=BOTTOM, fill=X)
         self.ok_btn = pack(tk.Button(self.buttons_frame, text="OK", command=self.ok, width=5), padx=5, pady=10, side=RIGHT)
         self.cancel_btn = pack(tk.Button(self.buttons_frame, text="Cancel", command=self.close, width=5), padx=5, pady=10, side=RIGHT)
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.close)
 
-    def ok(self) -> None:
+    def ok(self, _event=None) -> None:
         new_value = self.entry.get()
         if new_value.rstrip(" ").endswith("\n"):
             new_value = new_value.rstrip(" ")[:-1]
         self.callback(new_value)
         self.destroy()
 
-    def close(self) -> None:
+    def close(self, _event=None) -> None:
         self.destroy()
 
 
 class EditText(tk.Toplevel):
-    def __init__(self, root: Union[tk.Widget, tk.Tk], rowid: str, name: str, text: str, callback: Callable[[str, str], None]) -> None:
+    def __init__(self, root: Union[tk.Widget, tk.Tk], macos: bool, rowid: str, name: str, text: str, callback: Callable[[str, str], None]) -> None:
         super().__init__(root)
         self.root = root
         self.rowid = rowid
@@ -67,15 +71,20 @@ class EditText(tk.Toplevel):
         self.buttons_frame.pack(side=BOTTOM, fill=X)
         self.ok_btn = pack(tk.Button(self.buttons_frame, text="OK", command=self.ok, width=5), padx=5, pady=10, side=RIGHT)
         self.cancel_btn = pack(tk.Button(self.buttons_frame, text="Cancel", command=self.close, width=5), padx=5, pady=10, side=RIGHT)
+        control_modifier = "Command" if macos else "Control"
+        self.bind(f"<{control_modifier}-Return>", self.ok)
+        self.bind("<Escape>", self.close)
+        self.entry.bind(f"<{control_modifier}-Return>", self.ok)
+        self.entry.bind("<Escape>", self.close)
 
-    def ok(self) -> None:
+    def ok(self, _event=None) -> None:
         new_value = self.entry.get("1.0", END)
         if new_value.rstrip(" ").endswith("\n"):
             new_value = new_value.rstrip(" ")[:-1]
         self.callback(self.rowid, new_value)
         self.destroy()
 
-    def close(self) -> None:
+    def close(self, _event=None) -> None:
         self.destroy()
 
 
@@ -102,19 +111,17 @@ class EntryPopup(tk.Frame):
 
         self.entry = tk.Entry(self, bd=0, highlightthickness=0)
         self.entry.insert(0, text)
-        self.entry['exportselection'] = False
+        self.entry["exportselection"] = False
         self.entry.pack(fill=X)
 
         self.destroyed = False
 
-        # self.focus_force()
         self.entry.focus_force()
         self.entry.bind("<Return>", self.update_value)
         self.entry.bind("<Control-a>", self.select_all)
 
         self.entry.bind("<Escape>", self.abandon_edit)
         self.entry.bind("<FocusOut>", self.update_value)
-        # self.window.bind("<FocusOut>", self.update_value)
 
         self.place(x=x, y=y, width=width, height=height, anchor=tk.NW, relwidth=0.5)
 
@@ -143,9 +150,16 @@ class EntryPopup(tk.Frame):
 
 
 class Properties(ttk.Treeview):
-    def __init__(self, root: tk.Widget, update_callback: Callable[[str, str], None]) -> None:
+    def __init__(self, root: tk.Widget,
+                 macos: bool,
+                 add_callback: Optional[Callable[[str, str], None]],
+                 update_callback: Callable[[str, str], None],
+                 delete_callback: Optional[Callable[[str], None]]) -> None:
         self.root = root
+        self.macos = macos
+        self.add_callback = add_callback
         self.update_callback = update_callback
+        self.delete_callback = delete_callback
         self.treeview_frame = tk.Frame(root)
         super().__init__(self.treeview_frame, columns=("value",))
 
@@ -161,7 +175,6 @@ class Properties(ttk.Treeview):
         self.column("value", minwidth=50, width=130)
 
         self.bind("<Button-1>", self.on_left_click)
-        # self.bind("<Double-1>", self.on_double_left_click)
         self.pack(side=TOP, fill=X, expand=True)
         self.treeview_frame.pack(side=TOP, fill=X)
         self.entryPopup: Optional[EntryPopup] = None
@@ -222,7 +235,7 @@ class Properties(ttk.Treeview):
     def open_text_editor(self, rowid: str) -> None:
         name = self.item(rowid, "text")
         text = self.item(rowid, "values")[0]
-        self.editorPopup = EditText(self.root, rowid, name, text, self.update_value)
+        self.editorPopup = EditText(self.root, self.macos, rowid, name, text, self.update_value)
 
     def start_editing(self, selected_rowid: str) -> None:
         info = self.bbox(selected_rowid, "#1")
@@ -253,11 +266,10 @@ class Properties(ttk.Treeview):
 
     def start_add_new_property(self) -> None:
         def add_new_property(new_property_name: str) -> None:
-            # print(f"Adding new property {new_property_name}")
-            self.properties[new_property_name] = ""
+            self.add_callback(new_property_name, "")
 
             even = len(self.get_children()) % 2 == 0
-            self.insert('', tk.END, iid=new_property_name, text=new_property_name, values=("",), tags=("even" if even else "odd", True, str))
+            self.insert("", tk.END, iid=new_property_name, text=new_property_name, values=("",), tags=("even" if even else "odd", True, str))
 
         self.addNewPropertyPopup = AddNewPropertyText(self.root, add_new_property)
 
@@ -269,7 +281,6 @@ class Properties(ttk.Treeview):
 
     def update_properties(self, properties: dict[str, Any], types_and_visibility: Optional[dict[str, F]] = None) -> None:
         self.delete(*self.get_children())
-        # self.types_and_visibility = types_and_visibility
 
         self.properties = properties
         even = True
@@ -279,14 +290,13 @@ class Properties(ttk.Treeview):
                 typ = types_and_visibility[k].type.__name__ if types_and_visibility is not None and k in types_and_visibility else "unknown_type"
                 if typ == "Color":
                     v = "(" + ",".join(str(s) for s in v) + ")" if v is not None and v != "" else ""
-                self.insert('', tk.END, iid=k, text=k, values=(v, ), tags=("even" if even else "odd", enabled, typ))
+                self.insert("", tk.END, iid=k, text=k, values=(v, ), tags=("even" if even else "odd", enabled, typ))
                 even = not even
 
     def remove_property(self) -> None:
         if self.selected_rowid is not None:
-            print(f"Removing {self.selected_rowid}")
             self.delete(self.selected_rowid)
-            del self.properties[self.selected_rowid]
+            self.delete_callback(self.selected_rowid)
 
     def edit_selected_property(self) -> None:
         if self.selected_rowid is not None:

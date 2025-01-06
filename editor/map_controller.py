@@ -48,7 +48,7 @@ class MapActionsPanel(ComponentCollection):
         super().__init__(rect)
         self._object_layer = False
 
-        self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "icons-small.png"))
+        self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "icons.png"))
 
         image_size = self.icon_surface.get_rect().height
         self.margin = margin
@@ -121,8 +121,9 @@ class MapActionsPanel(ComponentCollection):
 
 
 class MouseAdapter(ABC):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        self.map_canvas = map_canvas
+    def __init__(self, map_controller: 'MapController') -> None:
+        self.map_controller = map_controller
+        self.action_controller = map_controller.actions_controller
 
     def mouse_up(self, _x: int, _y: int, _modifier: int) -> bool:
         return False
@@ -144,15 +145,15 @@ class MouseAdapter(ABC):
 
 
 class NullMouseAdapter(MouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
 
 
 class SelectObjectMouseAdapter(MouseAdapter):
-    def __init__(self, map_canvas: 'MapController',
+    def __init__(self, map_controller: 'MapController',
                  scrolling_margin: int = SCROLLING_MARGIN,
                  scrolling_step: int = SCROLLING_STEP) -> None:
-        super().__init__(map_canvas)
+        super().__init__(map_controller)
         self.scrolling_margin = scrolling_margin
         self.scrolling_step = scrolling_step
         self.selected_object: Optional[TiledObject] = None
@@ -160,10 +161,10 @@ class SelectObjectMouseAdapter(MouseAdapter):
         self.touch_x = 0
         self.touch_y = 0
         self.viewport = Rect(
-            -self.map_canvas.h_scrollbar.offset,
-            -self.map_canvas.v_scrollbar.offset,
-            self.map_canvas.rect.width - self.map_canvas.v_scrollbar.rect.width,
-            self.map_canvas.rect.height - self.map_canvas.h_scrollbar.rect.height)
+            -self.map_controller.h_scrollbar.offset,
+            -self.map_controller.v_scrollbar.offset,
+            self.map_controller.rect.width - self.map_controller.v_scrollbar.rect.width,
+            self.map_controller.rect.height - self.map_controller.h_scrollbar.rect.height)
 
     def selected(self) -> None:
         pass
@@ -172,14 +173,14 @@ class SelectObjectMouseAdapter(MouseAdapter):
         self.hide_buttons()
 
     def hide_buttons(self) -> None:
-        for b in self.map_canvas.arrow_buttons:
+        for b in self.map_controller.arrow_buttons:
             b.visible = False
 
     def update_buttons(self) -> None:
         if self.selected_object is not None:
-            r = self.selected_object.rect.move(self.map_canvas.rect.x + self.map_canvas.h_scrollbar.offset, self.map_canvas.rect.y + self.map_canvas.v_scrollbar.offset)
+            r = self.selected_object.rect.move(self.map_controller.rect.x + self.map_controller.h_scrollbar.offset, self.map_controller.rect.y + self.map_controller.v_scrollbar.offset)
 
-            for b in self.map_canvas.arrow_buttons:
+            for b in self.map_controller.arrow_buttons:
                 b.update_rect(r)
                 b.visible = True
 
@@ -187,16 +188,25 @@ class SelectObjectMouseAdapter(MouseAdapter):
         if self.selected_object is not None:
             rect = self.selected_object.rect
             pos = button.position
+            x = rect.x
+            y = rect.y
+            width = rect.width
+            height = rect.height
             dx = pos.dx
             dy = pos.dy
 
             if dx < 0:
-                rect.x += dx * distance_x
-            rect.width += abs(dx) * distance_x
+                x += dx * distance_x
+            width += abs(dx) * distance_x
 
             if dy < 0:
-                rect.y += dy * distance_y
-            rect.height += abs(dy) * distance_y
+                y += dy * distance_y
+            height += abs(dy) * distance_y
+
+            if x != rect.x or y != rect.y:
+                self.action_controller.move_object(self.selected_object, x, y)
+            if width != rect.width or height != rect.height:
+                self.action_controller.resize_object(self.selected_object, width, height)
 
             self.update_buttons()
 
@@ -207,16 +217,16 @@ class SelectObjectMouseAdapter(MouseAdapter):
                     return o
             return None
 
-        layer = self.map_canvas.object_layer
+        layer = self.map_controller.object_layer
         if layer is not None:
-            corrected_x = x - self.map_canvas.rect.x - self.map_canvas.h_scrollbar.offset
-            corrected_y = y - self.map_canvas.rect.y - self.map_canvas.v_scrollbar.offset
+            corrected_x = x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset
+            corrected_y = y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
 
             obj = find_object(layer, corrected_x, corrected_y)
             if obj is not None:
                 self.mouse_is_down = True
                 self.selected_object = obj
-                self.map_canvas.object_selected_callback(obj)
+                self.map_controller.object_selected_callback(obj)
                 self.touch_x = x
                 self.touch_y = y
                 if obj.image is None:
@@ -241,26 +251,32 @@ class SelectObjectMouseAdapter(MouseAdapter):
             if dx == 0 and dy == 0:
                 if x <= self.scrolling_margin:
                     dx = -self.scrolling_step
-                    self.map_canvas.h_scrollbar.offset += self.scrolling_step
+                    self.map_controller.h_scrollbar.offset += self.scrolling_step
                 elif x >= self.viewport.right - self.scrolling_margin:
                     dx = +self.scrolling_step
-                    self.map_canvas.h_scrollbar.offset -= self.scrolling_step
+                    self.map_controller.h_scrollbar.offset -= self.scrolling_step
                 if y <= self.scrolling_margin:
                     dy = -self.scrolling_step
-                    self.map_canvas.v_scrollbar.offset += self.scrolling_step
+                    self.map_controller.v_scrollbar.offset += self.scrolling_step
                 elif y >= self.viewport.bottom - self.scrolling_margin:
                     dy = self.scrolling_step
-                    self.map_canvas.v_scrollbar.offset -= self.scrolling_step
+                    self.map_controller.v_scrollbar.offset -= self.scrolling_step
 
-                self.selected_object.x += dx
-                self.selected_object.y += dy
+                self.action_controller.move_object(
+                    self.selected_object,
+                    self.selected_object.rect.x + dx,
+                    self.selected_object.rect.y + dy
+                )
             else:
-                self.selected_object.x += dx
-                self.selected_object.y += dy
+                self.action_controller.move_object(
+                    self.selected_object,
+                    self.selected_object.rect.x + dx,
+                    self.selected_object.rect.y + dy
+                )
 
                 self.touch_x = x
                 self.touch_y = y
-                self.map_canvas.object_selected_callback(self.selected_object)
+                self.map_controller.object_selected_callback(self.selected_object)
                 if self.selected_object.image is None:
                     self.update_buttons()
 
@@ -272,21 +288,21 @@ class SelectObjectMouseAdapter(MouseAdapter):
 
 
 class AddImageObjectMouseAdapter(MouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
-        layer = self.map_canvas.object_layer
-        tilemap = self.map_canvas.tiled_map
-        if layer is not None and self.map_canvas.tileset_controller.selection is not None:
+        layer = self.map_controller.object_layer
+        tilemap = self.map_controller.tiled_map
+        if layer is not None and self.map_controller.tileset_controller.selection is not None:
             obj = TiledObject(layer)
-            obj.id = max(map(lambda o: o.id, layer.objects_id_map.values())) + 1
-            obj.gid = self.map_canvas.tileset_controller.selection[0][0]
+            obj.gid = self.map_controller.tileset_controller.selection[0][0]
             img = tilemap.images[obj.gid]
             obj.rect = img.get_rect()
             obj.rect.center = x, y
-            layer.objects_id_map[obj.id] = obj
-            self.map_canvas.object_added_callback(layer, obj)
+            self.action_controller.add_object(obj)
+
+            self.map_controller.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -294,23 +310,21 @@ class AddImageObjectMouseAdapter(MouseAdapter):
 
 
 class AddAreaObjectMouseAdapter(MouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
 
     def mouse_down(self, x: int, y: int, modifier) -> bool:
-        layer = self.map_canvas.object_layer
-        if layer is not None and self.map_canvas.tileset_controller.selection is not None:
+        layer = self.map_controller.object_layer
+        if layer is not None and self.map_controller.tileset_controller.selection is not None:
             obj = TiledObject(layer)
-            obj.id = len(layer.objects_id_map)
             obj.gid = 0
             obj.rect = Rect(0, 0, 32, 32)
             obj.rect.center = (
-                x - self.map_canvas.rect.x - self.map_canvas.h_scrollbar.offset,
-                y - self.map_canvas.rect.y - self.map_canvas.v_scrollbar.offset
+                x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset,
+                y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
             )
-
-            layer.objects_id_map[obj.id] = obj
-            self.map_canvas.object_added_callback(layer, obj)
+            self.action_controller.add_object(obj)
+            self.map_controller.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -318,8 +332,8 @@ class AddAreaObjectMouseAdapter(MouseAdapter):
 
 
 class SelectTileMouseAdapter(MouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
         self.mouse_is_down = False
         self.touch_x = 0
         self.touch_y = 0
@@ -335,7 +349,7 @@ class SelectTileMouseAdapter(MouseAdapter):
         self.current_selection_viewport = None
         self.add_selection = modifier == pygame.KMOD_SHIFT
         if not self.add_selection:
-            self.map_canvas.select_none()
+            self.map_controller.select_none()
         return False
 
     def mouse_up(self, x: int, y: int, _modifier: int) -> bool:
@@ -350,17 +364,17 @@ class SelectTileMouseAdapter(MouseAdapter):
                 self.current_selection = Rect(0, 0, 0, 0)
                 self.current_selection_viewport = Rect(0, 0, 0, 0)
                 if self.add_selection:
-                    self.map_canvas.selection.append(self.current_selection)
-                    self.map_canvas.selection_viewport_rects.append(self.current_selection_viewport)
+                    self.map_controller.selection.append(self.current_selection)
+                    self.map_controller.selection_viewport_rects.append(self.current_selection_viewport)
                 else:
-                    self.map_canvas.selection = [self.current_selection]
-                    self.map_canvas.selection_viewport_rects = [self.current_selection_viewport]
-                self.map_canvas.selection_changed_callback(self.map_canvas.selection)
+                    self.map_controller.selection = [self.current_selection]
+                    self.map_controller.selection_viewport_rects = [self.current_selection_viewport]
+                self.map_controller.selection_changed_callback(self.map_controller.selection)
 
-            tiled_map = self.map_canvas.tiled_map
+            tiled_map = self.map_controller.tiled_map
             if tiled_map is not None and (x != self.touch_x or y != self.touch_y):
-                start_tile_x, start_tile_y = self.map_canvas.calc_mouse_to_tile(self.touch_x, self.touch_y)
-                end_tile_x, end_tile_y = self.map_canvas.calc_mouse_to_tile(x, y)
+                start_tile_x, start_tile_y = self.map_controller.calc_mouse_to_tile(self.touch_x, self.touch_y)
+                end_tile_x, end_tile_y = self.map_controller.calc_mouse_to_tile(x, y)
                 if start_tile_x > end_tile_x:
                     start_tile_x, end_tile_x = end_tile_x, start_tile_x
                 if start_tile_y > end_tile_y:
@@ -368,8 +382,8 @@ class SelectTileMouseAdapter(MouseAdapter):
                 self.current_selection.update(start_tile_x, start_tile_y, end_tile_x - start_tile_x + 1, end_tile_y - start_tile_y + 1)
 
                 self.current_selection_viewport.update(
-                    self.map_canvas.rect.x + self.current_selection.x * tiled_map.tilewidth + self.map_canvas.h_scrollbar.offset,
-                    self.map_canvas.rect.y + self.current_selection.y * tiled_map.tileheight + self.map_canvas.v_scrollbar.offset,
+                    self.map_controller.rect.x + self.current_selection.x * tiled_map.tilewidth + self.map_controller.h_scrollbar.offset,
+                    self.map_controller.rect.y + self.current_selection.y * tiled_map.tileheight + self.map_controller.v_scrollbar.offset,
                     self.current_selection.width * tiled_map.tilewidth,
                     self.current_selection.height * tiled_map.tileheight,
                 )
@@ -382,8 +396,8 @@ class SelectTileMouseAdapter(MouseAdapter):
 
 
 class BrushTileMouseAdapter(MouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
         self.mouse_is_down = False
         self.last_tile_x = -1
         self.last_tile_y = -1
@@ -391,12 +405,12 @@ class BrushTileMouseAdapter(MouseAdapter):
     def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
         width = len(data)
         height = len(data[0])
-        cm = self.map_canvas
+        ac = self.action_controller
         for iy in range(width):
             for ix in range(height):
                 gid = data[iy][ix]
                 if gid != 0:
-                    cm.plot(ix + x, iy + y, gid)
+                    ac.plot(ix + x, iy + y, gid)
 
     def mouse_up(self, x: int, y: int, modifier) -> bool:
         self.mouse_is_down = False
@@ -405,33 +419,33 @@ class BrushTileMouseAdapter(MouseAdapter):
     def mouse_down(self, x: int, y: int, modifier) -> bool:
         if not super().mouse_down(x, y, modifier):
             self.mouse_is_down = True
-            tilemap = self.map_canvas.tiled_map
-            if tilemap is not None and self.map_canvas.tileset_controller.selection is not None:
-                self.last_tile_x, self.last_tile_y = self.map_canvas.calc_mouse_to_tile(x, y)
+            tilemap = self.map_controller.tiled_map
+            if tilemap is not None and self.map_controller.tileset_controller.selection is not None:
+                self.last_tile_x, self.last_tile_y = self.map_controller.calc_mouse_to_tile(x, y)
 
-                data = self.map_canvas.tileset_controller.selection
+                data = self.map_controller.tileset_controller.selection
                 self.update_map(self.last_tile_x, self.last_tile_y, data)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
         if self.mouse_is_down:
-            tilemap = self.map_canvas.tiled_map
-            if tilemap is not None and self.map_canvas.tileset_controller.selection is not None:
-                tile_x, tile_y = self.map_canvas.calc_mouse_to_tile(x, y)
+            tilemap = self.map_controller.tiled_map
+            if tilemap is not None and self.map_controller.tileset_controller.selection is not None:
+                tile_x, tile_y = self.map_controller.calc_mouse_to_tile(x, y)
                 if tile_x != self.last_tile_x or tile_y != self.last_tile_y:
                     self.last_tile_x = tile_x
                     self.last_tile_y = tile_y
 
-                    data = self.map_canvas.tileset_controller.selection
+                    data = self.map_controller.tileset_controller.selection
                     self.update_map(self.last_tile_x, self.last_tile_y, data)
 
-        self.map_canvas.calc_mouse_over_rect(x, y)
+        self.map_controller.calc_mouse_over_rect(x, y)
         return True
 
 
 class RandomBrushTileMouseAdapter(BrushTileMouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
         self.random = Random()
 
     def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
@@ -439,18 +453,19 @@ class RandomBrushTileMouseAdapter(BrushTileMouseAdapter):
         ry = self.random.randint(0, len(data[0]) - 1)
         gid = data[ry][rx]
         if gid != 0:
-            self.map_canvas.plot(x, y, gid)
+            self.action_controller.plot(x, y, gid)
 
 
 class FillTileMouseAdapter(BrushTileMouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
         self.random = Random()
 
     def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
-        cm = self.map_canvas
-        tiled_map = self.map_canvas.tiled_map
-        layer = self.map_canvas.tiled_layer
+        cm = self.map_controller
+        ac = self.action_controller
+        tiled_map = self.map_controller.tiled_map
+        layer = self.map_controller.tiled_layer
         width = len(data)
         height = len(data[0])
         selected_gid = layer.data[y][x]
@@ -484,20 +499,21 @@ class FillTileMouseAdapter(BrushTileMouseAdapter):
                     else:
                         bottom = False
 
-                layer.data[y][x] = data[(y - py) % height][(x - px) % width]
-                # cm.plot(x, y, data[(y - py) % height][(x - px) % width])
+                ac.plot(x, y, data[(y - py) % height][(x - px) % width])
+
                 x += 1
 
 
 class RandomFillTileMouseAdapter(BrushTileMouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
         self.random = Random()
 
     def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
-        cm = self.map_canvas
-        tiled_map = self.map_canvas.tiled_map
-        layer = self.map_canvas.tiled_layer
+        ac = self.action_controller
+        cm = self.map_controller
+        tiled_map = self.map_controller.tiled_map
+        layer = self.map_controller.tiled_layer
         selected_gid = layer.data[y][x]
 
         def find_left(x: int, y: int) -> int:
@@ -510,7 +526,8 @@ class RandomFillTileMouseAdapter(BrushTileMouseAdapter):
         while len(stack) > 0:
             top = False
             bottom = False
-            x, y = stack[0]
+            t = stack[0]
+            x, y = t
             del stack[0]
             while x < tiled_map.width and layer.data[y][x] == selected_gid and cm.is_in_selection(x, y):
                 if y > 0 and layer.data[y - 1][x] == selected_gid and cm.is_in_selection(x, y - 1):
@@ -528,17 +545,17 @@ class RandomFillTileMouseAdapter(BrushTileMouseAdapter):
                 rx = self.random.randint(0, len(data[0]) - 1)
                 ry = self.random.randint(0, len(data) - 1)
 
-                layer.data[y][x] = data[ry][rx]
+                ac.plot(x, y, data[ry][rx])
 
                 x += 1
 
 
 class RubberTileMouseAdapter(BrushTileMouseAdapter):
-    def __init__(self, map_canvas: 'MapController') -> None:
-        super().__init__(map_canvas)
+    def __init__(self, map_controller: 'MapController') -> None:
+        super().__init__(map_controller)
 
     def update_map(self, x: int, y: int, _data: list[list[int]]) -> None:
-        self.map_canvas.plot(x, y, 0)
+        self.action_controller.plot(x, y, 0)
 
 
 class MapController(ScrollableCanvas):
@@ -657,31 +674,43 @@ class MapController(ScrollableCanvas):
     def _current_object_callback(self, current_object: Optional[TiledObject]) -> None:
         self.select_object(current_object)
 
-    def select_all(self) -> None:
-        if self._tiled_map is not None:
-            self.selection = [
-                Rect(0, 0, self._tiled_map.width, self._tiled_map.height)
-            ]
-            self.selection_viewport_rects = [
-                Rect(
-                    self.rect.x + self.h_scrollbar.offset,
-                    self.rect.y + self.v_scrollbar.offset,
-                    self._tiled_map.width * self._tiled_map.tilewidth,
-                    self._tiled_map.height * self._tiled_map.tileheight)
-            ]
-            self.selection_changed_callback(self.selection)
+    def _action_changed(self, action: MapAction) -> None:
+        self._action = action
+        if self._mouse_adapter is not None:
+            self._mouse_adapter.deselected()
 
-    def select_none(self) -> None:
-        self.selection = []
-        self.selection_viewport_rects = []
-        self.selection_changed_callback(self.selection)
-
-    def delete_tiles(self) -> None:
         if self._tiled_layer is not None:
-            for s in self.selection:
-                for y in range(s.y, s.bottom):
-                    for x in range(s.x, s.right):
-                        self._tiled_layer.data[y][x] = 0
+            self.map_actions_panel.object_layer = False
+            if action.object_layer != self.map_actions_panel.object_layer:
+                self._action = MapAction.SELECT_TILE
+            self._mouse_adapter = self._mouse_tile_adapters[self._action]
+            self.tile_selection_changed()
+        elif self._object_layer is not None:
+            self.map_actions_panel.object_layer = True
+            if action.object_layer != self.map_actions_panel.object_layer:
+                self._action = MapAction.SELECT_OBJECT
+            self._mouse_adapter = self._mouse_object_adapters[self._action]
+            self.tile_selection_changed()
+        else:
+            self._mouse_adapter = self._null_mouse_adapter
+        self._mouse_adapter.selected()
+
+    @property
+    def tiled_map(self) -> TiledMap:
+        return self._tiled_map
+
+    @property
+    def tiled_layer(self) -> Optional[TiledTileLayer]:
+        return self._tiled_layer
+
+    @property
+    def object_layer(self) -> Optional[TiledObjectGroup]:
+        return self._object_layer
+
+    def scrollbars_moved(self, dx: int, dy: int) -> None:
+        self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
+        for r in self.selection_viewport_rects:
+            r.move_ip(dx, dy)
 
     def is_in_selection(self, x: int, y: int) -> bool:
         if len(self.selection) == 0:
@@ -692,54 +721,13 @@ class MapController(ScrollableCanvas):
                 return True
         return False
 
-    def plot(self, x: int, y: int, gid: int) -> None:
-        if self.is_in_selection(x, y):
-            self._tiled_layer.data[y][x] = gid
-
-    # TODO fix this
-    @property
-    def tiled_map(self) -> TiledMap:
-        return self._tiled_map
-
-    # TODO fix this
-    @property
-    def tiled_layer(self) -> Optional[TiledTileLayer]:
-        return self._tiled_layer
-
-    # TODO fix this
-    @property
-    def object_layer(self) -> Optional[TiledObjectGroup]:
-        return self._object_layer
-
-    def deselect_object(self) -> None:
-        if isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
-            cast(SelectObjectMouseAdapter, self._mouse_adapter).hide_buttons()
-
-    def select_object(self, obj: TiledObject) -> None:
-        if obj is None:
-            return
-
-        if not isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
-            self._mouse_adapter.deselected()
-            self._mouse_adapter = self._mouse_object_adapters[MapAction.SELECT_OBJECT]
-
-        self.map_actions_panel.object_layer = True
-        self.map_actions_panel.action = MapAction.SELECT_OBJECT
-        select_object_mouse_adapter = cast(SelectObjectMouseAdapter, self._mouse_adapter)
-        if select_object_mouse_adapter.selected_object != obj:
-            select_object_mouse_adapter.selected_object = obj
-
-            viewport = Rect(-self.h_scrollbar.offset,
-                            -self.v_scrollbar.offset,
-                            self.rect.width - self.v_scrollbar.rect.width,
-                            self.rect.height - self.h_scrollbar.rect.height)
-
-            if not viewport.colliderect(obj.rect):
-                cx = self.rect.width // 2
-                cy = self.rect.height // 2
-                ox, oy = obj.rect.center
-                self.h_scrollbar.offset = cx - ox
-                self.v_scrollbar.offset = cy - oy
+    def calc_mouse_to_tile(self, x: int, y: int) -> tuple[int, int]:
+        self.mouse_x = x
+        self.mouse_y = y
+        tilemap = self.tiled_map
+        tile_x = ((x - self.rect.x - self.h_scrollbar.offset) // tilemap.tilewidth)
+        tile_y = ((y - self.rect.y - self.v_scrollbar.offset) // tilemap.tileheight)
+        return tile_x, tile_y
 
     def calc_mouse_over_rect(self, x: int, y: int) -> None:
         if (self.overlay_surface is None or self._tiled_layer is None
@@ -787,26 +775,67 @@ class MapController(ScrollableCanvas):
             self.mouse_over_rect = None
             self.overlay_surface = None
 
-    def _action_changed(self, action: MapAction) -> None:
-        self._action = action
-        if self._mouse_adapter is not None:
-            self._mouse_adapter.deselected()
+    # Actions to be called externally
 
+    def select_all(self) -> None:
+        if self._tiled_map is not None:
+            self.selection = [
+                Rect(0, 0, self._tiled_map.width, self._tiled_map.height)
+            ]
+            self.selection_viewport_rects = [
+                Rect(
+                    self.rect.x + self.h_scrollbar.offset,
+                    self.rect.y + self.v_scrollbar.offset,
+                    self._tiled_map.width * self._tiled_map.tilewidth,
+                    self._tiled_map.height * self._tiled_map.tileheight)
+            ]
+            self.selection_changed_callback(self.selection)
+
+    def select_none(self) -> None:
+        self.selection = []
+        self.selection_viewport_rects = []
+        self.selection_changed_callback(self.selection)
+
+    def delete_tiles(self) -> None:
         if self._tiled_layer is not None:
-            self.map_actions_panel.object_layer = False
-            if action.object_layer != self.map_actions_panel.object_layer:
-                self._action = MapAction.SELECT_TILE
-            self._mouse_adapter = self._mouse_tile_adapters[self._action]
-            self.tile_selection_changed()
-        elif self._object_layer is not None:
-            self.map_actions_panel.object_layer = True
-            if action.object_layer != self.map_actions_panel.object_layer:
-                self._action = MapAction.SELECT_OBJECT
-            self._mouse_adapter = self._mouse_object_adapters[self._action]
-            self.tile_selection_changed()
-        else:
-            self._mouse_adapter = self._null_mouse_adapter
-        self._mouse_adapter.selected()
+            for s in self.selection:
+                for y in range(s.y, s.bottom):
+                    for x in range(s.x, s.right):
+                        self._tiled_layer.data[y][x] = 0
+
+    def plot(self, x: int, y: int, gid: int) -> None:
+        if self.is_in_selection(x, y):
+            self.actions_controller.plot(x, y, gid)
+
+    def deselect_object(self) -> None:
+        if isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
+            cast(SelectObjectMouseAdapter, self._mouse_adapter).hide_buttons()
+
+    def select_object(self, obj: TiledObject) -> None:
+        if obj is None:
+            return
+
+        if not isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
+            self._mouse_adapter.deselected()
+            self._mouse_adapter = self._mouse_object_adapters[MapAction.SELECT_OBJECT]
+
+        self.map_actions_panel.object_layer = True
+        self.map_actions_panel.action = MapAction.SELECT_OBJECT
+        select_object_mouse_adapter = cast(SelectObjectMouseAdapter, self._mouse_adapter)
+        if select_object_mouse_adapter.selected_object != obj:
+            select_object_mouse_adapter.selected_object = obj
+
+            viewport = Rect(-self.h_scrollbar.offset,
+                            -self.v_scrollbar.offset,
+                            self.rect.width - self.v_scrollbar.rect.width,
+                            self.rect.height - self.h_scrollbar.rect.height)
+
+            if not viewport.colliderect(obj.rect):
+                cx = self.rect.width // 2
+                cy = self.rect.height // 2
+                ox, oy = obj.rect.center
+                self.h_scrollbar.offset = cx - ox
+                self.v_scrollbar.offset = cy - oy
 
     def _calc_new_obj_text(self, obj: TiledObject, x_offset, y_offset) -> None:
         text_white = self.font.render(obj.name, True, (255, 255, 255))
@@ -891,19 +920,6 @@ class MapController(ScrollableCanvas):
             if c not in self.arrow_buttons and c.visible:
                 c.draw(surface)
 
-    def scrollbars_moved(self, dx: int, dy: int) -> None:
-        self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
-        for r in self.selection_viewport_rects:
-            r.move_ip(dx, dy)
-
-    def calc_mouse_to_tile(self, x: int, y: int) -> tuple[int, int]:
-        self.mouse_x = x
-        self.mouse_y = y
-        tilemap = self.tiled_map
-        tile_x = ((x - self.rect.x - self.h_scrollbar.offset) // tilemap.tilewidth)
-        tile_y = ((y - self.rect.y - self.v_scrollbar.offset) // tilemap.tileheight)
-        return tile_x, tile_y
-
     def mouse_up(self, x: int, y: int, modifier) -> bool:
         if not super().mouse_up(x, y, modifier):
             return self._mouse_adapter.mouse_up(x, y, modifier)
@@ -913,7 +929,9 @@ class MapController(ScrollableCanvas):
             return self._mouse_adapter.mouse_down(x, y, modifier)
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
-        if self._action == MapAction.SELECT_OBJECT and cast(SelectObjectMouseAdapter, self._mouse_adapter).selected_object is not None:
+        if (self._action == MapAction.SELECT_OBJECT
+                and cast(SelectObjectMouseAdapter, self._mouse_adapter).mouse_is_down
+                and cast(SelectObjectMouseAdapter, self._mouse_adapter).selected_object is not None):
             return self._mouse_adapter.mouse_move(x, y, modifier)
         if not super().mouse_move(x, y, modifier):
             return self._mouse_adapter.mouse_move(x, y, modifier)
