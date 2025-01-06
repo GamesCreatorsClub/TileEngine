@@ -20,36 +20,9 @@ class TilesetCanvas(ScrollableCanvas):
         self._tileset_rect3: Optional[Rect] = None
         self.h_scrollbar.visible = tileset is not None
         self.v_scrollbar.visible = tileset is not None
-        self._selected_tile: Optional[int] = None
         self._selection_rect = Rect(0, 0, 1, 1)
         self._selection: Optional[list[list[int]]] = None
         self._mouse_is_down = False
-
-    @property
-    def selected_tile(self) -> Optional[int]:
-        # return self._selected_tile
-
-        tileset = self._tileset
-        if tileset is not None:
-            return self._selection_rect.y * tileset.width + self._selection_rect.x + tileset.firstgid
-
-        return None
-
-    @selected_tile.setter
-    def selected_tile(self, tile_id: int) -> None:
-        tileset = self._tileset
-        if tile_id < tileset.firstgid or tile_id > tileset.tilecount + tileset.firstgid:
-            self._selected_tile = None
-            self.tile_selected_callback(tile_id)
-            self._selection_rect.width = 0
-            self._selection_rect.height = 0
-            return
-        self._selected_tile = tile_id
-        gid = tile_id - tileset.firstgid
-        self._selection_rect.update(gid % tileset.width, gid // tileset.width, 1, 1)
-
-        self._calc_tileset_rect()
-        self.tile_selected_callback(tile_id)
 
     @property
     def tileset(self) -> TiledTileset:
@@ -57,6 +30,7 @@ class TilesetCanvas(ScrollableCanvas):
 
     @tileset.setter
     def tileset(self, tileset: TiledTileset) -> None:
+        new_tileset = self._tileset != tileset
         self._tileset = tileset
         if tileset is None:
             self.v_scrollbar.visible = False
@@ -69,11 +43,11 @@ class TilesetCanvas(ScrollableCanvas):
             self.h_scrollbar.width = tileset.width * tileset.tilewidth
             self.v_scrollbar.width = tileset.height * tileset.tileheight
 
-            if self._selected_tile is not None:
-                if self._selected_tile < tileset.firstgid or self._selected_tile >= tileset.firstgid + tileset.tilecount:
-                    self._selected_tile = tileset.firstgid
+            if new_tileset:
+                self._selection_rect = Rect(0, 0, 1, 1)
+                self._selection = [[tileset.firstgid]]
 
-                self._calc_tileset_rect()
+            self._calc_tileset_rect()
 
     def select_tile(self, gid: Optional[int]) -> None:
         if self._tileset is not None:
@@ -104,7 +78,7 @@ class TilesetCanvas(ScrollableCanvas):
         self._tileset_rect2 = self._tileset_rect.inflate(4, 4)
 
     def scrollbars_moved(self, dx: int, dy: int) -> None:
-        if self._selected_tile is not None:
+        if self.selection is not None:
             self._calc_tileset_rect()
 
     def _local_draw(self, surface: Surface) -> None:
@@ -132,6 +106,7 @@ class TilesetCanvas(ScrollableCanvas):
                 if x < tileset.width and y < tileset.height:
                     self._selection_rect.update(x, y, 1, 1)
                     self.selection = [[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)]
+                    print(f"* 2 - updated selected {self.selection}")
 
                     self._calc_tileset_rect()
                     return True
@@ -143,7 +118,7 @@ class TilesetCanvas(ScrollableCanvas):
         return other
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:
-        other = super().mouse_up(x, y, modifier)
+        other = super().mouse_move(x, y, modifier)
         if not other and self._mouse_is_down:
             if self._tileset is not None:
                 tileset = self._tileset
@@ -171,6 +146,7 @@ class TilesetCanvas(ScrollableCanvas):
                         updated = True
                     if updated:
                         self.selection = [[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)]
+                        print(f"* 1 - updated selected {self.selection}")
 
                 self._calc_tileset_rect()
                 return True
