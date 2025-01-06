@@ -398,9 +398,10 @@ class TiledTileLayer(BaseTiledLayer):
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.width: int = 0
-        self.height: int = 0
-        self.data: list[list[int]] = [[]]
+        self.width: int = self.map.width if self.map is not None else 0
+        self.height: int = self.map.height if self.map is not None else 0
+
+        self.data: list[list[int]] = [[0] * self.width for _ in range(self.height)]
         self.animate_layer: bool = False
         self.original_encoding: Optional[str] = None
         self.original_compression: Optional[str] = None

@@ -333,7 +333,8 @@ class SelectTileMouseAdapter(MouseAdapter):
         self.current_selection = None
         self.current_selection_viewport = None
         self.add_selection = modifier == pygame.KMOD_SHIFT
-
+        if not self.add_selection:
+            self.map_canvas.select_none()
         return False
 
     def mouse_up(self, x: int, y: int, _modifier: int) -> bool:
@@ -353,6 +354,7 @@ class SelectTileMouseAdapter(MouseAdapter):
                 else:
                     self.map_canvas.selection = [self.current_selection]
                     self.map_canvas.selection_viewport_rects = [self.current_selection_viewport]
+                self.map_canvas.selection_changed_callback(self.map_canvas.selection)
 
             tiled_map = self.map_canvas.tiled_map
             if tiled_map is not None and (x != self.touch_x or y != self.touch_y):
@@ -549,7 +551,8 @@ class MapCanvas(ScrollableCanvas):
                  map_actions_panel: MapActionsPanel,
                  tileset_canvas: TilesetCanvas,
                  object_added_callback: Callable[[TiledObjectGroup, TiledObject], None],
-                 object_selected_callback: Callable[[TiledObject], None]) -> None:
+                 object_selected_callback: Callable[[TiledObject], None],
+                 selection_changed_callback: Callable[[list[Rect]], None]) -> None:
         super().__init__(rect)
         self.font = font
 
@@ -559,6 +562,7 @@ class MapCanvas(ScrollableCanvas):
         self._tiled_layer: Optional[TiledTileLayer] = None
         self.object_added_callback = object_added_callback
         self.object_selected_callback = object_selected_callback
+        self.selection_changed_callback = selection_changed_callback
 
         self._null_mouse_adapter = NullMouseAdapter(self)
 
@@ -631,10 +635,12 @@ class MapCanvas(ScrollableCanvas):
                     self._tiled_map.width * self._tiled_map.tilewidth,
                     self._tiled_map.height * self._tiled_map.tileheight)
             ]
+            self.selection_changed_callback(self.selection)
 
     def select_none(self) -> None:
         self.selection = []
         self.selection_viewport_rects = []
+        self.selection_changed_callback(self.selection)
 
     def delete_tiles(self) -> None:
         if self._tiled_layer is not None:
