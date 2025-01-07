@@ -4,7 +4,7 @@ import sys
 
 import pygame
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 from tkinter import X, filedialog, LEFT, BOTH, TOP
 
@@ -39,10 +39,12 @@ class Editor:
         self.main_properties: Optional[Properties] = None
         self.custom_properties: Optional[Properties] = None
         self.hierarchy_view: Optional[Hierarchy] = None
+        self.menu_panel: Optional[tk.Canvas] = None
         self.button_panel: Optional[tk.Canvas] = None
         self.add_property: Optional[tk.Button] = None
         self.remove_property: Optional[tk.Button] = None
         self.edit_property: Optional[tk.Button] = None
+        self.hamburger_menu_image: Optional[tk.PhotoImage] = None
 
         self._selected_object: Optional[TiledElement] = None
 
@@ -375,17 +377,39 @@ class Editor:
         root.protocol("WM_DELETE_WINDOW", self._quit_action)
         root.title("Edit object")
 
-        menubar = tk.Menu(root)
-        self.file_menu = tk.Menu(menubar, tearoff=0)
+        left_frame = tk.Frame(root)
+        left_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        right_frame = left_frame
+
+        self.menu_panel = tk.Canvas(left_frame)
+        self.menu_panel.columnconfigure(1, weight=1)
+        # self.hamburger_menu_image = tk.PhotoImage(file=os.path.join(os.path.dirname(__file__), "editor", "hamburger-menu.png"))
+
+        # menu = tk.Menu(root)
+        menu_button = pack(
+            ttk.Menubutton(
+                self.menu_panel,
+                style="TButton",
+                text="Menu",
+                # image=self.hamburger_menu_image
+            ), fill=X)
+        menu = tk.Menu(menu_button)
+        menu_button.menu = menu
+        menu_button["menu"] = menu
+        menu_button.grid(row=0, column=0, ipady=3, padx=3, pady=3, sticky=tk.W)
+
+        pack(self.menu_panel, fill=X)
+
+        self.file_menu = tk.Menu(menu, tearoff=0)
         self.file_menu.add_command(label="New", command=self._create_new_map_action, accelerator=f"{control_modifier}+N")
         self.file_menu.add_command(label="Open", command=self._load_file_action)
         self.file_menu.add_command(label="Save", command=self._save_map_action, state="disabled", accelerator=f"{control_modifier}+S")
         self.file_menu.add_command(label="Save as...", command=self._save_as_map_action, state="disabled", accelerator=f"Shift+{control_modifier}+X")
         self.file_menu.add_separator()
         self.file_menu.add_command(label="Quit", command=self._quit_action, accelerator=f"{control_modifier}+Q")
-        menubar.add_cascade(label="File", menu=self.file_menu)
+        menu.add_cascade(label="File", menu=self.file_menu)
 
-        self.edit_menu = tk.Menu(menubar, tearoff=0)
+        self.edit_menu = tk.Menu(menu, tearoff=0)
         self.edit_menu.add_command(label="Redo", command=self._redo_action, state="disabled", accelerator=f"{control_modifier}+Y")
         self.edit_menu.add_command(label="Undo", command=self._undo_action, state="disabled", accelerator=f"{control_modifier}+Z")
         self.edit_menu.add_separator()
@@ -397,18 +421,18 @@ class Editor:
         self.edit_menu.add_command(label="Select All", command=self._select_all_action, state="disabled", accelerator=f"{control_modifier}+A")
         self.edit_menu.add_command(label="Select None", command=self._select_none_action, state="disabled", accelerator=f"Shift+{control_modifier}+A")
 
-        menubar.add_cascade(label="Edit", menu=self.edit_menu)
+        menu.add_cascade(label="Edit", menu=self.edit_menu)
 
-        self.run_menu = tk.Menu(menubar, tearoff=0)
+        self.run_menu = tk.Menu(menu, tearoff=0)
         self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{control_modifier}+R")
 
-        menubar.add_cascade(label="Run", menu=self.run_menu)
+        menu.add_cascade(label="Run", menu=self.run_menu)
 
-        self.help_menu = tk.Menu(menubar, tearoff=0)
+        self.help_menu = tk.Menu(menu, tearoff=0)
         self.help_menu.add_command(label="Help Index", command=self._do_nothing_action, state="disabled")
         self.help_menu.add_command(label="About...", command=self._do_nothing_action, state="disabled")
-        menubar.add_cascade(label="Help", menu=self.help_menu)
-        root.config(menu=menubar)
+        menu.add_cascade(label="Help", menu=self.help_menu)
+        # root.config(menu=menu)
 
         root.bind_all("<Delete>", self._delete_action)
         root.bind_all(f"<{control_modifier}-q>", self._quit_action)
@@ -423,10 +447,6 @@ class Editor:
         root.bind_all(f"<{control_modifier}-r>", self._run_map_action)
         root.bind_all(f"<{control_modifier}-z>", self._undo_action)
         root.bind_all(f"<{control_modifier}-y>", self._redo_action)
-
-        left_frame = tk.Frame(root)
-        left_frame.pack(side=LEFT, fill=BOTH, expand=True)
-        right_frame = left_frame
 
         pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
         self.hierarchy_view = Hierarchy(right_frame, self._set_selected_element)
