@@ -827,7 +827,8 @@ class TiledTileset(TiledElement):
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self._parent_dir = os.path.dirname(cast(TiledMap, self.parent).filename)
+        self.map = cast(TiledMap, parent)
+        self._parent_dir = os.path.dirname(self.map.filename)
 
         self._source_filename: str = ""
         self._source_image_filename: str = ""
@@ -872,6 +873,9 @@ class TiledTileset(TiledElement):
     @source.setter
     def source(self, filename: str) -> None:
         self.load(filename)
+
+    def update_source_filename(self, filename) -> None:
+        self._source_filename = filename
 
     def load(self, filename: str) -> None:
         self._source_filename = filename
@@ -1037,6 +1041,8 @@ class TiledMap(TiledElement):
         self.layer_id_map[layer.id] = layer
         if isinstance(layer, TiledObjectGroup):
             self.object_by_name = ChainMap(*[layer.object_by_name for layer in self.layers if isinstance(layer, TiledObjectGroup)])
+            self.nextobjectid = max(self.nextobjectid, max(map(lambda o: o.id, layer.objects_id_map.values())) if len(layer.objects_id_map) > 0 else 0)
+        self.nextlayerid = max(self.nextlayerid, max(map(lambda o: o.id, self.layer_id_map.values())) if len(self.layer_id_map) > 0 else 0)
 
     def add_tileset(self, tileset: TiledTileset) -> None:
         self.tilesets.append(tileset)
@@ -1044,10 +1050,10 @@ class TiledMap(TiledElement):
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
 
-        tilesets_maxgid = tileset.firstgid + tileset.tilecount
+        tilesets_maxgid = tileset.firstgid + tileset.tilecount - 1
         self.maxgid = max(self.maxgid, tilesets_maxgid)
-        if len(self.images) < self.maxgid:
-            self.images += [None] * (self.maxgid - len(self.images))
+        if len(self.images) < self.maxgid + 1:
+            self.images += [None] * (self.maxgid + 1 - len(self.images))
         for i in range(tileset.tilecount):
             self.images[tileset.firstgid + i] = tileset.get_image(i + tileset.firstgid)
 
