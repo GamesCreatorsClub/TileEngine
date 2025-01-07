@@ -233,9 +233,9 @@ class Editor:
         exit(0)
 
     def _add_tileset_action(self) -> None:
-        if self._tiled_map.filename is None:
-            tk.messagebox.showerror(title="Error", message=f"You first must save the map")
-            return
+        # if self._tiled_map.filename is None:
+        #     tk.messagebox.showerror(title="Error", message=f"You first must save the map")
+        #     return
 
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Tileset file", "*.tsx"), ))
         if filename != "":
@@ -609,9 +609,9 @@ class Editor:
                     elif key == pygame.K_s:
                         if event.mod & control_modifier != 0:
                             if event.mod & pygame.KMOD_SHIFT:
-                                self._save_map_action()
-                            else:
                                 self._save_as_map_action()
+                            else:
+                                self._save_map_action()
                     elif key == pygame.K_z:
                         if event.mod & control_modifier != 0:
                             self._undo_action()
@@ -678,5 +678,6 @@ if __name__ == '__main__':
         editor.load_file(sys.argv[1])
     else:
         print("No arguments given")
+        editor.actions_controller.create_new_map()
 
     editor.pygame_loop()

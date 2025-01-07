@@ -828,7 +828,7 @@ class TiledTileset(TiledElement):
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
         self.map = cast(TiledMap, parent)
-        self._parent_dir = os.path.dirname(self.map.filename)
+        self._parent_dir = os.path.dirname(self.map.filename) if self.map.filename is not None else None
 
         self._source_filename: str = ""
         self._source_image_filename: str = ""
@@ -883,14 +883,17 @@ class TiledTileset(TiledElement):
         filename = filename.replace("\\", "/")
         filename = filename.replace("/", os.path.sep)
 
-        full_filename = os.path.join(self._parent_dir, filename)
+        full_filename = os.path.join(self._parent_dir, filename) if self._parent_dir is not None else filename
         self._parse_xml(ElementTree.parse(full_filename).getroot())
 
     def _load_image(self, image_element: Element) -> None:
         self._source_image_filename = image_element.get("source")
         _width = int(image_element.get("width"))
         _height = int(image_element.get("width"))
-        full_filename = os.path.join(os.path.join(self._parent_dir, os.path.dirname(self._source_filename)), self._source_image_filename)
+        if self._parent_dir is not None:
+            full_filename = os.path.join(os.path.join(self._parent_dir, os.path.dirname(self._source_filename)), self._source_image_filename)
+        else:
+            full_filename = os.path.join(os.path.dirname(self._source_filename), self._source_image_filename)
         self.image_surface = pygame.image.load(full_filename)
         self.image_rect = self.image_surface.get_rect()
         self.width = self.image_rect.width // self.tilewidth
@@ -969,7 +972,7 @@ class TiledMap(TiledElement):
 
     def __init__(self, invert_y: bool = True) -> None:
         super().__init__()
-        self.filename: Optional[str] = None
+        self._filename: Optional[str] = None
 
         self.invert_y = invert_y
 
@@ -1002,6 +1005,27 @@ class TiledMap(TiledElement):
         self.images: list[Surface] = []
         self.new_gids: dict[int, tuple[int, TileFlags]] = {}
         self._map_rect: Optional[Rect] = None
+
+    @property
+    def filename(self) -> str:
+        return self._filename
+
+    @filename.setter
+    def filename(self, filename: str) -> None:
+        old_filename = self._filename
+        self._filename = filename
+
+        full_old_path = os.path.abspath(os.path.dirname(self.filename)) if old_filename is not None else None
+
+        full_map_path = os.path.abspath(os.path.dirname(self.filename))
+        for ts in self.tilesets:
+            if full_old_path is not None:
+                full_tileset_filename = os.path.join(full_old_path, ts.source)
+            else:
+                full_tileset_filename = ts.source
+            relative_tileset_filename = os.path.relpath(full_tileset_filename, full_map_path)
+            ts.update_source_filename(relative_tileset_filename)
+            # print(f"Updated tileset's filename '{relative_tileset_filename}' from '{full_tileset_filename}' relative to '{full_map_path}'")
 
     @property
     def rect(self) -> Rect:
