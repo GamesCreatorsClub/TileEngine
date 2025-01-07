@@ -95,7 +95,7 @@ class MoveAndResizeObjectChange(Change):
         self.next_w = 0
         self.next_h = 0
 
-    def prepare(self, _: Optional['MoveObjectChange']) -> None:
+    def prepare(self, _: Optional['MoveAndResizeObjectChange']) -> None:
         self.previous_x = self.obj.x
         self.previous_y = self.obj.y
         self.previous_w = self.obj.width
@@ -118,6 +118,32 @@ class MoveAndResizeObjectChange(Change):
         self.obj.y = self.next_y
         self.obj.width = self.next_w
         self.obj.height = self.next_h
+
+
+class AddObjectChange(Change):
+    def __init__(self, action_controller: 'ActionsController', obj: TiledObject, layer: TiledObjectGroup) -> None:
+        super().__init__(ChangeKind.ADD_OBJECT, action_controller)
+        self.obj = obj
+        self.layer = layer
+
+    def undo(self) -> None:
+        del self.layer.objects_id_map[self.obj.id]
+
+    def redo(self) -> None:
+        self.layer.objects_id_map[self.obj.id] = self.obj
+
+
+class DeleteObjectChange(Change):
+    def __init__(self, action_controller: 'ActionsController', obj: TiledObject, layer: TiledObjectGroup) -> None:
+        super().__init__(ChangeKind.DELETE_OBJECT, action_controller)
+        self.obj = obj
+        self.layer = layer
+
+    def undo(self) -> None:
+        self.layer.objects_id_map[self.obj.id] = self.obj
+
+    def redo(self) -> None:
+        del self.layer.objects_id_map[self.obj.id]
 
 
 class ActionsController:
@@ -328,6 +354,7 @@ class ActionsController:
 
     def add_object(self, obj: TiledObject) -> None:
         obj.id = max(map(lambda o: o.id, self._object_layer.objects_id_map.values())) + 1
+        self._add_change(AddObjectChange(self, obj, self._object_layer))
 
         self._object_layer.objects_id_map[obj.id] = obj
 
@@ -335,6 +362,7 @@ class ActionsController:
 
     def delete_object(self, obj: TiledObject) -> None:
         layer = cast(TiledObjectGroup, obj.parent)
+        self._add_change(DeleteObjectChange(self, obj, layer))
         del layer.objects_id_map[obj.id]
 
         self.last_change_timestamp = time.time()
