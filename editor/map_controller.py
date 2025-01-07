@@ -405,12 +405,14 @@ class BrushTileMouseAdapter(MouseAdapter):
     def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
         width = len(data)
         height = len(data[0])
+        mc = self.map_controller
         ac = self.action_controller
         for iy in range(width):
             for ix in range(height):
-                gid = data[iy][ix]
-                if gid != 0:
-                    ac.plot(ix + x, iy + y, gid)
+                if mc.is_in_selection(ix + x, iy + y):
+                    gid = data[iy][ix]
+                    if gid != 0:
+                        ac.plot(ix + x, iy + y, gid)
 
     def mouse_up(self, x: int, y: int, modifier) -> bool:
         self.mouse_is_down = False
@@ -449,11 +451,12 @@ class RandomBrushTileMouseAdapter(BrushTileMouseAdapter):
         self.random = Random()
 
     def update_map(self, x: int, y: int, data: list[list[int]]) -> None:
-        rx = self.random.randint(0, len(data) - 1)
-        ry = self.random.randint(0, len(data[0]) - 1)
-        gid = data[ry][rx]
-        if gid != 0:
-            self.action_controller.plot(x, y, gid)
+        if self.map_controller.is_in_selection(x, y):
+            rx = self.random.randint(0, len(data) - 1)
+            ry = self.random.randint(0, len(data[0]) - 1)
+            gid = data[ry][rx]
+            if gid != 0:
+                self.action_controller.plot(x, y, gid)
 
 
 class FillTileMouseAdapter(BrushTileMouseAdapter):
