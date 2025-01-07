@@ -128,9 +128,11 @@ class AddObjectChange(Change):
 
     def undo(self) -> None:
         del self.layer.objects_id_map[self.obj.id]
+        self.action_controller.notify_delete_object_change(self.layer, self.obj)
 
     def redo(self) -> None:
         self.layer.objects_id_map[self.obj.id] = self.obj
+        self.action_controller.notify_add_object_change(self.layer, self.obj)
 
 
 class DeleteObjectChange(Change):
@@ -141,9 +143,71 @@ class DeleteObjectChange(Change):
 
     def undo(self) -> None:
         self.layer.objects_id_map[self.obj.id] = self.obj
+        self.action_controller.notify_add_object_change(self.layer, self.obj)
 
     def redo(self) -> None:
         del self.layer.objects_id_map[self.obj.id]
+        self.action_controller.notify_delete_object_change(self.layer, self.obj)
+
+
+class AddElementPropertyChange(Change):
+    def __init__(self, action_controller: 'ActionsController', element: TiledElement, key: str, value: Any) -> None:
+        super().__init__(ChangeKind.ADD_PROPERTY, action_controller)
+        self.element = element
+        self.key = key
+        self.value = value
+
+    def undo(self) -> None:
+        del self.element.properties[self.key]
+
+    def redo(self) -> None:
+        self.element.properties[self.key] = self.value
+
+
+class UpdateElementPropertyChange(Change):
+    def __init__(self, action_controller: 'ActionsController', element: TiledElement, key: str, value: Any) -> None:
+        super().__init__(ChangeKind.UPDATE_PROPERTY, action_controller)
+        self.element = element
+        self.key = key
+        self.old_value = element.properties[key]
+        self.new_value = value
+
+    def undo(self) -> None:
+        self.element.properties[self.key] = self.old_value
+
+    def redo(self) -> None:
+        self.element.properties[self.key] = self.new_value
+
+
+class DeleteElementPropertyChange(Change):
+    def __init__(self, action_controller: 'ActionsController', element: TiledElement, key: str) -> None:
+        super().__init__(ChangeKind.DELETE_PROPERTY, action_controller)
+        self.element = element
+        self.key = key
+        self.old_value = element.properties[key]
+
+    def undo(self) -> None:
+        self.element.properties[self.key] = self.old_value
+
+    def redo(self) -> None:
+        del self.element.properties[self.key]
+
+
+class UpdateElementAttributeChange(Change):
+    def __init__(self, action_controller: 'ActionsController', element: TiledElement, key: str, value: Any) -> None:
+        super().__init__(ChangeKind.UPDATE_ATTRIBUTE, action_controller)
+        self.element = element
+        self.key = key
+        self.old_value = getattr(element, key)
+        self.new_value = value
+
+    def undo(self) -> None:
+        setattr(self.element, self.key, self.old_value)
+        self.action_controller.notify_element_attr_change(self.element, ChangeKind.UPDATE_ATTRIBUTE, self.key, self.old_value)
+
+    def redo(self) -> None:
+        setattr(self.element, self.key, self.new_value)
+        self.action_controller.notify_element_attr_change(self.element, ChangeKind.UPDATE_ATTRIBUTE, self.key, self.new_value)
 
 
 class ActionsController:
@@ -156,11 +220,15 @@ class ActionsController:
         self._current_tileset: Optional[TiledTileset] = None
 
         self.tiled_map_callbacks: list[Callable[[Optional[TiledMap]], None]] = []
-        # self.selected_layer_callbacks: list[Callable[[Optional[BaseTiledLayer]], None]] = []
         self.tiled_layer_callbacks: list[Callable[[Optional[TiledTileLayer]], None]] = []
         self.object_layer_callbacks: list[Callable[[Optional[TiledObjectGroup]], None]] = []
         self.current_object_callbacks: list[Callable[[Optional[TiledObject]], None]] = []
         self.current_tileset_callbacks: list[Callable[[Optional[TiledTileset]], None]] = []
+
+        self.add_object_callbacks: list[Callable[[TiledObjectGroup, TiledObject], None]] = []
+        self.delete_object_callbacks: list[Callable[[TiledObjectGroup, TiledObject], None]] = []
+        self.element_attr_change_callbacks: list[Callable[[TiledElement, ChangeKind, str, Any], None]] = []
+        self.element_property_change_callbacks: list[Callable[[TiledElement, ChangeKind, str, Any], None]] = []
 
         self.undo_redo_callbacks: list[Callable[[bool, bool], None]] = []
 
@@ -171,6 +239,22 @@ class ActionsController:
         self.last_change_timestamp = 0.0
         self.changes: list[Change] = []
         self.pointer = 0
+
+    def notify_add_object_change(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
+        for callback in self.add_object_callbacks:
+            callback(layer, obj)
+
+    def notify_delete_object_change(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
+        for callback in self.delete_object_callbacks:
+            callback(layer, obj)
+
+    def notify_element_attr_change(self, element: TiledElement, kind: ChangeKind, key: str, value: Any) -> None:
+        for callback in self.element_attr_change_callbacks:
+            callback(element, kind, key, value)
+
+    def notify_element_property_change(self, element: TiledElement, kind: ChangeKind, key: str, value: Any) -> None:
+        for callback in self.element_property_change_callbacks:
+            callback(element, kind, key, value)
 
     @property
     def tiled_map(self) -> TiledMap:
@@ -256,8 +340,8 @@ class ActionsController:
         self.changes.append(change)
         self.pointer = len(self.changes)
 
-        self.change_kind = change.kind
         self.current_unfixed_change = change if not change.fixed else None
+        self.change_kind = ChangeKind.NONE if self.current_unfixed_change is None else change.kind
         print(f"New change {change.kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
 
         for callback in self.undo_redo_callbacks:
@@ -298,6 +382,12 @@ class ActionsController:
                 callback(self.pointer > 0, self.pointer < len(self.changes))
         self.change_kind = ChangeKind.NONE
 
+    def reset_undo_buffer(self) -> None:
+        del self.changes[:]
+        self.pointer = 0
+        self.current_unfixed_change = None
+        self.change_kind = ChangeKind.NONE
+
     # Actions
 
     def create_new_map(self) -> None:
@@ -325,10 +415,8 @@ class ActionsController:
         tiled_map.add_layer(background_layer)
 
         self.tiled_map = tiled_map
-        del self.changes[:]
-        self.pointer = 0
-        self.current_unfixed_change = None
-        self.change_kind = ChangeKind.NONE
+
+        self.reset_undo_buffer()
 
     def plot(self, x: int, y: int, gid: int) -> None:
         if self.change_kind != ChangeKind.CHANGE_TILED_LAYER:
@@ -368,11 +456,16 @@ class ActionsController:
         self.last_change_timestamp = time.time()
 
     def add_element_property(self, element: TiledElement, key: str, value: Any) -> None:
+        self._add_change(AddElementPropertyChange(self, element, key, value))
+
         element.properties[key] = value
 
         self.last_change_timestamp = time.time()
+        self.notify_element_property_change(element, ChangeKind.ADD_PROPERTY, key, value)
 
     def update_element_property(self, element: TiledElement, key: str, value: Any) -> None:
+        self._add_change(UpdateElementPropertyChange(self, element, key, value))
+
         current_value = element.properties[key]
         if current_value is None:
             element.properties[key] = value
@@ -386,34 +479,37 @@ class ActionsController:
             element.properties[key] = value
 
         self.last_change_timestamp = time.time()
+        self.notify_element_property_change(element, ChangeKind.UPDATE_PROPERTY, key, value)
 
     def delete_element_property(self, element: TiledElement, key: str) -> None:
+        self._add_change(DeleteElementPropertyChange(self, element, key))
         del element.properties[key]
 
         self.last_change_timestamp = time.time()
+        self.notify_element_property_change(element, ChangeKind.DELETE_PROPERTY, key, None)
 
     def update_element_attribute(self, element: TiledElement, key: str, value: str) -> None:
+
         attrs = type(element).ATTRIBUTES
         typ = attrs[key].type if key in attrs else type(getattr(element, key))
-
-        if typ is None:
-            setattr(element, key, value)
-        elif typ is bool:
-            setattr(element, key, bool(value))
+        if typ is bool:
+            value = bool(value)
         elif typ is int:
-            setattr(element, key, int(value))
+            value = int(value)
         elif typ is float:
-            setattr(element, key, float(value))
+            value = float(value)
         elif typ is Color:
             if value == "":
-                setattr(element, key, None)
+                value = None
             elif len(value) >= 7 and value[0] == "(" and value[-1] == ")":
                 s = [f"{int(s.strip()):02x}" for s in value[1:-1].split(",")]
                 if len(s) == 3:
-                    setattr(element, key, "#" + "".join(s))
-                    return
+                    value = "#" + "".join(s)
             print(f"Got incorrect color value '{value}'")
-        else:
-            setattr(element, key, value)
+
+        self._add_change(UpdateElementAttributeChange(self, element, key, value))
+
+        setattr(element, key, value)
 
         self.last_change_timestamp = time.time()
+        self.notify_element_attr_change(element, ChangeKind.UPDATE_ATTRIBUTE, key, value)

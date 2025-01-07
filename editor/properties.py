@@ -273,14 +273,16 @@ class Properties(ttk.Treeview):
 
         self.addNewPropertyPopup = AddNewPropertyText(self.root, add_new_property)
 
-    def update_value(self, rowid: str, new_value: str) -> None:
+    def update_value(self, rowid: str, new_value: str, no_callback: bool = False) -> None:
         self.item(rowid, values=(new_value,))
         self.editorPopup = None
         self.entryPopup = None
-        self.update_callback(rowid, new_value)
+        if not no_callback:
+            self.update_callback(rowid, new_value)
 
     def update_properties(self, properties: dict[str, Any], types_and_visibility: Optional[dict[str, F]] = None) -> None:
-        self.delete(*self.get_children())
+        for c in self.get_children():
+            self.delete(c)
 
         self.properties = properties
         even = True

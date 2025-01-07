@@ -8,12 +8,12 @@ from tkinter import messagebox
 
 from tkinter import X, filedialog, LEFT, BOTH, TOP
 
-from typing import Optional, cast
+from typing import Optional, cast, Any
 from sys import exit
 
 from pygame import Surface, Rect, K_BACKSPACE
 
-from editor.actions_controller import ActionsController
+from editor.actions_controller import ActionsController, ChangeKind
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
 from editor.pygame_components import ComponentCollection
@@ -86,6 +86,10 @@ class Editor:
         self.actions_controller.tiled_map_callbacks.append(self._tiled_map_callback)
         self.actions_controller.current_object_callbacks.append(self._current_object_callback)
         self.actions_controller.undo_redo_callbacks.append(self._undo_redo_callback)
+        self.actions_controller.element_attr_change_callbacks.append(self._element_attr_change_callback)
+        self.actions_controller.element_property_change_callbacks.append(self._element_property_change_callback)
+        self.actions_controller.add_object_callbacks.append(self._object_added_callback)
+        self.actions_controller.delete_object_callbacks.append(self._object_deleted_callback)
 
         self.tileset_controller = TilesetController(
             Rect(right_column, image_size + margin * 2, 300, 500), None,
@@ -138,6 +142,24 @@ class Editor:
         self.edit_menu.entryconfig("Redo", state="normal" if redos else "disabled")
         self.edit_menu.entryconfig("Undo", state="normal" if undos else "disabled")
 
+    def _element_attr_change_callback(self, element: TiledElement, _kind: ChangeKind, key: str, value: Any) -> None:
+        if element == self.current_element:
+            if key == "name":
+                if isinstance(self._current_element, TiledObject):
+                    self.hierarchy_view.update_object_name(cast(TiledObject, self._current_element))
+                elif isinstance(self._current_element, BaseTiledLayer):
+                    self.hierarchy_view.update_layer_name(cast(BaseTiledLayer, self._current_element))
+            self.main_properties.update_value(key, value, no_callback=True)
+
+    def _element_property_change_callback(self, element: TiledElement, kind: ChangeKind, key: str, value: Any) -> None:
+        if element == self.current_element:
+            if kind == ChangeKind.ADD_PROPERTY:
+                self.custom_properties.update_properties(element.properties)
+            elif kind == ChangeKind.UPDATE_PROPERTY:
+                self.custom_properties.update_value(key, value)
+            elif kind == ChangeKind.DELETE_PROPERTY:
+                self.custom_properties.update_properties(element.properties)
+
     @property
     def current_element(self) -> Optional[TiledElement]:
         return self._current_element
@@ -167,6 +189,12 @@ class Editor:
     def _object_added_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.add_object(layer, obj)
         self.hierarchy_view.selected_object = obj
+        self.root.update()
+
+    def _object_deleted_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
+        self.hierarchy_view.delete_object(layer, obj)
+        self.hierarchy_view.selected_object = None
+        self.root.update()
 
     def _object_selected_callback(self, obj: TiledObject) -> None:
         self.current_element = obj
@@ -248,8 +276,8 @@ class Editor:
         if self.actions_controller.current_object is not None and self.actions_controller.object_layer is not None:
             obj = self.actions_controller.current_object
             self.actions_controller.delete_object(obj)
-
-            self.hierarchy_view.delete_object(obj)
+            layer = cast(TiledObjectGroup, obj.layer)
+            self.hierarchy_view.delete_object(layer, obj)
             self.map_controller.deselect_object()
         elif self.actions_controller.tiled_layer is not None:
             self.map_controller.delete_tiles()

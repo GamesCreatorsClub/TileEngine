@@ -126,11 +126,11 @@ class Hierarchy(ttk.Treeview):
         self.move(rowid, f"l_{layer.id}", len(list(layer.objects)))
         print(f"Added object with {rowid}")
 
-    def delete_object(self, obj: TiledObject) -> None:
-        layer = cast(TiledObjectGroup, obj.parent)
+    def delete_object(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         rowid = f"o_{layer.id}_{obj.id}"
         self.delete(rowid)
-        print(f"Deleted object with {rowid}")
+        if self.selected_object == obj:
+            self.selected_object = None
 
     def on_tree_select(self, _event):
         for rowid in self.selection():
