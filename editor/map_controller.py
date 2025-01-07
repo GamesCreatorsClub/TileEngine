@@ -66,7 +66,7 @@ class MapActionsPanel(ComponentCollection):
             MapAction.ADD_AREA_OBJECT: button(2, 3, lambda: self._select_action(MapAction.ADD_AREA_OBJECT)),
         }
         self.tile_buttons = {
-            MapAction.SELECT_TILE: button(0, 7, lambda: self._select_action(MapAction.SELECT_TILE)),
+            MapAction.SELECT_TILE: button(0, 3, lambda: self._select_action(MapAction.SELECT_TILE)),
             MapAction.BRUSH_TILE: button(1, 0, lambda: self._select_action(MapAction.BRUSH_TILE)),
             MapAction.RANDOM_BRUSH_TILE: button(2, 8, lambda: self._select_action(MapAction.RANDOM_BRUSH_TILE)),
             MapAction.RUBBER_TILE: button(3, 1, lambda: self._select_action(MapAction.RUBBER_TILE)),
@@ -943,5 +943,6 @@ class MapController(ScrollableCanvas):
 
     def mouse_out(self, x: int, y: int) -> bool:
         super().mouse_out(x, y)
+        self.actions_controller.fix_change()
         self._mouse_adapter.mouse_out(x, y)
         return True

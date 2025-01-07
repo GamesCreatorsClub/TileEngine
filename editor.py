@@ -1,5 +1,4 @@
 import os
-import platform
 import subprocess
 import sys
 
@@ -22,9 +21,6 @@ from editor.map_controller import MapController, MapActionsPanel, MapAction
 from editor.tileset_controller import TilesetController
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
-WITH_PYGAME = True
-WITH_SCROLLBAR = True
-
 MOUSE_DOWN_COUNTER = 1
 
 
@@ -35,9 +31,8 @@ def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
 
 class Editor:
     def __init__(self) -> None:
-        self.macos = platform.system() == "Darwin"
+        self.macos = True
         self.running = True
-        self.colour = pygame.Color("yellow")
         self.speed = 10
         self.screen: Optional[Surface] = None
         self.screen_rect: Optional[Rect] = None
@@ -59,8 +54,6 @@ class Editor:
         self._tiled_map: Optional[TiledMap] = None
 
         self._current_element: Optional[TiledElement] = None
-        # self._current_object: Optional[TiledObject] = None
-        # self._current_layer: Optional[BaseTiledLayer] = None
         self._current_tileset: Optional[TiledTileset] = None
 
         # Initialisation of other components
@@ -70,14 +63,13 @@ class Editor:
         self.root.title("Editor")
 
         pygame.init()
-        self.previous_keys = pygame.key.get_pressed()
-        self.current_keys = pygame.key.get_pressed()
-
-        self.clock = pygame.time.Clock()
 
         self.open_tk_window(self.root)
-        if WITH_PYGAME:
-            self.setup_pygame()
+        self.previous_keys = pygame.key.get_pressed()
+        self.current_keys = pygame.key.get_pressed()
+        self.setup_pygame()
+        self.colour = pygame.Color("yellow")
+        self.clock = pygame.time.Clock()
 
         # self.font = pygame.font.Font(os.path.join(os.path.dirname(__file__), "editor", "raleway-medium-webfont.ttf"), 17)
         self.font = pygame.font.Font(os.path.join(os.path.dirname(__file__), "editor", "test_fixed.otf"), 17)
@@ -93,6 +85,7 @@ class Editor:
         self.actions_controller = ActionsController()
         self.actions_controller.tiled_map_callbacks.append(self._tiled_map_callback)
         self.actions_controller.current_object_callbacks.append(self._current_object_callback)
+        self.actions_controller.undo_redo_callbacks.append(self._undo_redo_callback)
 
         self.tileset_controller = TilesetController(
             Rect(right_column, image_size + margin * 2, 300, 500), None,
@@ -121,115 +114,6 @@ class Editor:
         self.mouse_x = 0
         self.mouse_y = 0
 
-    def open_tk_window(self, root: tk.Tk) -> tk.Tk:
-        control_modifier = "Command" if self.macos else "Control"
-
-        root.geometry("300x900+10+30")
-        root.protocol("WM_DELETE_WINDOW", self._quit_action)
-        root.title("Edit object")
-
-        menubar = tk.Menu(root)
-        self.file_menu = tk.Menu(menubar, tearoff=0)
-        self.file_menu.add_command(label="New", command=self._create_new_map_action, accelerator=f"{control_modifier}+N")
-        self.file_menu.add_command(label="Open", command=self._load_file_action)
-        self.file_menu.add_command(label="Save", command=self._save_map_action, state="disabled", accelerator=f"{control_modifier}+S")
-        self.file_menu.add_command(label="Save as...", command=self._save_as_map_action, state="disabled", accelerator=f"Shift+{control_modifier}+X")
-        self.file_menu.add_separator()
-        self.file_menu.add_command(label="Quit", command=self._quit_action, accelerator=f"{control_modifier}+Q")
-        menubar.add_cascade(label="File", menu=self.file_menu)
-
-        self.edit_menu = tk.Menu(menubar, tearoff=0)
-        self.edit_menu.add_command(label="Redo", command=self._do_nothing_action, state="disabled")
-        self.edit_menu.add_command(label="Undo", command=self._do_nothing_action, state="disabled")
-        self.edit_menu.add_separator()
-        self.edit_menu.add_command(label="Cut", command=self._cut_action, state="disabled", accelerator=f"{control_modifier}+X")
-        self.edit_menu.add_command(label="Copy", command=self._copy_action, state="disabled", accelerator=f"{control_modifier}+C")
-        self.edit_menu.add_command(label="Paste", command=self._paste_action, state="disabled", accelerator=f"{control_modifier}+V")
-        self.edit_menu.add_command(label="Delete", command=self._delete_action, state="disabled", accelerator="Delete")
-        self.edit_menu.add_separator()
-        self.edit_menu.add_command(label="Select All", command=self._select_all_action, state="disabled", accelerator=f"{control_modifier}+A")
-        self.edit_menu.add_command(label="Select None", command=self._select_none_action, state="disabled", accelerator=f"Shift+{control_modifier}+A")
-
-        menubar.add_cascade(label="Edit", menu=self.edit_menu)
-
-        self.run_menu = tk.Menu(menubar, tearoff=0)
-        self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{control_modifier}+R")
-
-        menubar.add_cascade(label="Run", menu=self.run_menu)
-
-        self.help_menu = tk.Menu(menubar, tearoff=0)
-        self.help_menu.add_command(label="Help Index", command=self._do_nothing_action, state="disabled")
-        self.help_menu.add_command(label="About...", command=self._do_nothing_action, state="disabled")
-        menubar.add_cascade(label="Help", menu=self.help_menu)
-        root.config(menu=menubar)
-
-        root.bind_all("<Delete>", self._delete_action)
-        root.bind_all(f"<{control_modifier}-q>", self._quit_action)
-        root.bind_all(f"<{control_modifier}-n>", self._create_new_map_action)
-        root.bind_all(f"<{control_modifier}-s>", self._save_map_action)
-        root.bind_all(f"<Shift-{control_modifier}-s>", self._save_as_map_action)
-        root.bind_all(f"<{control_modifier}-x>", self._cut_action)
-        root.bind_all(f"<{control_modifier}-c>", self._copy_action)
-        root.bind_all(f"<{control_modifier}-v>", self._paste_action)
-        root.bind_all(f"<{control_modifier}-a>", self._select_all_action)
-        root.bind_all(f"<Shift-{control_modifier}-c>", self._select_none_action)
-        root.bind_all(f"<{control_modifier}-r>", self._run_map_action)
-
-        left_frame = tk.Frame(root)
-        left_frame.pack(side=LEFT, fill=BOTH, expand=True)
-        right_frame = left_frame
-
-        pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
-        self.hierarchy_view = Hierarchy(right_frame, self._set_selected_element)
-        self.hierarchy_view.pack(side=TOP, fill=X, expand=True)
-
-        pack(tk.Label(left_frame, text="Properties"), fill=X)
-
-        self.main_properties = Properties(left_frame, self.macos, None, self.update_current_element_attribute, None)
-
-        pack(tk.Label(left_frame, text=""), fill=X)
-        pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
-
-        self.custom_properties = Properties(left_frame,
-                                            self.macos,
-                                            self.add_current_element_property,
-                                            self.update_current_element_property,
-                                            self.delete_current_element_property)
-
-        self.button_panel = tk.Canvas(left_frame)
-        self.button_panel.columnconfigure(1, weight=1)
-
-        self.add_property = tk.Button(self.button_panel, text="+", state="disabled", command=self.custom_properties.start_add_new_property)
-        self.remove_property = tk.Button(self.button_panel, text="-", state="disabled", command=self.custom_properties.remove_property)
-        self.edit_property = tk.Button(
-            self.button_panel, text="edit", state="disabled",
-            command=lambda: self.custom_properties.start_editing(self.custom_properties.selected_rowid)
-        )
-
-        self.add_property.grid(row=0, column=0, pady=3, padx=3, sticky=tk.W)
-        self.remove_property.grid(row=0, column=1, pady=3, padx=3, sticky=tk.W)
-        self.edit_property.grid(row=0, column=2, pady=3, padx=3, sticky=tk.W)
-
-        pack(self.button_panel, fill=X)
-
-        self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
-        self.custom_properties.update_buttons(self.add_property, self.remove_property, self.edit_property)
-
-        return root
-
-    def setup_pygame(self) -> None:
-        if self.macos:
-            os.environ['SDL_VIDEO_WINDOW_POS'] = "315,58"
-        else:
-            os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
-
-        self.screen = pygame.display.set_mode((1150, 900))
-        self.screen_rect = self.screen.get_rect()
-        pygame.display.set_caption("Editor")
-        # self.clock = pygame.time.Clock()
-
-        pygame.display.set_caption("Editor Window")
-
     def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
         if tiled_map is not None:
@@ -248,6 +132,11 @@ class Editor:
 
     def _current_tileset_callback(self, current_tileset: Optional[TiledTileset]) -> None:
         self._current_tileset = current_tileset
+
+    def _undo_redo_callback(self, undos: bool, redos: bool) -> None:
+        # print(f"Undo/redo changed {undos}, {redos}")
+        self.edit_menu.entryconfig("Redo", state="normal" if redos else "disabled")
+        self.edit_menu.entryconfig("Undo", state="normal" if undos else "disabled")
 
     @property
     def current_element(self) -> Optional[TiledElement]:
@@ -306,14 +195,14 @@ class Editor:
 
     def _quit_action(self, _event=None) -> None:
         self.running = False
-        if WITH_PYGAME:
-            pygame.quit()  # destroy pygame window
+        pygame.quit()  # destroy pygame window
         self.root.destroy()  # destroy root window
         exit(0)
 
     def _load_file_action(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
-        self.load_file(filename)
+        if filename != "":
+            self.load_file(filename)
 
     def _save_map_action(self, _event=None) -> None:
         if self._tiled_map.filename is None:
@@ -334,6 +223,14 @@ class Editor:
 
     def _paste_action(self, _event=None) -> None:
         print(f"PASTE for {self.current_element}")
+
+    def _redo_action(self, _event=None) -> None:
+        self.map_controller.deselect_object()
+        self.actions_controller.redo()
+
+    def _undo_action(self, _event=None) -> None:
+        self.map_controller.deselect_object()
+        self.actions_controller.undo()
 
     def _select_all_action(self, _event=None) -> None:
         self.map_controller.select_all()
@@ -443,6 +340,116 @@ class Editor:
         else:
             tk.messagebox.showerror(title="Error", message="No 'code' property in the map")
 
+    def open_tk_window(self, root: tk.Tk) -> tk.Tk:
+        control_modifier = "Command" if self.macos else "Control"
+
+        root.geometry("300x900+10+30")
+        root.protocol("WM_DELETE_WINDOW", self._quit_action)
+        root.title("Edit object")
+
+        menubar = tk.Menu(root)
+        self.file_menu = tk.Menu(menubar, tearoff=0)
+        self.file_menu.add_command(label="New", command=self._create_new_map_action, accelerator=f"{control_modifier}+N")
+        self.file_menu.add_command(label="Open", command=self._load_file_action)
+        self.file_menu.add_command(label="Save", command=self._save_map_action, state="disabled", accelerator=f"{control_modifier}+S")
+        self.file_menu.add_command(label="Save as...", command=self._save_as_map_action, state="disabled", accelerator=f"Shift+{control_modifier}+X")
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Quit", command=self._quit_action, accelerator=f"{control_modifier}+Q")
+        menubar.add_cascade(label="File", menu=self.file_menu)
+
+        self.edit_menu = tk.Menu(menubar, tearoff=0)
+        self.edit_menu.add_command(label="Redo", command=self._redo_action, state="disabled", accelerator=f"{control_modifier}+Y")
+        self.edit_menu.add_command(label="Undo", command=self._undo_action, state="disabled", accelerator=f"{control_modifier}+Z")
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="Cut", command=self._cut_action, state="disabled", accelerator=f"{control_modifier}+X")
+        self.edit_menu.add_command(label="Copy", command=self._copy_action, state="disabled", accelerator=f"{control_modifier}+C")
+        self.edit_menu.add_command(label="Paste", command=self._paste_action, state="disabled", accelerator=f"{control_modifier}+V")
+        self.edit_menu.add_command(label="Delete", command=self._delete_action, state="disabled", accelerator="Delete")
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="Select All", command=self._select_all_action, state="disabled", accelerator=f"{control_modifier}+A")
+        self.edit_menu.add_command(label="Select None", command=self._select_none_action, state="disabled", accelerator=f"Shift+{control_modifier}+A")
+
+        menubar.add_cascade(label="Edit", menu=self.edit_menu)
+
+        self.run_menu = tk.Menu(menubar, tearoff=0)
+        self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{control_modifier}+R")
+
+        menubar.add_cascade(label="Run", menu=self.run_menu)
+
+        self.help_menu = tk.Menu(menubar, tearoff=0)
+        self.help_menu.add_command(label="Help Index", command=self._do_nothing_action, state="disabled")
+        self.help_menu.add_command(label="About...", command=self._do_nothing_action, state="disabled")
+        menubar.add_cascade(label="Help", menu=self.help_menu)
+        root.config(menu=menubar)
+
+        root.bind_all("<Delete>", self._delete_action)
+        root.bind_all(f"<{control_modifier}-q>", self._quit_action)
+        root.bind_all(f"<{control_modifier}-n>", self._create_new_map_action)
+        root.bind_all(f"<{control_modifier}-s>", self._save_map_action)
+        root.bind_all(f"<Shift-{control_modifier}-s>", self._save_as_map_action)
+        root.bind_all(f"<{control_modifier}-x>", self._cut_action)
+        root.bind_all(f"<{control_modifier}-c>", self._copy_action)
+        root.bind_all(f"<{control_modifier}-v>", self._paste_action)
+        root.bind_all(f"<{control_modifier}-a>", self._select_all_action)
+        root.bind_all(f"<Shift-{control_modifier}-c>", self._select_none_action)
+        root.bind_all(f"<{control_modifier}-r>", self._run_map_action)
+        root.bind_all(f"<{control_modifier}-z>", self._undo_action)
+        root.bind_all(f"<{control_modifier}-y>", self._redo_action)
+
+        left_frame = tk.Frame(root)
+        left_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        right_frame = left_frame
+
+        pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
+        self.hierarchy_view = Hierarchy(right_frame, self._set_selected_element)
+        self.hierarchy_view.pack(side=TOP, fill=X, expand=True)
+
+        pack(tk.Label(left_frame, text="Properties"), fill=X)
+
+        self.main_properties = Properties(left_frame, self.macos, None, self.update_current_element_attribute, None)
+
+        pack(tk.Label(left_frame, text=""), fill=X)
+        pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
+
+        self.custom_properties = Properties(left_frame,
+                                            self.macos,
+                                            self.add_current_element_property,
+                                            self.update_current_element_property,
+                                            self.delete_current_element_property)
+
+        self.button_panel = tk.Canvas(left_frame)
+        self.button_panel.columnconfigure(1, weight=1)
+
+        self.add_property = tk.Button(self.button_panel, text="+", state="disabled", command=self.custom_properties.start_add_new_property)
+        self.remove_property = tk.Button(self.button_panel, text="-", state="disabled", command=self.custom_properties.remove_property)
+        self.edit_property = tk.Button(
+            self.button_panel, text="edit", state="disabled",
+            command=lambda: self.custom_properties.start_editing(self.custom_properties.selected_rowid)
+        )
+
+        self.add_property.grid(row=0, column=0, pady=3, padx=3, sticky=tk.W)
+        self.remove_property.grid(row=0, column=1, pady=3, padx=3, sticky=tk.W)
+        self.edit_property.grid(row=0, column=2, pady=3, padx=3, sticky=tk.W)
+
+        pack(self.button_panel, fill=X)
+
+        self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
+        self.custom_properties.update_buttons(self.add_property, self.remove_property, self.edit_property)
+
+        return root
+
+    def setup_pygame(self) -> None:
+        if self.macos:
+            os.environ['SDL_VIDEO_WINDOW_POS'] = "315,58"
+        else:
+            os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
+
+        self.screen = pygame.display.set_mode((1150, 900))
+        self.screen_rect = self.screen.get_rect()
+        pygame.display.set_caption("Editor")
+
+        pygame.display.set_caption("Editor Window")
+
     def pygame_loop(self) -> None:
         control_modifier = pygame.KMOD_META if self.macos else pygame.KMOD_CTRL
         self.key_modifier = 0
@@ -531,6 +538,12 @@ class Editor:
                                 self._save_map_action()
                             else:
                                 self._save_as_map_action()
+                    elif key == pygame.K_z:
+                        if event.mod & control_modifier != 0:
+                            self._undo_action()
+                    elif key == pygame.K_y:
+                        if event.mod & control_modifier != 0:
+                            self._redo_action()
 
                     if dx != 0 or dy != 0:
                         self.components.mouse_wheel(self.mouse_x, self.mouse_y, dx, dy, self.key_modifier)
@@ -573,11 +586,13 @@ class Editor:
             # if self.previous_keys != self.current_keys:
             #     print(f"keys={self.current_keys}")
 
+            self.actions_controller.action_tick()
+
+            self.clock.tick(30)
             self.screen.fill((200, 200, 200))
             self.components.draw(self.screen)
 
             pygame.display.flip()
-            self.clock.tick(30)
             if not has_focus:
                 self.root.update()
 
@@ -590,7 +605,4 @@ if __name__ == '__main__':
     else:
         print("No arguments given")
 
-    if WITH_PYGAME:
-        editor.pygame_loop()
-    else:
-        editor.root.mainloop()
+    editor.pygame_loop()

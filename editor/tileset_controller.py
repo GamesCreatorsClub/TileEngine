@@ -97,7 +97,6 @@ class TilesetController(ScrollableCanvas):
                 if x < tileset.width and y < tileset.height:
                     self._selection_rect.update(x, y, 1, 1)
                     self._set_selection([[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)])
-                    print(f"* 2 - updated selected {self.selection}")
 
                     self._calc_tileset_rect()
                     return True
@@ -137,7 +136,6 @@ class TilesetController(ScrollableCanvas):
                         updated = True
                     if updated:
                         self._set_selection([[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)])
-                        print(f"* 1 - updated selected {self.selection}")
 
                 self._calc_tileset_rect()
                 return True
