@@ -50,6 +50,7 @@ class Editor:
 
         self.file_menu: Optional[tk.Menu] = None
         self.edit_menu: Optional[tk.Menu] = None
+        self.map_menu: Optional[tk.Menu] = None
         self.run_menu: Optional[tk.Menu] = None
         self.help_menu: Optional[tk.Menu] = None
 
@@ -123,8 +124,10 @@ class Editor:
     def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
         if tiled_map is not None:
-            self.file_menu.entryconfig("Save", state="normal", command=self._save_map_action)
-            self.file_menu.entryconfig("Save as...", state="normal", command=self._save_as_map_action)
+            self.file_menu.entryconfig("Save", state="normal")
+            self.file_menu.entryconfig("Save as...", state="normal")
+
+            self.map_menu.entryconfig("Add Tileset", state="normal")
 
             self.map_action_panel.visible = True
             self.hierarchy_view.set_map(tiled_map)
@@ -229,6 +232,23 @@ class Editor:
         self.root.destroy()  # destroy root window
         exit(0)
 
+    def _add_tileset_action(self) -> None:
+        if self._tiled_map.filename is None:
+            tk.messagebox.showerror(title="Error", message=f"You first must save the map")
+            return
+
+        filename = filedialog.askopenfilename(title="Open file", filetypes=(("Tileset file", "*.tsx"), ))
+        if filename != "":
+            tileset = TiledTileset(self._tiled_map)
+            tileset.firstgid = self._tiled_map.maxgid + 1
+            tileset.source = filename
+            self._tiled_map.add_tileset(tileset)
+            if len(self._tiled_map.tilesets) == 1:
+                self._tiled_map.tilewidth = tileset.tilewidth
+                self._tiled_map.tileheight = tileset.tileheight
+            self.hierarchy_view.set_map(self._tiled_map)
+            self.hierarchy_view.selected_object = tileset
+
     def _load_file_action(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
         if filename != "":
@@ -242,8 +262,9 @@ class Editor:
 
     def _save_as_map_action(self, _event=None) -> None:
         filename = filedialog.asksaveasfilename(title="Save map", filetypes=(("Map file", "*.tmx"),))
-        self._tiled_map.filename = filename
-        self._save_map_action()
+        if filename != "":
+            self._tiled_map.filename = filename
+            self._save_map_action()
 
     def _cut_action(self, _event=None) -> None:
         print(f"CUT for {self.current_element}")
@@ -422,6 +443,11 @@ class Editor:
         self.edit_menu.add_command(label="Select None", command=self._select_none_action, state="disabled", accelerator=f"Shift+{control_modifier}+A")
 
         menu.add_cascade(label="Edit", menu=self.edit_menu)
+
+        self.map_menu = tk.Menu(menu, tearoff=0)
+        self.map_menu.add_command(label="Add Tileset", command=self._add_tileset_action, state="disabled")
+
+        menu.add_cascade(label="Map", menu=self.map_menu)
 
         self.run_menu = tk.Menu(menu, tearoff=0)
         self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{control_modifier}+R")

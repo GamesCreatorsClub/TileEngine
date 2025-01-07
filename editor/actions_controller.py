@@ -409,10 +409,10 @@ class ActionsController:
         background_layer.id = 4
         background_layer.name = "background"
 
-        tiled_map.add_layer(foreground_layer)
-        tiled_map.add_layer(objects_layer)
-        tiled_map.add_layer(main_layer)
         tiled_map.add_layer(background_layer)
+        tiled_map.add_layer(main_layer)
+        tiled_map.add_layer(objects_layer)
+        tiled_map.add_layer(foreground_layer)
 
         self.tiled_map = tiled_map
 
@@ -441,7 +441,8 @@ class ActionsController:
         self.last_change_timestamp = time.time()
 
     def add_object(self, obj: TiledObject) -> None:
-        obj.id = max(map(lambda o: o.id, self._object_layer.objects_id_map.values())) + 1
+        obj.id = self._object_layer.map.nextobjectid
+        self._object_layer.map.nextobjectid += 1
         self._add_change(AddObjectChange(self, obj, self._object_layer))
 
         self._object_layer.objects_id_map[obj.id] = obj
