@@ -31,7 +31,7 @@ def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
 
 class Editor:
     def __init__(self) -> None:
-        self.macos = True
+        self.macos = sys.platform == 'darwin'
         self.running = True
         self.speed = 10
         self.screen: Optional[Surface] = None
