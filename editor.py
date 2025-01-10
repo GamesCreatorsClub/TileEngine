@@ -94,13 +94,15 @@ class Editor:
         self.actions_controller.add_object_callbacks.append(self._object_added_callback)
         self.actions_controller.delete_object_callbacks.append(self._object_deleted_callback)
 
+        toolbar_height = image_size + margin * 2
         self.tileset_controller = TilesetController(
-            Rect(right_column, image_size + margin * 2, 300, 500), None,
+            Rect(right_column, toolbar_height, 300, 500), None,
             self.actions_controller,
             self._tile_selected_callback
         )
         self.map_controller = MapController(
-            Rect(0, 0, right_column, self.viewport.height),
+            # Rect(0, 0, right_column, self.viewport.height),
+            Rect(0, toolbar_height, right_column, self.viewport.height - toolbar_height),
             self.font,
             self.map_action_panel,
             self.tileset_controller,
@@ -537,11 +539,11 @@ class Editor:
                     self._quit_action()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_down_counter = MOUSE_DOWN_COUNTER
-                    self.components.mouse_down(self.mouse_x, self.mouse_y, self.key_modifier)
+                    self.components.mouse_down(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.MOUSEBUTTONUP:
                     mouse_down_counter = 0
-                    self.components.mouse_up(self.mouse_x, self.mouse_y, self.key_modifier)
+                    self.components.mouse_up(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.MOUSEMOTION:
                     self.mouse_x = event.pos[0]
@@ -553,6 +555,7 @@ class Editor:
                     self.components.mouse_out(0, 0)
                     self.root.update()
                 elif event.type == pygame.MOUSEWHEEL:
+                    print(f"*** mouse wheel event")
                     self.components.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.KEYDOWN:

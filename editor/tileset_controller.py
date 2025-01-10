@@ -83,28 +83,30 @@ class TilesetController(ScrollableCanvas):
                 pygame.draw.rect(surface, (128, 0, 0), self._tileset_rect3, width=1)
                 pygame.draw.rect(surface, (128, 255, 255), self._tileset_rect2, width=1)
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        other = super().mouse_down(x, y, modifier)
-        self._mouse_is_down = True
-        if not other:
-            if self._tileset is not None:
-                tileset = self._tileset
-                x = x - self.h_scrollbar.offset - self.rect.x
-                y = y - self.v_scrollbar.offset - self.rect.y
-                x = x // tileset.tilewidth
-                y = y // tileset.tileheight
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        other = super().mouse_down(x, y, button, modifier)
+        if button == 1:
+            self._mouse_is_down = True
+            if not other:
+                if self._tileset is not None:
+                    tileset = self._tileset
+                    x = x - self.h_scrollbar.offset - self.rect.x
+                    y = y - self.v_scrollbar.offset - self.rect.y
+                    x = x // tileset.tilewidth
+                    y = y // tileset.tileheight
 
-                if x < tileset.width and y < tileset.height:
-                    self._selection_rect.update(x, y, 1, 1)
-                    self._set_selection([[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)])
+                    if x < tileset.width and y < tileset.height:
+                        self._selection_rect.update(x, y, 1, 1)
+                        self._set_selection([[tileset.firstgid + x + y * tileset.width for x in range(self._selection_rect.x, self._selection_rect.right)] for y in range(self._selection_rect.y, self._selection_rect.bottom)])
 
-                    self._calc_tileset_rect()
-                    return True
+                        self._calc_tileset_rect()
+                        return True
         return other
 
-    def mouse_up(self, x: int, y: int, modifier: int) -> bool:
-        other = super().mouse_up(x, y, modifier)
-        self._mouse_is_down = False
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        other = super().mouse_up(x, y, button, modifier)
+        if button == 1:
+            self._mouse_is_down = False
         return other
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:

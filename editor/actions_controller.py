@@ -333,7 +333,7 @@ class ActionsController:
             del self.changes[self.pointer:]
         if len(self.changes) > MAX_UNDO:
             del self.changes[0]
-        print(f"Added change for {change.kind}")
+        # print(f"Added change for {change.kind}")
         previous = None if len(self.changes) == 0 else self.changes[-1]
         previous = previous if previous is not None and previous.kind == change.kind else None
         change.prepare(previous)
@@ -342,7 +342,7 @@ class ActionsController:
 
         self.current_unfixed_change = change if not change.fixed else None
         self.change_kind = ChangeKind.NONE if self.current_unfixed_change is None else change.kind
-        print(f"New change {change.kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
+        # print(f"New change {change.kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
 
         for callback in self.undo_redo_callbacks:
             callback(self.pointer > 0, False)
@@ -353,7 +353,7 @@ class ActionsController:
 
     def fix_change(self) -> None:
         if self.current_unfixed_change is not None:
-            print(f"Fixed change change {self.current_unfixed_change.kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
+            # print(f"Fixed change change {self.current_unfixed_change.kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
 
             self.current_unfixed_change.fix()
             self.current_unfixed_change = None
@@ -366,7 +366,7 @@ class ActionsController:
 
             self.pointer -= 1
             self.changes[self.pointer].undo()
-            print(f"Undo change {self.changes[self.pointer].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
+            # print(f"Undo change {self.changes[self.pointer].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
             for callback in self.undo_redo_callbacks:
                 callback(self.pointer > 0, self.pointer < len(self.changes))
         self.change_kind = ChangeKind.NONE
@@ -377,7 +377,7 @@ class ActionsController:
         if self.pointer < len(self.changes):
             self.changes[self.pointer].redo()
             self.pointer += 1
-            print(f"Redo change {self.changes[self.pointer - 1].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
+            # print(f"Redo change {self.changes[self.pointer - 1].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
             for callback in self.undo_redo_callbacks:
                 callback(self.pointer > 0, self.pointer < len(self.changes))
         self.change_kind = ChangeKind.NONE

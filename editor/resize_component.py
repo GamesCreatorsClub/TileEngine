@@ -78,16 +78,18 @@ class ResizeButton(Button):
 
         raise ValueError()
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        self.mouse_pressed = True
-        self.last_mouse_x = x
-        self.last_mouse_y = y
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_pressed = True
+            self.last_mouse_x = x
+            self.last_mouse_y = y
         return True
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
-        self.mouse_pressed = False
-        self.last_mouse_x = x
-        self.last_mouse_y = y
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_pressed = False
+            self.last_mouse_x = x
+            self.last_mouse_y = y
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:

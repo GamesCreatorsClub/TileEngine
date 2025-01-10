@@ -25,13 +25,13 @@ class Component:
     def draw(self, surface: Surface) -> None:
         pass
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
         return False
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
         return False
 
-    def mouse_move(self, x: int, y: int, modifier) -> bool:
+    def mouse_move(self, x: int, y: int, modifier: int) -> bool:
         return False
 
     def mouse_wheel(self, x: int, y: int, dx: int, dy: int, modifier) -> bool:
@@ -49,33 +49,33 @@ class ComponentCollection(Component):
         super().__init__(rect)
         self.components: list[Component] = list(components)
         self.over_component = None
-        self.mouse_pressed = False
+        self.mouse_pressed = 0
 
     def draw(self, surface: Surface) -> None:
         for c in self.components:
             if c.visible:
                 c.draw(surface)
 
-    def mouse_up(self, x: int, y: int, modifier: int) -> bool:
-        self.mouse_pressed = False
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        self.mouse_pressed &= ~button
         for c in self.components:
             if c.visible and c.rect.collidepoint(x, y):
-                consumed = c.mouse_up(x, y, modifier)
+                consumed = c.mouse_up(x, y, button, modifier)
                 if consumed:
                     return True
         return False
 
-    def mouse_down(self, x: int, y: int, modifier: int) -> bool:
-        self.mouse_pressed = True
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        self.mouse_pressed |= button
         for c in self.components:
             if c.visible and c.rect.collidepoint(x, y):
-                consumed = c.mouse_down(x, y, modifier)
+                consumed = c.mouse_down(x, y, button, modifier)
                 if consumed:
                     return True
         return False
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:
-        if self.mouse_pressed and self.over_component is not None:
+        if self.mouse_pressed != 0 and self.over_component is not None:
             return self.over_component.mouse_move(x, y, modifier)
         else:
             for c in self.components:
@@ -177,13 +177,15 @@ class Button(Component):
                 else:
                     surface.blit(self._image, self._image_rect)
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
-        if self.rect.collidepoint(x, y):
-            self.callback()
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            if self.rect.collidepoint(x, y):
+                self.callback()
         return True
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        self.mouse_pressed = True
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_pressed = True
         return False
 
     def mouse_in(self, x: int, y: int) -> bool:
@@ -302,28 +304,30 @@ class Scrollbar(Component):
         self.mouse_pressed = False
         return True
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
-        self.mouse_pressed = False
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_pressed = False
         return True
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        if self.bar_rect.collidepoint(x, y):
-            self.mouse_pressed = True
-            self.mouse_pressed_x = x
-            self.mouse_pressed_y = y
-        else:
-            if self.horizontal:
-                bar_representation = self._width * self.bar_rect.width / self.bar_screen_range
-                if x > self.bar_rect.right:
-                    self.offset -= bar_representation
-                else:
-                    self.offset += bar_representation
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            if self.bar_rect.collidepoint(x, y):
+                self.mouse_pressed = True
+                self.mouse_pressed_x = x
+                self.mouse_pressed_y = y
             else:
-                bar_representation = self._width * self.bar_rect.height / self.bar_screen_range
-                if y > self.bar_rect.bottom:
-                    self.offset -= bar_representation
+                if self.horizontal:
+                    bar_representation = self._width * self.bar_rect.width / self.bar_screen_range
+                    if x > self.bar_rect.right:
+                        self.offset -= bar_representation
+                    else:
+                        self.offset += bar_representation
                 else:
-                    self.offset += bar_representation
+                    bar_representation = self._width * self.bar_rect.height / self.bar_screen_range
+                    if y > self.bar_rect.bottom:
+                        self.offset -= bar_representation
+                    else:
+                        self.offset += bar_representation
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:

@@ -62,12 +62,12 @@ class MapActionsPanel(ComponentCollection):
 
         self.object_buttons = {
             MapAction.SELECT_OBJECT: button(0, 7, lambda: self._select_action(MapAction.SELECT_OBJECT)),
-            MapAction.ADD_IMAGE_OBJECT: button(1, 0, lambda: self._select_action(MapAction.ADD_IMAGE_OBJECT)),
+            MapAction.ADD_IMAGE_OBJECT: button(1, 2, lambda: self._select_action(MapAction.ADD_IMAGE_OBJECT)),
             MapAction.ADD_AREA_OBJECT: button(2, 3, lambda: self._select_action(MapAction.ADD_AREA_OBJECT)),
         }
         self.tile_buttons = {
             MapAction.SELECT_TILE: button(0, 3, lambda: self._select_action(MapAction.SELECT_TILE)),
-            MapAction.BRUSH_TILE: button(1, 0, lambda: self._select_action(MapAction.BRUSH_TILE)),
+            MapAction.BRUSH_TILE: button(1, 2, lambda: self._select_action(MapAction.BRUSH_TILE)),
             MapAction.RANDOM_BRUSH_TILE: button(2, 8, lambda: self._select_action(MapAction.RANDOM_BRUSH_TILE)),
             MapAction.RUBBER_TILE: button(3, 1, lambda: self._select_action(MapAction.RUBBER_TILE)),
             MapAction.FILL_TILE: button(4, 5, lambda: self._select_action(MapAction.FILL_TILE)),
@@ -125,10 +125,10 @@ class MouseAdapter(ABC):
         self.map_controller = map_controller
         self.action_controller = map_controller.actions_controller
 
-    def mouse_up(self, _x: int, _y: int, _modifier: int) -> bool:
+    def mouse_up(self, _x: int, _y: int, _button: int, _modifier: int) -> bool:
         return False
 
-    def mouse_down(self, _x: int, _y: int, _modifier: int) -> bool:
+    def mouse_down(self, _x: int, _y: int, _button: int, _modifier: int) -> bool:
         return False
 
     def mouse_move(self, _x: int, _y: int, _modifier: int) -> bool:
@@ -210,38 +210,40 @@ class SelectObjectMouseAdapter(MouseAdapter):
 
             self.update_buttons()
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        def find_object(layer: TiledObjectGroup, x: int, y: int) -> Optional[TiledObject]:
-            for o in layer.objects_id_map.values():
-                if o.visible and o.rect.collidepoint(x, y):
-                    return o
-            return None
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            def find_object(layer: TiledObjectGroup, x: int, y: int) -> Optional[TiledObject]:
+                for o in layer.objects_id_map.values():
+                    if o.visible and o.rect.collidepoint(x, y):
+                        return o
+                return None
 
-        layer = self.map_controller.object_layer
-        if layer is not None:
-            corrected_x = x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset
-            corrected_y = y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
+            layer = self.map_controller.object_layer
+            if layer is not None:
+                corrected_x = x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset
+                corrected_y = y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
 
-            obj = find_object(layer, corrected_x, corrected_y)
-            if obj is not None:
-                self.mouse_is_down = True
-                self.selected_object = obj
-                self.map_controller.object_selected_callback(obj)
-                self.touch_x = x
-                self.touch_y = y
-                if obj.image is None:
-                    self.update_buttons()
+                obj = find_object(layer, corrected_x, corrected_y)
+                if obj is not None:
+                    self.mouse_is_down = True
+                    self.selected_object = obj
+                    self.map_controller.object_selected_callback(obj)
+                    self.touch_x = x
+                    self.touch_y = y
+                    if obj.image is None:
+                        self.update_buttons()
+                else:
+                    self.selected_object = None
+                    self.hide_buttons()
             else:
                 self.selected_object = None
                 self.hide_buttons()
-        else:
-            self.selected_object = None
-            self.hide_buttons()
 
         return False
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
-        self.mouse_is_down = False
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_is_down = False
         return False
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -291,18 +293,22 @@ class AddImageObjectMouseAdapter(MouseAdapter):
     def __init__(self, map_controller: 'MapController') -> None:
         super().__init__(map_controller)
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        layer = self.map_controller.object_layer
-        tilemap = self.map_controller.tiled_map
-        if layer is not None and self.map_controller.tileset_controller.selection is not None:
-            obj = TiledObject(layer)
-            obj.gid = self.map_controller.tileset_controller.selection[0][0]
-            img = tilemap.images[obj.gid]
-            obj.rect = img.get_rect()
-            obj.rect.center = x, y
-            self.action_controller.add_object(obj)
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            layer = self.map_controller.object_layer
+            tilemap = self.map_controller.tiled_map
+            if layer is not None and self.map_controller.tileset_controller.selection is not None:
+                obj = TiledObject(layer)
+                obj.gid = self.map_controller.tileset_controller.selection[0][0]
+                img = tilemap.images[obj.gid]
+                obj.rect = img.get_rect()
+                obj.rect.center = (
+                    x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset,
+                    y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
+                )
+                self.action_controller.add_object(obj)
 
-            self.map_controller.object_added_callback(layer, obj)
+                self.map_controller.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -313,18 +319,19 @@ class AddAreaObjectMouseAdapter(MouseAdapter):
     def __init__(self, map_controller: 'MapController') -> None:
         super().__init__(map_controller)
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        layer = self.map_controller.object_layer
-        if layer is not None and self.map_controller.tileset_controller.selection is not None:
-            obj = TiledObject(layer)
-            obj.gid = 0
-            obj.rect = Rect(0, 0, 32, 32)
-            obj.rect.center = (
-                x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset,
-                y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
-            )
-            self.action_controller.add_object(obj)
-            self.map_controller.object_added_callback(layer, obj)
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            layer = self.map_controller.object_layer
+            if layer is not None and self.map_controller.tileset_controller.selection is not None:
+                obj = TiledObject(layer)
+                obj.gid = 0
+                obj.rect = Rect(0, 0, 32, 32)
+                obj.rect.center = (
+                    x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset,
+                    y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
+                )
+                self.action_controller.add_object(obj)
+                self.map_controller.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -341,21 +348,23 @@ class SelectTileMouseAdapter(MouseAdapter):
         self.current_selection_viewport = None
         self.add_selection = None
 
-    def mouse_down(self, x: int, y: int, modifier: int) -> bool:
-        self.touch_x = x
-        self.touch_y = y
-        self.mouse_is_down = True
-        self.current_selection = None
-        self.current_selection_viewport = None
-        self.add_selection = modifier == pygame.KMOD_SHIFT
-        if not self.add_selection:
-            self.map_controller.select_none()
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.touch_x = x
+            self.touch_y = y
+            self.mouse_is_down = True
+            self.current_selection = None
+            self.current_selection_viewport = None
+            self.add_selection = modifier == pygame.KMOD_SHIFT
+            if not self.add_selection:
+                self.map_controller.select_none()
         return False
 
-    def mouse_up(self, x: int, y: int, _modifier: int) -> bool:
-        self.mouse_is_down = False
-        self.current_selection = None
-        self.current_selection_viewport = None
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_is_down = False
+            self.current_selection = None
+            self.current_selection_viewport = None
         return True
 
     def mouse_move(self, x: int, y: int, _modifier: int) -> bool:
@@ -414,19 +423,21 @@ class BrushTileMouseAdapter(MouseAdapter):
                     if gid != 0:
                         ac.plot(ix + x, iy + y, gid)
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
-        self.mouse_is_down = False
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_is_down = False
         return False
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        if not super().mouse_down(x, y, modifier):
-            self.mouse_is_down = True
-            tilemap = self.map_controller.tiled_map
-            if tilemap is not None and self.map_controller.tileset_controller.selection is not None:
-                self.last_tile_x, self.last_tile_y = self.map_controller.calc_mouse_to_tile(x, y)
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            if not super().mouse_down(x, y, button, modifier):
+                self.mouse_is_down = True
+                tilemap = self.map_controller.tiled_map
+                if tilemap is not None and self.map_controller.tileset_controller.selection is not None:
+                    self.last_tile_x, self.last_tile_y = self.map_controller.calc_mouse_to_tile(x, y)
 
-                data = self.map_controller.tileset_controller.selection
-                self.update_map(self.last_tile_x, self.last_tile_y, data)
+                    data = self.map_controller.tileset_controller.selection
+                    self.update_map(self.last_tile_x, self.last_tile_y, data)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -741,8 +752,8 @@ class MapController(ScrollableCanvas):
         tilemap = self.tiled_map
         tile_x, tile_y = self.calc_mouse_to_tile(x, y)
         if 0 <= tile_x < tilemap.width and 0 <= tile_y < tilemap.height:
-            x = tile_x * tilemap.tilewidth + self.h_scrollbar.offset
-            y = tile_y * tilemap.tileheight + self.v_scrollbar.offset
+            x = self.rect.x + tile_x * tilemap.tilewidth + self.h_scrollbar.offset
+            y = self.rect.y + tile_y * tilemap.tileheight + self.v_scrollbar.offset
             if self._action == MapAction.BRUSH_TILE or self._action == MapAction.FILL_TILE:
                 selection = self.tileset_controller.selection
                 w = len(selection) * tilemap.tilewidth if selection is not None else tilemap.tilewidth
@@ -860,7 +871,7 @@ class MapController(ScrollableCanvas):
         obj.properties["__old_x_offset"] = x_offset
         obj.properties["__old_y_offset"] = y_offset
         r.center = obj.rect.center
-        r.move_ip(x_offset, y_offset)
+        r.move_ip(self.rect.x + x_offset, self.rect.y + y_offset)
         r.move_ip(0, -obj.rect.height / 2 - r.height / 2 - 4)
         obj.properties["__text_position"] = r
 
@@ -923,13 +934,13 @@ class MapController(ScrollableCanvas):
             if c not in self.arrow_buttons and c.visible:
                 c.draw(surface)
 
-    def mouse_up(self, x: int, y: int, modifier) -> bool:
-        if not super().mouse_up(x, y, modifier):
-            return self._mouse_adapter.mouse_up(x, y, modifier)
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if not super().mouse_up(x, y, button, modifier):
+            return self._mouse_adapter.mouse_up(x, y, button, modifier)
 
-    def mouse_down(self, x: int, y: int, modifier) -> bool:
-        if not super().mouse_down(x, y, modifier):
-            return self._mouse_adapter.mouse_down(x, y, modifier)
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if not super().mouse_down(x, y, button, modifier):
+            return self._mouse_adapter.mouse_down(x, y, button, modifier)
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
         if (self._action == MapAction.SELECT_OBJECT
