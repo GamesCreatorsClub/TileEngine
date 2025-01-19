@@ -17,8 +17,9 @@ from editor.actions_controller import ActionsController, ChangeKind
 from editor.hierarchy import Hierarchy
 from editor.properties import Properties
 from editor.pygame_components import ComponentCollection
-from editor.map_controller import MapController, MapActionsPanel, MapAction
+from editor.map_controller import MapController
 from editor.tileset_controller import TilesetController
+from editor.toolbar_panel import ToolbarPanel
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
 MOUSE_DOWN_COUNTER = 1
@@ -83,7 +84,27 @@ class Editor:
         image_size = 32
         margin = 3
 
-        self.map_action_panel = MapActionsPanel(Rect(right_column, 0, 300, 50), margin=margin)
+        self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "editor", "icons.png"))
+
+        self.toolbar = ToolbarPanel(Rect(0, 0, 0, 0), icon_surface=self.icon_surface)
+        self._new_map_button = self.toolbar.add_button(12, callback=self._create_new_map_action)
+        self._load_map_button = self.toolbar.add_button(10, callback=self._load_file_action)
+        self._save_map_button = self.toolbar.add_button(11, 31, callback=self._save_map_action)
+        self.toolbar.add_spacer()
+        self._redo_button = self.toolbar.add_button(13, 33, callback=self._undo_action)
+        self._undo_button = self.toolbar.add_button(14, 34, callback=self._redo_action)
+        self.toolbar.add_spacer()
+        self._cut_button = self.toolbar.add_button(16, 36, callback=self._undo_action)
+        self._copy_button = self.toolbar.add_button(15, 35, callback=self._redo_action)
+        self._paste_button = self.toolbar.add_button(17, 37, callback=self._undo_action)
+        self.toolbar.add_spacer()
+
+        self._save_map_button.disabled = True
+        self._redo_button.disabled = True
+        self._undo_button.disabled = True
+        self._cut_button.disabled = True
+        self._copy_button.disabled = True
+        self._paste_button.disabled = True
 
         self.actions_controller = ActionsController()
         self.actions_controller.tiled_map_callbacks.append(self._tiled_map_callback)
@@ -104,20 +125,20 @@ class Editor:
             # Rect(0, 0, right_column, self.viewport.height),
             Rect(0, toolbar_height, right_column, self.viewport.height - toolbar_height),
             self.font,
-            self.map_action_panel,
+            self.toolbar,
             self.tileset_controller,
             self.actions_controller,
             self._object_added_callback,
             self._object_selected_callback,
             self._selection_changed_callback
         )
-
-        self.map_action_panel.visible = False
-        self.map_action_panel.action = MapAction.BRUSH_TILE
+        #
+        # self.map_action_panel.visible = False
+        # self.map_action_panel.action = MapAction.BRUSH_TILE
 
         self.components = ComponentCollection(
             self.viewport,
-            self.map_controller, self.map_action_panel, self.tileset_controller)
+            self.toolbar, self.map_controller, self.tileset_controller)
 
         self.key_modifier = 0
         self.mouse_x = 0
@@ -131,7 +152,7 @@ class Editor:
 
             self.map_menu.entryconfig("Add Tileset", state="normal")
 
-            self.map_action_panel.visible = True
+            self.map_controller.set_action_panel_visibility(True)
             self.hierarchy_view.set_map(tiled_map)
 
         else:
@@ -148,6 +169,8 @@ class Editor:
         # print(f"Undo/redo changed {undos}, {redos}")
         self.edit_menu.entryconfig("Redo", state="normal" if redos else "disabled")
         self.edit_menu.entryconfig("Undo", state="normal" if undos else "disabled")
+        self._undo_button.disabled = not redos
+        self._redo_button.disabled = not undos
 
     def _element_attr_change_callback(self, element: TiledElement, _kind: ChangeKind, key: str, value: Any) -> None:
         if element == self.current_element:

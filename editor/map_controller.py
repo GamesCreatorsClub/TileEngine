@@ -9,9 +9,10 @@ from pygame import Rect, Surface
 from pygame.font import Font
 
 from editor.actions_controller import ActionsController
-from editor.pygame_components import ScrollableCanvas, ComponentCollection, Button
+from editor.pygame_components import ScrollableCanvas
 from editor.resize_component import ResizeButton, ResizePosition
 from editor.tileset_controller import TilesetController
+from editor.toolbar_panel import ToolbarPanel
 from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup, TiledObject
 from engine.utils import clip
 
@@ -40,67 +41,34 @@ class MapAction(enum.Enum):
         self.object_layer = object_layer
 
 
-class MapActionsPanel(ComponentCollection):
+class MapActionsToolbarPanel(ToolbarPanel):
     def __init__(self,
                  rect: Rect,
-                 action_selected_callback: Optional[Callable[[MapAction], None]] = None,
-                 margin: int = 3) -> None:
-        super().__init__(rect)
-        self._object_layer = False
-
-        self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "icons.png"))
-
-        image_size = self.icon_surface.get_rect().height
-        self.margin = margin
-
-        def button(pos: int, img: int, callback: Callable[[], None]) -> Button:
-            return Button(
-                Rect(rect.x + (image_size + self.margin) * pos + self.margin, self.margin, image_size, image_size),
-                self.icon_surface.subsurface(Rect(image_size * img, 0, image_size, image_size)),
-                callback
-            )
-
-        self.object_buttons = {
-            MapAction.SELECT_OBJECT: button(0, 7, lambda: self._select_action(MapAction.SELECT_OBJECT)),
-            MapAction.ADD_IMAGE_OBJECT: button(1, 2, lambda: self._select_action(MapAction.ADD_IMAGE_OBJECT)),
-            MapAction.ADD_AREA_OBJECT: button(2, 3, lambda: self._select_action(MapAction.ADD_AREA_OBJECT)),
-        }
-        self.tile_buttons = {
-            MapAction.SELECT_TILE: button(0, 3, lambda: self._select_action(MapAction.SELECT_TILE)),
-            MapAction.BRUSH_TILE: button(1, 2, lambda: self._select_action(MapAction.BRUSH_TILE)),
-            MapAction.RANDOM_BRUSH_TILE: button(2, 8, lambda: self._select_action(MapAction.RANDOM_BRUSH_TILE)),
-            MapAction.RUBBER_TILE: button(3, 1, lambda: self._select_action(MapAction.RUBBER_TILE)),
-            MapAction.FILL_TILE: button(4, 5, lambda: self._select_action(MapAction.FILL_TILE)),
-            MapAction.RANDOM_FILL_TILE: button(5, 9, lambda: self._select_action(MapAction.RANDOM_FILL_TILE)),
-        }
-        self.components.extend(self.object_buttons.values())
-        self.components.extend(self.tile_buttons.values())
-
+                 icon_surface: Surface) -> None:
+        super().__init__(rect, icon_surface=icon_surface, margin=3)
+        self.action_selected_callback: Optional[Callable[[MapAction], None]] = None
         self._action = MapAction.BRUSH_TILE
-        self.action_selected_callback = action_selected_callback
-        self.action = MapAction.BRUSH_TILE
 
     def _select_action(self, action: MapAction) -> None:
         self.action = action
 
-    @property
-    def object_layer(self) -> bool:
-        return self._object_layer
 
-    @object_layer.setter
-    def object_layer(self, object_layer: bool) -> None:
-        self._object_layer = object_layer
-        for b in self.object_buttons.values():
-            b.visible = object_layer
+class TileToolbarPanel(MapActionsToolbarPanel):
+    def __init__(self,
+                 rect: Rect,
+                 icon_surface: Surface) -> None:
+        super().__init__(rect, icon_surface=icon_surface)
 
-        for b in self.tile_buttons.values():
-            b.visible = not object_layer
-
-        if self._action.object_layer != object_layer:
-            if object_layer:
-                self.action = MapAction.SELECT_OBJECT
-            else:
-                self.action = MapAction.SELECT_TILE
+        self.tile_buttons = {
+            MapAction.SELECT_TILE: super().add_button(3, callback=lambda: self._select_action(MapAction.SELECT_TILE)),
+            MapAction.BRUSH_TILE: super().add_button(2, callback=lambda: self._select_action(MapAction.BRUSH_TILE)),
+            MapAction.RANDOM_BRUSH_TILE: super().add_button(8, callback=lambda: self._select_action(MapAction.RANDOM_BRUSH_TILE)),
+            MapAction.RUBBER_TILE: super().add_button(1, callback=lambda: self._select_action(MapAction.RUBBER_TILE)),
+            MapAction.FILL_TILE: super().add_button(5, callback=lambda: self._select_action(MapAction.FILL_TILE)),
+            MapAction.RANDOM_FILL_TILE: super().add_button(9, callback=lambda: self._select_action(MapAction.RANDOM_FILL_TILE)),
+        }
+        self.action = MapAction.BRUSH_TILE
+        self.relayout()
 
     @property
     def action(self) -> MapAction:
@@ -109,12 +77,36 @@ class MapActionsPanel(ComponentCollection):
     @action.setter
     def action(self, action: MapAction) -> None:
         self._action = action
-        if self._object_layer:
-            for k, v in self.object_buttons.items():
-                v.selected = k == action
-        else:
-            for k, v in self.tile_buttons.items():
-                v.selected = k == action
+        for k, v in self.tile_buttons.items():
+            v.selected = k == action
+
+        if self.action_selected_callback is not None:
+            self.action_selected_callback(action)
+
+
+class ObjectToolbarPanel(MapActionsToolbarPanel):
+    def __init__(self,
+                 rect: Rect,
+                 icon_surface: Surface) -> None:
+        super().__init__(rect, icon_surface=icon_surface)
+
+        self.object_buttons = {
+            MapAction.SELECT_OBJECT: self.add_button(7, callback=lambda: self._select_action(MapAction.SELECT_OBJECT)),
+            MapAction.ADD_IMAGE_OBJECT: self.add_button(2, callback=lambda: self._select_action(MapAction.ADD_IMAGE_OBJECT)),
+            MapAction.ADD_AREA_OBJECT: self.add_button(3, callback=lambda: self._select_action(MapAction.ADD_AREA_OBJECT)),
+        }
+        self.action = MapAction.SELECT_OBJECT
+        self.relayout()
+
+    @property
+    def action(self) -> MapAction:
+        return self._action
+
+    @action.setter
+    def action(self, action: MapAction) -> None:
+        self._action = action
+        for k, v in self.object_buttons.items():
+            v.selected = k == action
 
         if self.action_selected_callback is not None:
             self.action_selected_callback(action)
@@ -576,7 +568,7 @@ class MapController(ScrollableCanvas):
     def __init__(self,
                  rect: Rect,
                  font: Font,
-                 map_actions_panel: MapActionsPanel,
+                 toolbar: ToolbarPanel,
                  tileset_controller: TilesetController,
                  actions_controller: ActionsController,
                  object_added_callback: Callable[[TiledObjectGroup, TiledObject], None],
@@ -644,10 +636,20 @@ class MapController(ScrollableCanvas):
 
         self._tiled_map: Optional[TiledMap] = None
         self.tileset_controller = tileset_controller
-        self.map_actions_panel = map_actions_panel
-        self.map_actions_panel.action_selected_callback = self._action_changed
+
+        self.toolbar = toolbar
+        self.tile_actions_panel = TileToolbarPanel(Rect(0, 0, 0, toolbar.rect.height), toolbar.icon_surface)
+        self.object_actions_panel = ObjectToolbarPanel(Rect(0, 0, 0, toolbar.rect.height), toolbar.icon_surface)
+
+        self.tile_actions_panel.action_selected_callback = self._action_changed
+        self.object_actions_panel.action_selected_callback = self._action_changed
+        self.toolbar.components.append(self.tile_actions_panel)
+        self.toolbar.components.append(self.object_actions_panel)
+        self.toolbar.relayout()
+
         self._action = MapAction.BRUSH_TILE
-        self._action_changed(map_actions_panel.action)
+        self._action_changed(self._action)
+
         self.mouse_over_rect: Optional[Rect] = None
         self.mouse_x = 0
         self.mouse_y = 0
@@ -694,15 +696,29 @@ class MapController(ScrollableCanvas):
             self._mouse_adapter.deselected()
 
         if self._tiled_layer is not None:
-            self.map_actions_panel.object_layer = False
-            if action.object_layer != self.map_actions_panel.object_layer:
-                self._action = MapAction.SELECT_TILE
+            if not self.tile_actions_panel.visible:
+                self._action = self.tile_actions_panel.action
+
+            self.tile_actions_panel.visible = True
+            self.object_actions_panel.visible = False
+            self.toolbar.relayout()
+
+            if self.tile_actions_panel.action != self._action:
+                self.tile_actions_panel.action = self._action
+
             self._mouse_adapter = self._mouse_tile_adapters[self._action]
             self.tile_selection_changed()
         elif self._object_layer is not None:
-            self.map_actions_panel.object_layer = True
-            if action.object_layer != self.map_actions_panel.object_layer:
-                self._action = MapAction.SELECT_OBJECT
+            if not self.object_actions_panel.visible:
+                self._action = self.object_actions_panel.action
+
+            self.tile_actions_panel.visible = False
+            self.object_actions_panel.visible = True
+            self.toolbar.calculate_size()
+
+            if self.object_actions_panel.action != self._action:
+                self.object_actions_panel.action = self._action
+
             self._mouse_adapter = self._mouse_object_adapters[self._action]
             self.tile_selection_changed()
         else:
@@ -720,6 +736,14 @@ class MapController(ScrollableCanvas):
     @property
     def object_layer(self) -> Optional[TiledObjectGroup]:
         return self._object_layer
+
+    def set_action_panel_visibility(self, visible: bool) -> None:
+        if visible:
+            self._action_changed(self._action)
+        else:
+            self.tile_actions_panel.visible = False
+            self.object_actions_panel.visible = False
+            self.toolbar.relayout()
 
     def scrollbars_moved(self, dx: int, dy: int) -> None:
         self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
@@ -833,8 +857,7 @@ class MapController(ScrollableCanvas):
             self._mouse_adapter.deselected()
             self._mouse_adapter = self._mouse_object_adapters[MapAction.SELECT_OBJECT]
 
-        self.map_actions_panel.object_layer = True
-        self.map_actions_panel.action = MapAction.SELECT_OBJECT
+        self._action_changed(MapAction.SELECT_OBJECT)
         select_object_mouse_adapter = cast(SelectObjectMouseAdapter, self._mouse_adapter)
         if select_object_mouse_adapter.selected_object != obj:
             select_object_mouse_adapter.selected_object = obj
