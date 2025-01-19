@@ -422,7 +422,7 @@ class TiledTileLayer(BaseTiledLayer):
         elif encoding == "csv":
             data = [int(i) for i in data_node.text.split(",")]
         else:
-            raise NotImplemented(f"Unknown encoding for data {encoding}")
+            raise NotImplementedError(f"Unknown encoding for data {encoding}")
 
         columns = int(self.width)
         for i in range(len(data)):
@@ -434,10 +434,14 @@ class TiledTileLayer(BaseTiledLayer):
 
     def _sub_xml(self, stream, indent: int, close_tag: bool) -> bool:
         close_tag = self._close_tag(stream, close_tag)
+        # encoding = self.original_encoding
+        encoding = "base64"
+        # compression = self.original_compression
+        compression = None
 
         stream.write(" " * indent)
-        stream.write(f"<data encoding=\"{self.original_encoding}\"")
-        if self.original_compression is not None:
+        stream.write(f"<data encoding=\"{encoding}\"")
+        if compression is not None:
             stream.write(f" compression=\"{self.original_compression}\"")
 
         stream.write(">\n")

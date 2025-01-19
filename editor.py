@@ -18,7 +18,7 @@ from editor.hierarchy import Hierarchy
 from editor.properties import Properties
 from editor.pygame_components import ComponentCollection
 from editor.map_controller import MapController
-from editor.tileset_controller import TilesetController
+from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.toolbar_panel import ToolbarPanel
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
@@ -114,12 +114,19 @@ class Editor:
         self.actions_controller.element_property_change_callbacks.append(self._element_property_change_callback)
         self.actions_controller.add_object_callbacks.append(self._object_added_callback)
         self.actions_controller.delete_object_callbacks.append(self._object_deleted_callback)
+        self.actions_controller.clean_flag_callbacks.append(self._clean_flag_callback)
 
         toolbar_height = image_size + margin * 2
         self.tileset_controller = TilesetController(
             Rect(right_column, toolbar_height, 300, 500), None,
             self.actions_controller,
             self._tile_selected_callback
+        )
+        self.tileset_actions_toolbar = TilesetActionsPanel(
+            Rect(right_column, self.tileset_controller.rect.bottom + 10, 300, 32),
+            self.icon_surface,
+            self._add_tileset_action,
+            self._remove_tileset_action
         )
         self.map_controller = MapController(
             # Rect(0, 0, right_column, self.viewport.height),
@@ -132,13 +139,14 @@ class Editor:
             self._object_selected_callback,
             self._selection_changed_callback
         )
-        #
-        # self.map_action_panel.visible = False
-        # self.map_action_panel.action = MapAction.BRUSH_TILE
 
         self.components = ComponentCollection(
             self.viewport,
-            self.toolbar, self.map_controller, self.tileset_controller)
+            self.toolbar,
+            self.map_controller,
+            self.tileset_controller,
+            self.tileset_actions_toolbar
+        )
 
         self.key_modifier = 0
         self.mouse_x = 0
@@ -251,6 +259,15 @@ class Editor:
         # TODO do we want to have it exposed in properties (hierarchy)?
         self.map_controller.tile_selection_changed()
 
+    def _clean_flag_callback(self, clean_flag) -> None:
+        if self._tiled_map is not None and self._tiled_map.filename is not None and self._tiled_map.filename != "":
+            filename = os.path.split(self._tiled_map.filename)[-1]
+            pygame.display.set_caption(f"{'' if clean_flag else '* '} {filename}")
+        else:
+            pygame.display.set_caption("Editor")
+
+        self._save_map_button.disabled = clean_flag
+
     def _quit_action(self, _event=None) -> None:
         self.running = False
         pygame.quit()  # destroy pygame window
@@ -274,6 +291,9 @@ class Editor:
             self.hierarchy_view.set_map(self._tiled_map)
             self.hierarchy_view.selected_object = tileset
 
+    def _remove_tileset_action(self) -> None:
+        print(f"Calculate removing tileset")
+
     def _load_file_action(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
         if filename != "":
@@ -284,6 +304,9 @@ class Editor:
             self._save_as_map_action()
         else:
             self._tiled_map.save(self._tiled_map.filename)
+            filename = os.path.split(self._tiled_map.filename)[-1]
+            pygame.display.set_caption(filename)
+            self.actions_controller.mark_saved()
 
     def _save_as_map_action(self, _event=None) -> None:
         filename = filedialog.asksaveasfilename(title="Save map", filetypes=(("Map file", "*.tmx"),))
@@ -368,6 +391,10 @@ class Editor:
             self.run_menu.entryconfig(1, label=f"Run '{map_name}'", state="normal")
         else:
             self.run_menu.entryconfig(1, label=f"Run", state="normal")
+
+        filename = os.path.split(self._tiled_map.filename)[-1]
+        pygame.display.set_caption(filename)
+        self.actions_controller.mark_saved()
 
     def run_map(self) -> None:
         if "code" in self._tiled_map.properties:
@@ -546,8 +573,6 @@ class Editor:
         self.screen = pygame.display.set_mode((1150, 900))
         self.screen_rect = self.screen.get_rect()
         pygame.display.set_caption("Editor")
-
-        pygame.display.set_caption("Editor Window")
 
     def pygame_loop(self) -> None:
         control_modifier = pygame.KMOD_META if self.macos else pygame.KMOD_CTRL

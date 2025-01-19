@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 import time
 from abc import ABC
 from enum import Enum
@@ -8,7 +10,7 @@ from pygame import Color
 from engine.tmx import TiledMap, TiledObjectGroup, BaseTiledLayer, TiledTileLayer, TiledObject, TiledTileset, TiledElement
 
 
-MAX_UNDO = 20
+MAX_UNDO = 5
 
 
 class ChangeKind(Enum):
@@ -231,6 +233,7 @@ class ActionsController:
         self.element_property_change_callbacks: list[Callable[[TiledElement, ChangeKind, str, Any], None]] = []
 
         self.undo_redo_callbacks: list[Callable[[bool, bool], None]] = []
+        self.clean_flag_callbacks: list[Callable[[bool], None]] = []
 
         self._no_change = NoChange(self)
 
@@ -239,6 +242,7 @@ class ActionsController:
         self.last_change_timestamp = 0.0
         self.changes: list[Change] = []
         self.pointer = 0
+        self.saved_pointer = 0
 
     def notify_add_object_change(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         for callback in self.add_object_callbacks:
@@ -255,6 +259,10 @@ class ActionsController:
     def notify_element_property_change(self, element: TiledElement, kind: ChangeKind, key: str, value: Any) -> None:
         for callback in self.element_property_change_callbacks:
             callback(element, kind, key, value)
+
+    def notify_clean_flag_change(self, clean_flag: bool) -> None:
+        for callback in self.clean_flag_callbacks:
+            callback(clean_flag)
 
     @property
     def tiled_map(self) -> TiledMap:
@@ -326,26 +334,49 @@ class ActionsController:
         for callback in self.current_tileset_callbacks:
             callback(current_tileset)
 
+    def mark_saved(self) -> None:
+        if self.pointer != self.saved_pointer:
+            self.saved_pointer = self.pointer
+            self.notify_clean_flag_change(True)
+
+    @contextmanager
+    def with_clean_flag(self) -> None:
+        clean_flag = self.pointer == self.saved_pointer
+        try:
+            yield
+        finally:
+            new_clean_flag = self.pointer == self.saved_pointer
+            if new_clean_flag != clean_flag:
+                self.notify_clean_flag_change(new_clean_flag)
+
     def _add_change(self, change: Change) -> None:
-        self.fix_change()
+        with self.with_clean_flag():
+            self.fix_change()
 
-        if self.pointer < len(self.changes):
-            del self.changes[self.pointer:]
-        if len(self.changes) > MAX_UNDO:
-            del self.changes[0]
-        # print(f"Added change for {change.kind}")
-        previous = None if len(self.changes) == 0 else self.changes[-1]
-        previous = previous if previous is not None and previous.kind == change.kind else None
-        change.prepare(previous)
-        self.changes.append(change)
-        self.pointer = len(self.changes)
+            if self.pointer < len(self.changes):
+                del self.changes[self.pointer:]
+                if self.saved_pointer > self.pointer:
+                    self.saved_pointer = -1
+                    self.notify_clean_flag_change(False)
+            if len(self.changes) > MAX_UNDO:
+                del self.changes[0]
+                self.pointer -= 1
+                self.saved_pointer -= 1
+                if self.pointer <= 0:
+                    self.pointer = 0
+            # print(f"Added change for {change.kind}")
+            previous = None if len(self.changes) == 0 else self.changes[-1]
+            previous = previous if previous is not None and previous.kind == change.kind else None
+            change.prepare(previous)
+            self.changes.append(change)
+            self.pointer = len(self.changes)
 
-        self.current_unfixed_change = change if not change.fixed else None
-        self.change_kind = ChangeKind.NONE if self.current_unfixed_change is None else change.kind
-        # print(f"New change {change.kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
+            self.current_unfixed_change = change if not change.fixed else None
+            self.change_kind = ChangeKind.NONE if self.current_unfixed_change is None else change.kind
+            # print(f"New change {change.kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
 
-        for callback in self.undo_redo_callbacks:
-            callback(self.pointer > 0, False)
+            for callback in self.undo_redo_callbacks:
+                callback(self.pointer > 0, False)
 
     def action_tick(self) -> None:
         if self.change_kind.cumulative and self.last_change_timestamp + 2 < time.time():
@@ -360,33 +391,37 @@ class ActionsController:
         self.change_kind = ChangeKind.NONE
 
     def undo(self) -> None:
-        if self.pointer > 0:
-            if not self.changes[self.pointer - 1].fixed:
-                self.changes[self.pointer - 1].fix()
+        with self.with_clean_flag():
+            if self.pointer > 0:
+                if not self.changes[self.pointer - 1].fixed:
+                    self.changes[self.pointer - 1].fix()
 
-            self.pointer -= 1
-            self.changes[self.pointer].undo()
-            # print(f"Undo change {self.changes[self.pointer].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
-            for callback in self.undo_redo_callbacks:
-                callback(self.pointer > 0, self.pointer < len(self.changes))
-        self.change_kind = ChangeKind.NONE
+                self.pointer -= 1
+                self.changes[self.pointer].undo()
+                # print(f"Undo change {self.changes[self.pointer].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
+                for callback in self.undo_redo_callbacks:
+                    callback(self.pointer > 0, self.pointer < len(self.changes))
+            self.change_kind = ChangeKind.NONE
 
     def redo(self) -> None:
-        self.fix_change()
+        with self.with_clean_flag():
+            self.fix_change()
 
-        if self.pointer < len(self.changes):
-            self.changes[self.pointer].redo()
-            self.pointer += 1
-            # print(f"Redo change {self.changes[self.pointer - 1].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
-            for callback in self.undo_redo_callbacks:
-                callback(self.pointer > 0, self.pointer < len(self.changes))
-        self.change_kind = ChangeKind.NONE
+            if self.pointer < len(self.changes):
+                self.changes[self.pointer].redo()
+                self.pointer += 1
+                # print(f"Redo change {self.changes[self.pointer - 1].kind} {len(self.changes)} ptr {self.pointer}, unfixed={'' if self.current_unfixed_change is None else self.current_unfixed_change.kind}")
+                for callback in self.undo_redo_callbacks:
+                    callback(self.pointer > 0, self.pointer < len(self.changes))
+            self.change_kind = ChangeKind.NONE
 
     def reset_undo_buffer(self) -> None:
-        del self.changes[:]
-        self.pointer = 0
-        self.current_unfixed_change = None
-        self.change_kind = ChangeKind.NONE
+        with self.with_clean_flag():
+            del self.changes[:]
+            self.pointer = 0
+            self.saved_pointer = -1
+            self.current_unfixed_change = None
+            self.change_kind = ChangeKind.NONE
 
     # Actions
 

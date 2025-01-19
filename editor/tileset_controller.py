@@ -5,7 +5,20 @@ from pygame import Rect, Surface
 
 from editor.actions_controller import ActionsController
 from editor.pygame_components import ScrollableCanvas
+from editor.toolbar_panel import ToolbarPanel
 from engine.tmx import TiledTileset
+
+
+class TilesetActionsPanel(ToolbarPanel):
+    def __init__(self,
+                 rect: Rect,
+                 icon_surface: Surface,
+                 add_tileset_callback: Callable[[], None],
+                 remove_tileset_callback: Callable[[], None]) -> None:
+        super().__init__(rect, icon_surface=icon_surface)
+
+        self.add_tileset_button = self.add_button(18, 38, add_tileset_callback)
+        self.remove_tileset_button = self.add_button(19, 39, remove_tileset_callback)
 
 
 class TilesetController(ScrollableCanvas):
