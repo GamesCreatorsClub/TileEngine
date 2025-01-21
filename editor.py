@@ -15,11 +15,10 @@ from pygame import Surface, Rect, K_BACKSPACE
 
 from editor.actions_controller import ActionsController, ChangeKind
 from editor.hierarchy import Hierarchy
+from editor.main_window import MainWindow
 from editor.properties import Properties
-from editor.pygame_components import ComponentCollection
 from editor.map_controller import MapController
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
-from editor.toolbar_panel import ToolbarPanel
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
 MOUSE_DOWN_COUNTER = 1
@@ -78,34 +77,6 @@ class Editor:
         # self.font = pygame.font.Font(os.path.join(os.path.dirname(__file__), "editor", "raleway-medium-webfont.ttf"), 17)
         self.font = pygame.font.Font(os.path.join(os.path.dirname(__file__), "editor", "test_fixed.otf"), 17)
 
-        self.viewport = Rect(0, 0, 1150, 900)
-        right_column = self.viewport.width - 300
-
-        image_size = 32
-        margin = 3
-
-        self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "editor", "icons.png"))
-
-        self.toolbar = ToolbarPanel(Rect(0, 0, 0, 0), icon_surface=self.icon_surface)
-        self._new_map_button = self.toolbar.add_button(12, callback=self._create_new_map_action)
-        self._load_map_button = self.toolbar.add_button(10, callback=self._load_file_action)
-        self._save_map_button = self.toolbar.add_button(11, 31, callback=self._save_map_action)
-        self.toolbar.add_spacer()
-        self._redo_button = self.toolbar.add_button(13, 33, callback=self._undo_action)
-        self._undo_button = self.toolbar.add_button(14, 34, callback=self._redo_action)
-        self.toolbar.add_spacer()
-        self._cut_button = self.toolbar.add_button(16, 36, callback=self._undo_action)
-        self._copy_button = self.toolbar.add_button(15, 35, callback=self._redo_action)
-        self._paste_button = self.toolbar.add_button(17, 37, callback=self._undo_action)
-        self.toolbar.add_spacer()
-
-        self._save_map_button.disabled = True
-        self._redo_button.disabled = True
-        self._undo_button.disabled = True
-        self._cut_button.disabled = True
-        self._copy_button.disabled = True
-        self._paste_button.disabled = True
-
         self.actions_controller = ActionsController()
         self.actions_controller.tiled_map_callbacks.append(self._tiled_map_callback)
         self.actions_controller.current_object_callbacks.append(self._current_object_callback)
@@ -116,37 +87,63 @@ class Editor:
         self.actions_controller.delete_object_callbacks.append(self._object_deleted_callback)
         self.actions_controller.clean_flag_callbacks.append(self._clean_flag_callback)
 
+        self.viewport = Rect(0, 0, 1150, 900)
+        right_column = self.viewport.width - 300
+
+        image_size = 32
+        margin = 3
+
+        # self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "editor", "icons.png"))
+
+        self.main_window = MainWindow(self.viewport)
+
+        self._new_map_button = self.main_window.toolbar.add_button(12, callback=self._create_new_map_action)
+        self._load_map_button = self.main_window.toolbar.add_button(10, callback=self._load_file_action)
+        self._save_map_button = self.main_window.toolbar.add_button(11, 31, callback=self._save_map_action)
+        self.main_window.toolbar.add_spacer()
+        self._redo_button = self.main_window.toolbar.add_button(13, 33, callback=self._undo_action)
+        self._undo_button = self.main_window.toolbar.add_button(14, 34, callback=self._redo_action)
+        self.main_window.toolbar.add_spacer()
+        self._cut_button = self.main_window.toolbar.add_button(16, 36, callback=self._undo_action)
+        self._copy_button = self.main_window.toolbar.add_button(15, 35, callback=self._redo_action)
+        self._paste_button = self.main_window.toolbar.add_button(17, 37, callback=self._undo_action)
+        self.main_window.toolbar.add_spacer()
+
+        self._save_map_button.disabled = True
+        self._redo_button.disabled = True
+        self._undo_button.disabled = True
+        self._cut_button.disabled = True
+        self._copy_button.disabled = True
+        self._paste_button.disabled = True
+
         toolbar_height = image_size + margin * 2
-        self.tileset_controller = TilesetController(
-            Rect(right_column, toolbar_height, 300, 500), None,
+        self.main_window.tileset_controller = TilesetController(
+            # Rect(right_column, toolbar_height, 300, 500),
+            Rect(0, 0, 0, 0),
+            None,
             self.actions_controller,
             self._tile_selected_callback
         )
-        self.tileset_actions_toolbar = TilesetActionsPanel(
-            Rect(right_column, self.tileset_controller.rect.bottom + 10, 300, 32),
-            self.icon_surface,
+        self.main_window.tileset_actions_toolbar = TilesetActionsPanel(
+            # Rect(right_column, self.main_window.tileset_controller.rect.bottom + 10, 300, 32),
+            Rect(0, 0, 0, 0),
+            self.main_window.icon_surface,
             self._add_tileset_action,
             self._remove_tileset_action
         )
-        self.map_controller = MapController(
+        self.main_window.map_controller = MapController(
             # Rect(0, 0, right_column, self.viewport.height),
-            Rect(0, toolbar_height, right_column, self.viewport.height - toolbar_height),
+            # Rect(0, toolbar_height, right_column, self.viewport.height - toolbar_height),
+            Rect(0, 0, 0, 0),
             self.font,
-            self.toolbar,
-            self.tileset_controller,
+            self.main_window.toolbar,
+            self.main_window.tileset_controller,
             self.actions_controller,
             self._object_added_callback,
             self._object_selected_callback,
             self._selection_changed_callback
         )
-
-        self.components = ComponentCollection(
-            self.viewport,
-            self.toolbar,
-            self.map_controller,
-            self.tileset_controller,
-            self.tileset_actions_toolbar
-        )
+        self.main_window.finish_initialisation()
 
         self.key_modifier = 0
         self.mouse_x = 0
@@ -160,7 +157,7 @@ class Editor:
 
             self.map_menu.entryconfig("Add Tileset", state="normal")
 
-            self.map_controller.set_action_panel_visibility(True)
+            self.main_window.map_controller.set_action_panel_visibility(True)
             self.hierarchy_view.set_map(tiled_map)
 
         else:
@@ -257,7 +254,7 @@ class Editor:
 
     def _tile_selected_callback(self, _tile_id: Optional[int]) -> None:
         # TODO do we want to have it exposed in properties (hierarchy)?
-        self.map_controller.tile_selection_changed()
+        self.main_window.map_controller.tile_selection_changed()
 
     def _clean_flag_callback(self, clean_flag) -> None:
         if self._tiled_map is not None and self._tiled_map.filename is not None and self._tiled_map.filename != "":
@@ -324,18 +321,18 @@ class Editor:
         print(f"PASTE for {self.current_element}")
 
     def _redo_action(self, _event=None) -> None:
-        self.map_controller.deselect_object()
+        self.main_window.map_controller.deselect_object()
         self.actions_controller.redo()
 
     def _undo_action(self, _event=None) -> None:
-        self.map_controller.deselect_object()
+        self.main_window.map_controller.deselect_object()
         self.actions_controller.undo()
 
     def _select_all_action(self, _event=None) -> None:
-        self.map_controller.select_all()
+        self.main_window.map_controller.select_all()
 
     def _select_none_action(self, _event=None) -> None:
-        self.map_controller.select_none()
+        self.main_window.map_controller.select_none()
 
     def _create_new_map_action(self, _event=None) -> None:
         self.actions_controller.create_new_map()
@@ -349,9 +346,9 @@ class Editor:
             self.actions_controller.delete_object(obj)
             layer = cast(TiledObjectGroup, obj.layer)
             self.hierarchy_view.delete_object(layer, obj)
-            self.map_controller.deselect_object()
+            self.main_window.map_controller.deselect_object()
         elif self.actions_controller.tiled_layer is not None:
-            self.map_controller.delete_tiles()
+            self.main_window.map_controller.delete_tiles()
         else:
             print(f"No layer selected")
 
@@ -587,24 +584,23 @@ class Editor:
                     self._quit_action()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_down_counter = MOUSE_DOWN_COUNTER
-                    self.components.mouse_down(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
+                    self.main_window.mouse_down(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.MOUSEBUTTONUP:
                     mouse_down_counter = 0
-                    self.components.mouse_up(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
+                    self.main_window.mouse_up(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.MOUSEMOTION:
                     self.mouse_x = event.pos[0]
                     self.mouse_y = event.pos[1]
-                    self.components.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
+                    self.main_window.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
                     mouse_down_counter = MOUSE_DOWN_COUNTER
                     self.root.update()
                 elif event.type == pygame.WINDOWLEAVE:
-                    self.components.mouse_out(0, 0)
+                    self.main_window.mouse_out(0, 0)
                     self.root.update()
                 elif event.type == pygame.MOUSEWHEEL:
-                    print(f"*** mouse wheel event")
-                    self.components.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
+                    self.main_window.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
                     self.root.update()
                 elif event.type == pygame.KEYDOWN:
                     key = event.key
@@ -671,7 +667,7 @@ class Editor:
                             self._redo_action()
 
                     if dx != 0 or dy != 0:
-                        self.components.mouse_wheel(self.mouse_x, self.mouse_y, dx, dy, self.key_modifier)
+                        self.main_window.mouse_wheel(self.mouse_x, self.mouse_y, dx, dy, self.key_modifier)
 
                 elif event.type == pygame.KEYUP:
                     key = event.key
@@ -704,7 +700,7 @@ class Editor:
                 mouse_down_counter -= 1
                 if mouse_down_counter == 0:
                     mouse_down_counter = MOUSE_DOWN_COUNTER
-                    self.components.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
+                    self.main_window.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
 
             self.previous_keys = self.current_keys
             self.current_keys = pygame.key.get_pressed()
@@ -715,7 +711,7 @@ class Editor:
 
             self.clock.tick(30)
             self.screen.fill((200, 200, 200))
-            self.components.draw(self.screen)
+            self.main_window.draw(self.screen)
 
             pygame.display.flip()
             if not has_focus:

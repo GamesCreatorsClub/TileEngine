@@ -33,10 +33,10 @@ class Component:
 
     def redefine_rect(self, rect: Rect) -> None:
         self.rect = rect
+        self.relayout()
 
     def relayout(self) -> None:
-        self.rect.size = self.calculate_size()
-        self.redefine_rect(self.rect)
+        pass
 
     @property
     def visible(self) -> bool:
@@ -149,11 +149,15 @@ class ComponentCollection(Component):
 
     def redefine_rect(self, rect) -> None:
         self.rect = rect
+        self.relayout()
+
+    def relayout(self) -> None:
+        self.rect.size = self.calculate_size()
         if self.layout is not None:
-            self.layout.arrange(rect, self.components)
+            self.layout.arrange(self.rect, self.components)
         else:
             for component in self.components:
-                component.redefine_rect(rect)
+                component.redefine_rect(self.rect)
 
     def draw(self, surface: Surface) -> None:
         for c in self.components:
@@ -491,6 +495,21 @@ class ScrollableCanvas(ComponentCollection, ABC):
 
     def scrollbars_moved(self, dx: int, dy: int) -> None:
         pass
+
+    def relayout(self) -> None:
+        self.content_rect.update(self.rect)
+        self.content_rect.width -= self.scrollbar_width
+        self.content_rect.height -= self.scrollbar_width
+
+        r = self.rect.move(0, self.rect.height - self.scrollbar_width)
+        r.width -= self.scrollbar_width
+        r.height = self.scrollbar_width
+        self.h_scrollbar.redefine_rect(r)
+
+        r = self.rect.move(self.rect.width - self.scrollbar_width, 0)
+        r.width = self.scrollbar_width
+        r.height -= self.scrollbar_width
+        self.v_scrollbar.redefine_rect(r)
 
     def draw(self, surface: Surface) -> None:
         with clip(surface, self.rect):
