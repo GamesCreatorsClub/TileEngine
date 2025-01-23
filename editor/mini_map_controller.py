@@ -58,11 +58,16 @@ class MiniMap(Component):
         return False
 
     def mouse_in(self, x: int, y: int) -> bool:
+        pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_SIZEALL)
         if self.mouse_is_down:
             self.mouse_x = x
             self.mouse_y = y
             return True
         return False
+
+    def mouse_out(self, x: int, y: int) -> bool:
+        pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+        return True
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:
         if self.mouse_is_down:

@@ -31,7 +31,8 @@ class MainWindow(ComponentCollection):
         self.components += [
             self.toolbar, self.map_controller, self.divider, self.mini_map, self.info_panel, self.tileset_controller, self.tileset_actions_toolbar
         ]
-        self.divider.rect.update(self.rect.right - 300, self.rect.y, 10, self.rect.height)
+        self.divider.rect.update(self.rect.right - 300, self.rect.y + self.toolbar.rect.height, 5, self.rect.height - self.toolbar.rect.height)
+        self.divider.redefine_rect(self.divider.rect)
         self.relayout()
 
     def calculate_size(self) -> UISize:
@@ -40,6 +41,7 @@ class MainWindow(ComponentCollection):
     def redefine_rect(self, rect: Rect) -> None:
         divider_from_left = self.rect.right - self.divider.rect.x
         self.divider.rect.x = rect.right - divider_from_left
+        self.divider.redefine_rect(self.divider.rect)
         self.rect = rect
         self.relayout()
 

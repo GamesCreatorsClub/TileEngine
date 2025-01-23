@@ -365,9 +365,10 @@ class Scrollbar(Component):
             self.bar_rect.y = self.rect.y + 2
             self.bar_rect.height = self.rect.height - 4
 
-            r = (((self.rect.width // 2) if self.allow_over else 0) - self._offset) / scroll_range
-            x = int(r * self.bar_screen_range)
-            self.bar_rect.x = self.rect.x + x - (self.bar_width // 2 if self.allow_over else 0)
+            if scroll_range != 0:
+                r = (((self.rect.width // 2) if self.allow_over else 0) - self._offset) / scroll_range
+                x = int(r * self.bar_screen_range)
+                self.bar_rect.x = self.rect.x + x - (self.bar_width // 2 if self.allow_over else 0)
             self.bar_rect.width = self.bar_width
         else:
             self.bar_width = self.rect.height * (self.rect.height / self._width)
@@ -381,9 +382,10 @@ class Scrollbar(Component):
             self.bar_rect.x = self.rect.x + 2
             self.bar_rect.width = self.rect.width - 4
 
-            r = (((self.rect.height // 2) if self.allow_over else 0) - self._offset) / scroll_range
-            y = int(r * self.bar_screen_range)
-            self.bar_rect.y = self.rect.y + y - (self.bar_width // 2 if self.allow_over else 0)
+            if scroll_range != 0:
+                r = (((self.rect.height // 2) if self.allow_over else 0) - self._offset) / scroll_range
+                y = int(r * self.bar_screen_range)
+                self.bar_rect.y = self.rect.y + y - (self.bar_width // 2 if self.allow_over else 0)
             self.bar_rect.height = self.bar_width
 
     @property
@@ -554,23 +556,18 @@ class Divider(Component):
         self.parent = parent
         self.min_right_bottom = min_right_bottom
         self.min_left_top = min_left_top
-        self.spacer_rect = rect
+        self.spacer_rect = Rect(rect.x, rect.y, rect.width, rect.height)
         self.redefine_rect(rect)
         self.mouse_is_down = False
         self.mouse_x = 0
         self.mouse_y = 0
 
     def redefine_rect(self, rect: Rect) -> None:
+        super().redefine_rect(rect)
         if self.horizontal:
-            self.spacer_rect = rect.move(0, self.rect.height // 2 - 1)
-            self.spacer_rect.height = 2
-            self.spacer_rect.width -= 4
-            self.spacer_rect.x += 2
+            self.spacer_rect.update(rect.x + rect.width // 50, rect.y + rect.width // 2 - 1, rect.width * 48 // 50, 2)
         else:
-            self.spacer_rect = rect.move(self.rect.width // 2 - 1, 0)
-            self.spacer_rect.width = 2
-            self.spacer_rect.height -= 4
-            self.spacer_rect.y += 2
+            self.spacer_rect.update(rect.x + rect.width // 2 - 1, rect.y + rect.height // 50, 2, rect.height * 48 // 50)
 
     def draw(self, surface: Surface) -> None:
         pygame.draw.rect(surface, (128, 128, 128), self.spacer_rect)
@@ -590,11 +587,20 @@ class Divider(Component):
         return False
 
     def mouse_in(self, x: int, y: int) -> bool:
+        if self.horizontal:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_SIZENS)
+        else:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_SIZEWE)
+
         if self.mouse_is_down:
             self.mouse_x = x
             self.mouse_y = y
             return True
         return False
+
+    def mouse_out(self, x: int, y: int) -> bool:
+        pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+        return True
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:
         if self.mouse_is_down:
@@ -614,6 +620,7 @@ class Divider(Component):
                     dx = 0
 
             self.rect.move_ip(dx, dy)
+            self.redefine_rect(self.rect)
             self.parent.relayout()
 
             self.mouse_x = x
