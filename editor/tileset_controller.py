@@ -45,6 +45,11 @@ class TilesetController(ScrollableCanvas):
         self.h_scrollbar.visible = tileset is not None
         self.v_scrollbar.visible = tileset is not None
 
+    def redefine_rect(self, rect) -> None:
+        super().redefine_rect(rect)
+        if self._tileset is not None:
+            self._calc_tileset_rect()
+
     def _current_tileset_callback(self, tileset: TiledTileset) -> None:
         new_tileset = self._tileset != tileset
         self._tileset = tileset

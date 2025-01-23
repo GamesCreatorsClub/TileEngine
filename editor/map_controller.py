@@ -661,6 +661,8 @@ class MapController(ScrollableCanvas):
         self.v_scrollbar.visible = False
         self.h_scrollbar.visible = False
 
+        self.scrollbars_moved_callbacks: list[Callable[[int, int], None]] = []
+
     def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
         if tiled_map is None:
@@ -675,6 +677,7 @@ class MapController(ScrollableCanvas):
             self.overlay_surface.fill((255, 255, 0, 64))
             self._selection_overlay = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
             self._selection_overlay.fill((255, 255, 0, 32))
+            self.scrollbars_moved(0, 0)
 
     def _current_layer_callback(self, current_layer: BaseTiledLayer) -> None:
         self._current_layer = current_layer
@@ -749,6 +752,9 @@ class MapController(ScrollableCanvas):
         self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
         for r in self.selection_viewport_rects:
             r.move_ip(dx, dy)
+
+        for callback in self.scrollbars_moved_callbacks:
+            callback(dx, dy)
 
     def is_in_selection(self, x: int, y: int) -> bool:
         if len(self.selection) == 0:

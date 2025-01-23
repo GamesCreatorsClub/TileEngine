@@ -166,20 +166,28 @@ class ComponentCollection(Component):
 
     def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
         self.mouse_pressed &= ~button
-        for c in self.components:
-            if c.visible and c.rect.collidepoint(x, y):
-                consumed = c.mouse_up(x, y, button, modifier)
-                if consumed:
-                    return True
+        if self.over_component is not None:
+            self.over_component.mouse_up(x, y, button, modifier)
+            if self.mouse_pressed == 0:
+                self.over_component = None
+        else:
+            for c in self.components:
+                if c.visible and c.rect.collidepoint(x, y):
+                    consumed = c.mouse_up(x, y, button, modifier)
+                    if consumed:
+                        return True
         return False
 
     def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
         self.mouse_pressed |= button
-        for c in self.components:
-            if c.visible and c.rect.collidepoint(x, y):
-                consumed = c.mouse_down(x, y, button, modifier)
-                if consumed:
-                    return True
+        if self.mouse_pressed != 0 and self.over_component is not None:
+            self.over_component.mouse_down(x, y, button, modifier)
+        else:
+            for c in self.components:
+                if c.visible and c.rect.collidepoint(x, y):
+                    consumed = c.mouse_down(x, y, button, modifier)
+                    if consumed:
+                        return True
         return False
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:
@@ -339,6 +347,10 @@ class Scrollbar(Component):
         self.mouse_pressed = False
         self.mouse_pressed_x = 0
         self.mouse_pressed_y = 0
+
+    def redefine_rect(self, rect: Rect) -> None:
+        super().redefine_rect(rect)
+        self._recalculate_bar_rect()
 
     def _recalculate_bar_rect(self) -> None:
         if self.horizontal:
@@ -528,3 +540,83 @@ class ScrollableCanvas(ComponentCollection, ABC):
             self.h_scrollbar.offset -= dx
             self.v_scrollbar.offset += dy
         return True
+
+
+class Divider(Component):
+    def __init__(self,
+                 rect: Rect,
+                 horizontal: bool,
+                 parent: Component,
+                 min_left_top: int = 100,
+                 min_right_bottom: int = 100) -> None:
+        super().__init__(rect)
+        self.horizontal = horizontal
+        self.parent = parent
+        self.min_right_bottom = min_right_bottom
+        self.min_left_top = min_left_top
+        self.spacer_rect = rect
+        self.redefine_rect(rect)
+        self.mouse_is_down = False
+        self.mouse_x = 0
+        self.mouse_y = 0
+
+    def redefine_rect(self, rect: Rect) -> None:
+        if self.horizontal:
+            self.spacer_rect = rect.move(0, self.rect.height // 2 - 1)
+            self.spacer_rect.height = 2
+            self.spacer_rect.width -= 4
+            self.spacer_rect.x += 2
+        else:
+            self.spacer_rect = rect.move(self.rect.width // 2 - 1, 0)
+            self.spacer_rect.width = 2
+            self.spacer_rect.height -= 4
+            self.spacer_rect.y += 2
+
+    def draw(self, surface: Surface) -> None:
+        pygame.draw.rect(surface, (128, 128, 128), self.spacer_rect)
+
+    def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_is_down = True
+            self.mouse_x = x
+            self.mouse_y = y
+            return True
+        return False
+
+    def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
+        if button == 1:
+            self.mouse_is_down = False
+            return True
+        return False
+
+    def mouse_in(self, x: int, y: int) -> bool:
+        if self.mouse_is_down:
+            self.mouse_x = x
+            self.mouse_y = y
+            return True
+        return False
+
+    def mouse_move(self, x: int, y: int, modifier: int) -> bool:
+        if self.mouse_is_down:
+            if self.horizontal:
+                dx = 0
+                dy = y - self.mouse_y
+                if self.rect.y + dy < self.parent.rect.y + self.min_left_top:
+                    dy = 0
+                if self.rect.y + dy > self.parent.rect.bottom - self.min_right_bottom:
+                    dy = 0
+            else:
+                dy = 0
+                dx = x - self.mouse_x
+                if self.rect.x + dx < self.parent.rect.x + self.min_left_top:
+                    dx = 0
+                if self.rect.x + dx > self.parent.rect.right - self.min_right_bottom:
+                    dx = 0
+
+            self.rect.move_ip(dx, dy)
+            self.parent.relayout()
+
+            self.mouse_x = x
+            self.mouse_y = y
+            return True
+        return False

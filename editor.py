@@ -15,7 +15,9 @@ from pygame import Surface, Rect, K_BACKSPACE
 
 from editor.actions_controller import ActionsController, ChangeKind
 from editor.hierarchy import Hierarchy
+from editor.info_panel import InfoPanel
 from editor.main_window import MainWindow
+from editor.mini_map_controller import MiniMap
 from editor.properties import Properties
 from editor.map_controller import MapController
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
@@ -143,6 +145,8 @@ class Editor:
             self._object_selected_callback,
             self._selection_changed_callback
         )
+        self.main_window.mini_map = MiniMap(Rect(0, 0, 0, 0), self.main_window.map_controller)
+        self.main_window.info_panel = InfoPanel(Rect(0, 0, 0, 0), self.font, self.actions_controller)
         self.main_window.finish_initialisation()
 
         self.key_modifier = 0
@@ -567,7 +571,7 @@ class Editor:
         else:
             os.environ['SDL_VIDEO_WINDOW_POS'] = "315,30"
 
-        self.screen = pygame.display.set_mode((1150, 900))
+        self.screen = pygame.display.set_mode((1150, 900), pygame.RESIZABLE)
         self.screen_rect = self.screen.get_rect()
         pygame.display.set_caption("Editor")
 
@@ -596,6 +600,10 @@ class Editor:
                     self.main_window.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
                     mouse_down_counter = MOUSE_DOWN_COUNTER
                     self.root.update()
+                elif event.type == pygame.VIDEORESIZE:
+                    pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                    rect = Rect(0, 0, event.w, event.h)
+                    self.main_window.redefine_rect(rect)
                 elif event.type == pygame.WINDOWLEAVE:
                     self.main_window.mouse_out(0, 0)
                     self.root.update()
