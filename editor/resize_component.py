@@ -111,6 +111,8 @@ class ResizeButton(Button):
         return True
 
     def mouse_out(self, x: int, y: int) -> bool:
-        self.mouse_over = False
-        self.mouse_pressed = False
+        if not self.mouse_pressed:
+            self.mouse_over = False
+            self.mouse_pressed = False
+
         return True

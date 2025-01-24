@@ -152,11 +152,6 @@ class SelectObjectMouseAdapter(MouseAdapter):
         self.mouse_is_down = False
         self.touch_x = 0
         self.touch_y = 0
-        self.viewport = Rect(
-            -self.map_controller.h_scrollbar.offset,
-            -self.map_controller.v_scrollbar.offset,
-            self.map_controller.rect.width - self.map_controller.v_scrollbar.rect.width,
-            self.map_controller.rect.height - self.map_controller.h_scrollbar.rect.height)
 
     def selected(self) -> None:
         pass
@@ -239,20 +234,20 @@ class SelectObjectMouseAdapter(MouseAdapter):
         return False
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
-        if self.selected_object is not None and self.mouse_is_down and self.viewport.collidepoint(x, y):
+        if self.selected_object is not None and self.mouse_is_down and self.map_controller.viewport.collidepoint(x, y):
             dx = x - self.touch_x
             dy = y - self.touch_y
             if dx == 0 and dy == 0:
                 if x <= self.scrolling_margin:
                     dx = -self.scrolling_step
                     self.map_controller.h_scrollbar.offset += self.scrolling_step
-                elif x >= self.viewport.right - self.scrolling_margin:
+                elif x >= self.map_controller.viewport.right - self.scrolling_margin:
                     dx = +self.scrolling_step
                     self.map_controller.h_scrollbar.offset -= self.scrolling_step
                 if y <= self.scrolling_margin:
                     dy = -self.scrolling_step
                     self.map_controller.v_scrollbar.offset += self.scrolling_step
-                elif y >= self.viewport.bottom - self.scrolling_margin:
+                elif y >= self.map_controller.viewport.bottom - self.scrolling_margin:
                     dy = self.scrolling_step
                     self.map_controller.v_scrollbar.offset -= self.scrolling_step
 
@@ -277,7 +272,6 @@ class SelectObjectMouseAdapter(MouseAdapter):
         return True
 
     def mouse_out(self, x: int, y: int) -> bool:
-        # self.mouse_is_down = False
         return False
 
 
@@ -749,6 +743,8 @@ class MapController(ScrollableCanvas):
             self.toolbar.relayout()
 
     def scrollbars_moved(self, dx: int, dy: int) -> None:
+        if isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
+            cast(SelectObjectMouseAdapter, self._mouse_adapter).update_buttons()
         self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
         for r in self.selection_viewport_rects:
             r.move_ip(dx, dy)

@@ -166,8 +166,9 @@ class ComponentCollection(Component):
 
     def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
         self.mouse_pressed &= ~button
+        consumed = False
         if self.over_component is not None:
-            self.over_component.mouse_up(x, y, button, modifier)
+            consumed = self.over_component.mouse_up(x, y, button, modifier)
             if self.mouse_pressed == 0:
                 self.over_component = None
         else:
@@ -176,19 +177,20 @@ class ComponentCollection(Component):
                     consumed = c.mouse_up(x, y, button, modifier)
                     if consumed:
                         return True
-        return False
+        return consumed
 
     def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
         self.mouse_pressed |= button
+        consumed = False
         if self.mouse_pressed != 0 and self.over_component is not None:
-            self.over_component.mouse_down(x, y, button, modifier)
+            consumed = self.over_component.mouse_down(x, y, button, modifier)
         else:
             for c in self.components:
                 if c.visible and c.rect.collidepoint(x, y):
                     consumed = c.mouse_down(x, y, button, modifier)
                     if consumed:
                         return True
-        return False
+        return consumed
 
     def mouse_move(self, x: int, y: int, modifier: int) -> bool:
         if self.mouse_pressed != 0 and self.over_component is not None:
@@ -215,10 +217,11 @@ class ComponentCollection(Component):
         return False
 
     def mouse_out(self, x: int, y: int) -> bool:
+        consumed = False
         if self.over_component:
-            self.over_component.mouse_out(x, y)
+            consumed = self.over_component.mouse_out(x, y)
             self.over_component = None
-        return False
+        return consumed
 
     def mouse_wheel(self, x: int, y: int, dx: int, dy: int, modifier) -> bool:
         for c in self.components:
@@ -500,6 +503,20 @@ class ScrollableCanvas(ComponentCollection, ABC):
         r.height -= scrollbar_width
         self.v_scrollbar = Scrollbar(r, False, allow_over=allow_over, callback=self._scrollbar_v_moved)
         self.components += [self.h_scrollbar, self.v_scrollbar]
+        self.viewport = Rect(
+            -self.h_scrollbar.offset,
+            -self.v_scrollbar.offset,
+            self.rect.width - self.v_scrollbar.rect.width,
+            self.rect.height - self.h_scrollbar.rect.height)
+
+    def redefine_rect(self, rect) -> None:
+        super().redefine_rect(rect)
+        self.viewport = Rect(
+            -self.h_scrollbar.offset,
+            -self.v_scrollbar.offset,
+            self.rect.width - self.v_scrollbar.rect.width,
+            self.rect.height - self.h_scrollbar.rect.height)
+
 
     def _scrollbar_h_moved(self, diff: int) -> None:
         self.scrollbars_moved(diff, 0)
