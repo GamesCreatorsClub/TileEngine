@@ -152,11 +152,13 @@ class EntryPopup(tk.Frame):
 class Properties(ttk.Treeview):
     def __init__(self, root: tk.Widget,
                  macos: bool,
+                 tk_images: dict[str, tk.PhotoImage],
                  add_callback: Optional[Callable[[str, str], None]],
                  update_callback: Callable[[str, str], None],
                  delete_callback: Optional[Callable[[str], None]]) -> None:
         self.root = root
         self.macos = macos
+        self.tk_images = tk_images
         self.add_callback = add_callback
         self.update_callback = update_callback
         self.delete_callback = delete_callback
@@ -197,7 +199,8 @@ class Properties(ttk.Treeview):
         if selection is not None and len(selection) > 0:
             self.selected_rowid = self.selection()[0]
 
-            if self.remove_button is not None: self.remove_button.configure(state="normal")
+            if self.remove_button is not None:
+                self.remove_button.configure(state="normal", image=self.tk_images["remove-icon"])
 
             tags = self.item(self.selected_rowid, "tags")
 
@@ -273,6 +276,13 @@ class Properties(ttk.Treeview):
 
         self.addNewPropertyPopup = AddNewPropertyText(self.root, add_new_property)
 
+    def add_new_property_with_name(self, property_name: str) -> None:
+        self.add_callback(property_name, "")
+
+        # even = len(self.get_children()) % 2 == 0
+        # self.insert("", tk.END, iid=property_name, text=property_name, values=("",), tags=("even" if even else "odd", True, str))
+        self.start_editing(property_name)
+
     def update_value(self, rowid: str, new_value: str, no_callback: bool = False) -> None:
         self.item(rowid, values=(new_value,))
         self.editorPopup = None
@@ -299,6 +309,8 @@ class Properties(ttk.Treeview):
         if self.selected_rowid is not None:
             self.delete(self.selected_rowid)
             self.delete_callback(self.selected_rowid)
+            if self.remove_button is not None:
+                self.remove_button.configure(state="disabled", image=self.tk_images["remove-icon-disabled"])
 
     def edit_selected_property(self) -> None:
         if self.selected_rowid is not None:

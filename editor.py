@@ -1,3 +1,5 @@
+import functools
+
 import os
 import subprocess
 import sys
@@ -8,7 +10,7 @@ from tkinter import messagebox, ttk
 
 from tkinter import X, filedialog, LEFT, BOTH, TOP
 
-from typing import Optional, cast, Any
+from typing import Optional, cast, Any, Callable
 from sys import exit
 
 from pygame import Surface, Rect, K_BACKSPACE
@@ -21,6 +23,7 @@ from editor.mini_map_controller import MiniMap
 from editor.properties import Properties
 from editor.map_controller import MapController
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
+from editor.tooltip import ToolTip
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
 MOUSE_DOWN_COUNTER = 1
@@ -46,7 +49,20 @@ class Editor:
         self.add_property: Optional[tk.Button] = None
         self.remove_property: Optional[tk.Button] = None
         self.edit_property: Optional[tk.Button] = None
-        self.hamburger_menu_image: Optional[tk.PhotoImage] = None
+        self.tkinter_images: dict[str, tk.PhotoImage] = {}
+        self.property_buttons: list[tk.Button] = []
+        self.property_buttons_tooltips: list[ToolTip] = []
+        self._tiled_object_known_properties: list[tuple[str, Callable[[], None]]] = [
+            ("on_create", functools.partial(self._add_new_property_with_name, "on_create")),
+            ("on_enter", functools.partial(self._add_new_property_with_name, "on_enter")),
+            ("on_leave", functools.partial(self._add_new_property_with_name, "on_leave")),
+            ("on_collision", functools.partial(self._add_new_property_with_name, "on_collision")),
+            ("on_animate", functools.partial(self._add_new_property_with_name, "on_animate")),
+        ]
+        self._map_known_properties: list[tuple[str, Callable[[], None]]] = [
+            ("on_create", functools.partial(self._add_new_property_with_name, "on_create")),
+            ("on_show", functools.partial(self._add_new_property_with_name, "on_show")),
+        ]
 
         self._selected_object: Optional[TiledElement] = None
 
@@ -90,10 +106,6 @@ class Editor:
         self.actions_controller.clean_flag_callbacks.append(self._clean_flag_callback)
 
         self.viewport = Rect(0, 0, 1150, 900)
-        right_column = self.viewport.width - 300
-
-        image_size = 32
-        margin = 3
 
         # self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "editor", "icons.png"))
 
@@ -118,7 +130,6 @@ class Editor:
         self._copy_button.disabled = True
         self._paste_button.disabled = True
 
-        toolbar_height = image_size + margin * 2
         self.main_window.tileset_controller = TilesetController(
             # Rect(right_column, toolbar_height, 300, 500),
             Rect(0, 0, 0, 0),
@@ -153,6 +164,32 @@ class Editor:
         self.mouse_x = 0
         self.mouse_y = 0
 
+    def _add_new_property_with_name(self, property_name: str) -> None:
+        self.custom_properties.add_new_property_with_name(property_name)
+
+    def _update_property_buttons(self) -> None:
+        print(f"*** Called update property buttons where '{self.hierarchy_view.selected_object}'")
+        if self.hierarchy_view.selected_object is not None:
+            known_properties = []
+            if isinstance(self.hierarchy_view.selected_object, TiledObject):
+                known_properties = self._tiled_object_known_properties
+            elif isinstance(self.hierarchy_view.selected_object, TiledMap):
+                known_properties = self._map_known_properties
+
+            for i, (name, callback) in enumerate(known_properties):
+                disabled = name in self.hierarchy_view.selected_object.properties
+                self.property_buttons[i].configure(
+                    state="disabled" if disabled else "normal",
+                    image=self.tkinter_images[name + ("-disabled" if disabled else "")],
+                    command=callback
+                )
+                self.property_buttons_tooltips[i].disabled = disabled
+                self.property_buttons_tooltips[i].text = f"Add {name} property"
+
+            for i in range(len(self._tiled_object_known_properties), 5):
+                self.property_buttons[i].configure(state="disabled", image=self.tkinter_images["empty-disabled"])
+                self.property_buttons_tooltips[i].disabled = True
+
     def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
         if tiled_map is not None:
@@ -163,6 +200,7 @@ class Editor:
 
             self.main_window.map_controller.set_action_panel_visibility(True)
             self.hierarchy_view.set_map(tiled_map)
+            self._update_property_buttons()
 
         else:
             self.file_menu.entryconfig("Save", state="disabled")
@@ -195,9 +233,11 @@ class Editor:
             if kind == ChangeKind.ADD_PROPERTY:
                 self.custom_properties.update_properties(element.properties)
             elif kind == ChangeKind.UPDATE_PROPERTY:
-                self.custom_properties.update_value(key, value)
+                if self.current_element.properties[key] != value:
+                    self.custom_properties.update_value(key, value)
             elif kind == ChangeKind.DELETE_PROPERTY:
                 self.custom_properties.update_properties(element.properties)
+            self._update_property_buttons()
 
     @property
     def current_element(self) -> Optional[TiledElement]:
@@ -225,19 +265,24 @@ class Editor:
             # TODO Move to approporiate callback
             self.edit_menu.entryconfig("Delete", state="disabled")
 
+        self._update_property_buttons()
+
     def _object_added_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.add_object(layer, obj)
         self.hierarchy_view.selected_object = obj
+        self._update_property_buttons()
         self.root.update()
 
     def _object_deleted_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.delete_object(layer, obj)
         self.hierarchy_view.selected_object = None
+        self._update_property_buttons()
         self.root.update()
 
     def _object_selected_callback(self, obj: TiledObject) -> None:
         self.current_element = obj
         self.hierarchy_view.selected_object = obj
+        self._update_property_buttons()
 
     def _selection_changed_callback(self, selection: list[Rect]) -> None:
         if len(selection) > 0:
@@ -291,6 +336,7 @@ class Editor:
                 self._tiled_map.tileheight = tileset.tileheight
             self.hierarchy_view.set_map(self._tiled_map)
             self.hierarchy_view.selected_object = tileset
+            self._update_property_buttons()
 
     def _remove_tileset_action(self) -> None:
         print(f"Calculate removing tileset")
@@ -444,6 +490,11 @@ class Editor:
         else:
             tk.messagebox.showerror(title="Error", message="No 'code' property in the map")
 
+    def _add_tk_image(self, name: str) -> tk.PhotoImage:
+        image = tk.PhotoImage(file=os.path.join(os.path.dirname(__file__), "editor", "images", name + ".png"))
+        self.tkinter_images[name] = image
+        return image
+
     def open_tk_window(self, root: tk.Tk) -> tk.Tk:
         control_modifier = "Command" if self.macos else "Control"
 
@@ -533,13 +584,14 @@ class Editor:
 
         pack(tk.Label(left_frame, text="Properties"), fill=X)
 
-        self.main_properties = Properties(left_frame, self.macos, None, self.update_current_element_attribute, None)
+        self.main_properties = Properties(left_frame, self.macos, self.tkinter_images, None, self.update_current_element_attribute, None)
 
         pack(tk.Label(left_frame, text=""), fill=X)
         pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
 
         self.custom_properties = Properties(left_frame,
                                             self.macos,
+                                            self.tkinter_images,
                                             self.add_current_element_property,
                                             self.update_current_element_property,
                                             self.delete_current_element_property)
@@ -547,22 +599,55 @@ class Editor:
         self.button_panel = tk.Canvas(left_frame)
         self.button_panel.columnconfigure(1, weight=1)
 
-        self.add_property = tk.Button(self.button_panel, text="+", state="disabled", command=self.custom_properties.start_add_new_property)
-        self.remove_property = tk.Button(self.button_panel, text="-", state="disabled", command=self.custom_properties.remove_property)
+        add_image = self._add_tk_image("add-icon")
+        self._add_tk_image("add-icon-disabled")
+        self._add_tk_image("remove-icon")
+        remove_image = self._add_tk_image("remove-icon-disabled")
+        self._add_tk_image("empty")
+        self._add_tk_image("empty-disabled")
+        self._add_tk_image("on_create")
+        self._add_tk_image("on_create-disabled")
+        self._add_tk_image("on_enter")
+        self._add_tk_image("on_enter-disabled")
+        self._add_tk_image("on_leave")
+        self._add_tk_image("on_leave-disabled")
+        self._add_tk_image("on_collision")
+        self._add_tk_image("on_collision-disabled")
+        self._add_tk_image("on_animate")
+        self._add_tk_image("on_animate-disabled")
+        self._add_tk_image("on_show")
+        self._add_tk_image("on_show-disabled")
+
+        self.add_property = tk.Button(self.button_panel, text="+", image=add_image, state="disabled", command=self.custom_properties.start_add_new_property)
+        self.remove_property = tk.Button(self.button_panel, text="-", image=remove_image, state="disabled", command=self.custom_properties.remove_property)
+
+        def create_known_property_button(property_name: str) -> tk.Button:
+            return tk.Button(self.button_panel, text="-", image=self.tkinter_images[f"{property_name}-disabled"], state="disabled")
+
         self.edit_property = tk.Button(
             self.button_panel, text="edit", state="disabled",
             command=lambda: self.custom_properties.start_editing(self.custom_properties.selected_rowid)
         )
 
-        self.add_property.grid(row=0, column=0, pady=3, padx=3, sticky=tk.W)
-        self.remove_property.grid(row=0, column=1, pady=3, padx=3, sticky=tk.W)
-        self.edit_property.grid(row=0, column=2, pady=3, padx=3, sticky=tk.W)
+        self.property_buttons = [
+            create_known_property_button("empty") for _ in range(5)
+        ]
+        self.property_buttons_tooltips = [ToolTip(self.property_buttons[i]) for i in range(5)]
+
+        self.add_property.grid(row=0, column=0, pady=3, padx=1, sticky=tk.W)
+        self.remove_property.grid(row=0, column=1, pady=3, padx=1, sticky=tk.W)
+        for i, b in enumerate(self.property_buttons):
+            b.grid(row=0, column=2 + i, pady=3, padx=1, sticky=tk.W)
+        self.edit_property.grid(row=0, column=len(self.property_buttons) + 2, pady=1, padx=3, sticky=tk.W)
 
         pack(self.button_panel, fill=X)
 
         self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
-        self.custom_properties.update_buttons(self.add_property, self.remove_property, self.edit_property)
-
+        self.custom_properties.update_buttons(
+            self.add_property,
+            self.remove_property,
+            self.edit_property
+        )
         return root
 
     def setup_pygame(self) -> None:
