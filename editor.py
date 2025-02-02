@@ -16,6 +16,7 @@ from sys import exit
 from pygame import Surface, Rect, K_BACKSPACE
 
 from editor.actions_controller import ActionsController, ChangeKind
+from editor.clipboard_controller import ClipboardController, element_property
 from editor.hierarchy import Hierarchy
 from editor.info_panel import InfoPanel
 from editor.main_window import MainWindow
@@ -24,7 +25,7 @@ from editor.properties import Properties
 from editor.map_controller import MapController
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, TiledTileLayer
 
 MOUSE_DOWN_COUNTER = 1
 
@@ -104,6 +105,11 @@ class Editor:
         self.actions_controller.add_object_callbacks.append(self._object_added_callback)
         self.actions_controller.delete_object_callbacks.append(self._object_deleted_callback)
         self.actions_controller.clean_flag_callbacks.append(self._clean_flag_callback)
+        self.actions_controller.add_tileset_callbacks.append(self._add_tileset_callback)
+        self.actions_controller.remove_tileset_callbacks.append(self._remove_tileset_callback)
+
+        self.clipboard_controller = ClipboardController(self.actions_controller)
+        self.clipboard_controller.clipboard_callbacks.append(self._clipboard_state_changed)
 
         self.viewport = Rect(0, 0, 1150, 900)
 
@@ -118,9 +124,9 @@ class Editor:
         self._redo_button = self.main_window.toolbar.add_button(13, 33, callback=self._undo_action)
         self._undo_button = self.main_window.toolbar.add_button(14, 34, callback=self._redo_action)
         self.main_window.toolbar.add_spacer()
-        self._cut_button = self.main_window.toolbar.add_button(16, 36, callback=self._undo_action)
-        self._copy_button = self.main_window.toolbar.add_button(15, 35, callback=self._redo_action)
-        self._paste_button = self.main_window.toolbar.add_button(17, 37, callback=self._undo_action)
+        self._cut_button = self.main_window.toolbar.add_button(16, 36, callback=self._cut_action)
+        self._copy_button = self.main_window.toolbar.add_button(15, 35, callback=self._copy_action)
+        self._paste_button = self.main_window.toolbar.add_button(17, 37, callback=self._paste_action)
         self.main_window.toolbar.add_spacer()
 
         self._save_map_button.disabled = True
@@ -152,6 +158,7 @@ class Editor:
             self.main_window.toolbar,
             self.main_window.tileset_controller,
             self.actions_controller,
+            self.clipboard_controller,
             self._object_added_callback,
             self._object_selected_callback,
             self._selection_changed_callback
@@ -168,7 +175,6 @@ class Editor:
         self.custom_properties.add_new_property_with_name(property_name)
 
     def _update_property_buttons(self) -> None:
-        print(f"*** Called update property buttons where '{self.hierarchy_view.selected_object}'")
         if self.hierarchy_view.selected_object is not None:
             known_properties = []
             if isinstance(self.hierarchy_view.selected_object, TiledObject):
@@ -189,6 +195,11 @@ class Editor:
             for i in range(len(self._tiled_object_known_properties), 5):
                 self.property_buttons[i].configure(state="disabled", image=self.tkinter_images["empty-disabled"])
                 self.property_buttons_tooltips[i].disabled = True
+
+    def _clipboard_state_changed(self, copy: bool, cut: bool, paste: bool) -> None:
+        self._copy_button.disabled = not copy
+        self._cut_button.disabled = not cut
+        self._paste_button.disabled = not paste
 
     def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
@@ -239,6 +250,17 @@ class Editor:
                 self.custom_properties.update_properties(element.properties)
             self._update_property_buttons()
 
+    def _add_tileset_callback(self, tileset: TiledTileset) -> None:
+        self.hierarchy_view.set_map(self._tiled_map)
+        self.hierarchy_view.selected_object = tileset
+        self._update_property_buttons()
+
+    def _remove_tileset_callback(self, tileset: TiledTileset) -> None:
+        self.hierarchy_view.set_map(self._tiled_map)
+        if self.hierarchy_view.selected_object == tileset:
+            self.hierarchy_view.selected_object = None
+        self._update_property_buttons()
+
     @property
     def current_element(self) -> Optional[TiledElement]:
         return self._current_element
@@ -246,12 +268,12 @@ class Editor:
     @current_element.setter
     def current_element(self, current_element: Optional[TiledElement]) -> None:
         self._current_element = current_element
+        self.clipboard_controller.focused_element = current_element
 
         self.add_property.configure(state="normal" if current_element is not None else "disabled")
 
         if isinstance(current_element, BaseTiledLayer):
             self.actions_controller.current_layer = cast(BaseTiledLayer, current_element)
-
             # TODO Move to approporiate callback
             self.edit_menu.entryconfig("Delete", state="disabled")
         elif isinstance(current_element, TiledTileset):
@@ -266,6 +288,12 @@ class Editor:
             self.edit_menu.entryconfig("Delete", state="disabled")
 
         self._update_property_buttons()
+
+    def _property_selection_callback(self, key: Optional[str]) -> None:
+        element_property.key = key
+        element_property.element = self.hierarchy_view.selected_object
+        self.custom_properties.selection()
+        self.clipboard_controller.focused_element = element_property
 
     def _object_added_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.add_object(layer, obj)
@@ -327,16 +355,7 @@ class Editor:
 
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Tileset file", "*.tsx"), ))
         if filename != "":
-            tileset = TiledTileset(self._tiled_map)
-            tileset.firstgid = self._tiled_map.maxgid + 1
-            tileset.source = filename
-            self._tiled_map.add_tileset(tileset)
-            if len(self._tiled_map.tilesets) == 1:
-                self._tiled_map.tilewidth = tileset.tilewidth
-                self._tiled_map.tileheight = tileset.tileheight
-            self.hierarchy_view.set_map(self._tiled_map)
-            self.hierarchy_view.selected_object = tileset
-            self._update_property_buttons()
+            self.actions_controller.add_tileset(filename)
 
     def _remove_tileset_action(self) -> None:
         print(f"Calculate removing tileset")
@@ -362,13 +381,13 @@ class Editor:
             self._save_map_action()
 
     def _cut_action(self, _event=None) -> None:
-        print(f"CUT for {self.current_element}")
+        self.clipboard_controller.cut()
 
     def _copy_action(self, _event=None) -> None:
-        print(f"COPY for {self.current_element}")
+        self.clipboard_controller.copy()
 
     def _paste_action(self, _event=None) -> None:
-        print(f"PASTE for {self.current_element}")
+        self.clipboard_controller.paste()
 
     def _redo_action(self, _event=None) -> None:
         self.main_window.map_controller.deselect_object()
@@ -584,7 +603,10 @@ class Editor:
 
         pack(tk.Label(left_frame, text="Properties"), fill=X)
 
-        self.main_properties = Properties(left_frame, self.macos, self.tkinter_images, None, self.update_current_element_attribute, None)
+        self.main_properties = Properties(
+            left_frame, self.macos,
+            self.tkinter_images,
+            None, self.update_current_element_attribute, None, None)
 
         pack(tk.Label(left_frame, text=""), fill=X)
         pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
@@ -594,7 +616,8 @@ class Editor:
                                             self.tkinter_images,
                                             self.add_current_element_property,
                                             self.update_current_element_property,
-                                            self.delete_current_element_property)
+                                            self.delete_current_element_property,
+                                            self._property_selection_callback)
 
         self.button_panel = tk.Canvas(left_frame)
         self.button_panel.columnconfigure(1, weight=1)

@@ -23,6 +23,8 @@ class ChangeKind(Enum):
     UPDATE_PROPERTY = (False, )
     DELETE_PROPERTY = (False, )
     UPDATE_ATTRIBUTE = (False, )
+    ADD_TILESET = (False, )
+    REMOVE_TILESET = (False, )
 
     def __new__(cls, cumulative: bool):
         obj = object.__new__(cls)
@@ -212,6 +214,38 @@ class UpdateElementAttributeChange(Change):
         self.action_controller.notify_element_attr_change(self.element, ChangeKind.UPDATE_ATTRIBUTE, self.key, self.new_value)
 
 
+class AddTileset(Change):
+    def __init__(self, action_controller: 'ActionsController', tileset: TiledTileset) -> None:
+        super().__init__(ChangeKind.ADD_TILESET, action_controller)
+        self.tileset = tileset
+
+    def undo(self) -> None:
+        tiled_map = self.action_controller.tiled_map
+        tiled_map.remove_tileset(self.tileset)
+        self.action_controller.notify_remove_tileset(self.tileset)
+
+    def redo(self) -> None:
+        tiled_map = self.action_controller.tiled_map
+        tiled_map.add_tileset(self.tileset)
+        self.action_controller.notify_add_tileset(self.tileset)
+
+
+class RemoveTileset(Change):
+    def __init__(self, action_controller: 'ActionsController', tileset: TiledTileset) -> None:
+        super().__init__(ChangeKind.ADD_TILESET, action_controller)
+        self.tileset = tileset
+
+    def undo(self) -> None:
+        tiled_map = self.action_controller.tiled_map
+        tiled_map.add_tileset(self.tileset)
+        self.action_controller.notify_add_tileset(self.tileset)
+
+    def redo(self) -> None:
+        tiled_map = self.action_controller.tiled_map
+        tiled_map.remove_tileset(self.tileset)
+        self.action_controller.notify_remove_tileset(self.tileset)
+
+
 class ActionsController:
     def __init__(self) -> None:
         self._tiled_map: Optional[TiledMap] = None
@@ -231,6 +265,8 @@ class ActionsController:
         self.delete_object_callbacks: list[Callable[[TiledObjectGroup, TiledObject], None]] = []
         self.element_attr_change_callbacks: list[Callable[[TiledElement, ChangeKind, str, Any], None]] = []
         self.element_property_change_callbacks: list[Callable[[TiledElement, ChangeKind, str, Any], None]] = []
+        self.add_tileset_callbacks: list[Callable[[TiledTileset], None]] = []
+        self.remove_tileset_callbacks: list[Callable[[TiledTileset], None]] = []
 
         self.undo_redo_callbacks: list[Callable[[bool, bool], None]] = []
         self.clean_flag_callbacks: list[Callable[[bool], None]] = []
@@ -263,6 +299,14 @@ class ActionsController:
     def notify_clean_flag_change(self, clean_flag: bool) -> None:
         for callback in self.clean_flag_callbacks:
             callback(clean_flag)
+
+    def notify_add_tileset(self, tileset: TiledTileset) -> None:
+        for callback in self.add_tileset_callbacks:
+            callback(tileset)
+
+    def notify_remove_tileset(self, tileset: TiledTileset) -> None:
+        for callback in self.remove_tileset_callbacks:
+            callback(tileset)
 
     @property
     def tiled_map(self) -> TiledMap:
@@ -475,14 +519,17 @@ class ActionsController:
         obj.height = height
         self.last_change_timestamp = time.time()
 
-    def add_object(self, obj: TiledObject) -> None:
-        obj.id = self._object_layer.map.nextobjectid
-        self._object_layer.map.nextobjectid += 1
-        self._add_change(AddObjectChange(self, obj, self._object_layer))
+    def add_object(self, obj: TiledObject, layer: TiledObjectGroup = None) -> None:
+        if layer is None:
+            layer = self._object_layer
+        obj.id = layer.map.nextobjectid
+        layer.map.nextobjectid += 1
+        self._add_change(AddObjectChange(self, obj, layer))
 
-        self._object_layer.objects_id_map[obj.id] = obj
+        layer.objects_id_map[obj.id] = obj
 
         self.last_change_timestamp = time.time()
+        self.notify_add_object_change(layer, obj)
 
     def delete_object(self, obj: TiledObject) -> None:
         layer = cast(TiledObjectGroup, obj.parent)
@@ -549,3 +596,22 @@ class ActionsController:
 
         self.last_change_timestamp = time.time()
         self.notify_element_attr_change(element, ChangeKind.UPDATE_ATTRIBUTE, key, value)
+
+    def add_tileset(self, filename: str) -> None:
+        tileset = TiledTileset(self._tiled_map)
+        tileset.source = filename
+        self._tiled_map.add_tileset(tileset)
+        if len(self._tiled_map.tilesets) == 1:
+            self._tiled_map.tilewidth = tileset.tilewidth
+            self._tiled_map.tileheight = tileset.tileheight
+
+        self._add_change(AddTileset(self, tileset))
+        self.notify_add_tileset(tileset)
+
+    def remove_tileset(self, filename: str) -> None:
+        tileset = TiledTileset(self._tiled_map)
+        tileset.source = filename
+        self._tiled_map.remove_tileset(tileset)
+
+        self._add_change(RemoveTileset(self, tileset))
+        self.notify_remove_tileset(tileset)

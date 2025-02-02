@@ -662,6 +662,22 @@ class TiledObject(TiledSubElement):
             return self.map.images[gid]
         return None
 
+    def copy(self) -> 'TiledObject':
+        obj = TiledObject(self.parent)
+        obj.name = self.name
+        obj.properties = self.properties.copy()
+        obj._gid = self._gid
+        obj.visible = self.visible
+        obj.solid = self.solid
+        obj.pushable = self.pushable
+
+        obj.rect = self.rect.copy()
+        obj.next_rect = self.next_rect.copy()
+        obj.collisions = self.collisions.copy()
+
+        self.collision_result = None
+        return obj
+
 
 class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
@@ -1072,18 +1088,33 @@ class TiledMap(TiledElement):
             self.nextobjectid = max(self.nextobjectid, max(map(lambda o: o.id, layer.objects_id_map.values())) if len(layer.objects_id_map) > 0 else 0)
         self.nextlayerid = max(self.nextlayerid, max(map(lambda o: o.id, self.layer_id_map.values())) if len(self.layer_id_map) > 0 else 0)
 
-    def add_tileset(self, tileset: TiledTileset) -> None:
-        self.tilesets.append(tileset)
+    def _update_tileset_change(self) -> None:
         self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
 
+        tileset = self.tilesets[-1]
         tilesets_maxgid = tileset.firstgid + tileset.tilecount - 1
         self.maxgid = max(self.maxgid, tilesets_maxgid)
         if len(self.images) < self.maxgid + 1:
             self.images += [None] * (self.maxgid + 1 - len(self.images))
-        for i in range(tileset.tilecount):
-            self.images[tileset.firstgid + i] = tileset.get_image(i + tileset.firstgid)
+            for i in range(tileset.tilecount):
+                self.images[tileset.firstgid + i] = tileset.get_image(i + tileset.firstgid)
+        elif len(self.images) > self.maxgid + 1:
+            del self.images[self.maxgid + 1:]
+            for ts in self.tilesets:
+                for i in range(ts.tilecount):
+                    self.images[ts.firstgid + i] = ts.get_image(i + ts.firstgid)
+
+    def add_tileset(self, tileset: TiledTileset) -> None:
+        tileset.firstgid = self.maxgid + 1
+        self.tilesets.append(tileset)
+        self._update_tileset_change()
+
+    def remove_tileset(self, tileset: TiledTileset) -> None:
+        self.tilesets.remove(tileset)
+        self.tilesets.append(tileset)
+        self._update_tileset_change()
 
     def load(self, filename: str) -> None:
         self.filename = filename

@@ -124,7 +124,6 @@ class Hierarchy(ttk.Treeview):
         rowid = f"o_{layer.id}_{obj.id}"
         self.insert('', tk.END, iid=rowid, text=f"{obj.name}", values=(self._obj_visibility(obj),), open=True)
         self.move(rowid, f"l_{layer.id}", len(list(layer.objects)))
-        print(f"Added object with {rowid}")
 
     def delete_object(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         rowid = f"o_{layer.id}_{obj.id}"

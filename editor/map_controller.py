@@ -9,6 +9,7 @@ from pygame import Rect, Surface
 from pygame.font import Font
 
 from editor.actions_controller import ActionsController
+from editor.clipboard_controller import ClipboardController
 from editor.pygame_components import ScrollableCanvas
 from editor.resize_component import ResizeButton, ResizePosition
 from editor.tileset_controller import TilesetController
@@ -359,12 +360,12 @@ class SelectTileMouseAdapter(MouseAdapter):
                 self.current_selection = Rect(0, 0, 0, 0)
                 self.current_selection_viewport = Rect(0, 0, 0, 0)
                 if self.add_selection:
-                    self.map_controller.selection.append(self.current_selection)
+                    self.map_controller.clipboard_controller.add_to_selection(self.current_selection)
                     self.map_controller.selection_viewport_rects.append(self.current_selection_viewport)
                 else:
-                    self.map_controller.selection = [self.current_selection]
+                    self.map_controller.clipboard_controller.set_to_selection(self.current_selection)
                     self.map_controller.selection_viewport_rects = [self.current_selection_viewport]
-                self.map_controller.selection_changed_callback(self.map_controller.selection)
+                self.map_controller.selection_changed_callback(self.map_controller.clipboard_controller.selection)
 
             tiled_map = self.map_controller.tiled_map
             if tiled_map is not None and (x != self.touch_x or y != self.touch_y):
@@ -565,6 +566,7 @@ class MapController(ScrollableCanvas):
                  toolbar: ToolbarPanel,
                  tileset_controller: TilesetController,
                  actions_controller: ActionsController,
+                 clipboard_controller: ClipboardController,
                  object_added_callback: Callable[[TiledObjectGroup, TiledObject], None],
                  object_selected_callback: Callable[[TiledObject], None],
                  selection_changed_callback: Callable[[list[Rect]], None]) -> None:
@@ -580,6 +582,7 @@ class MapController(ScrollableCanvas):
         actions_controller.object_layer_callbacks.append(self._object_layer_callback)
         actions_controller.current_object_callbacks.append(self._current_object_callback)
 
+        self.clipboard_controller = clipboard_controller
         self.arrows_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "arrows-small.png"))
 
         self.object_added_callback = object_added_callback
@@ -648,7 +651,7 @@ class MapController(ScrollableCanvas):
         self.mouse_x = 0
         self.mouse_y = 0
         self.overlay_surface: Optional[Surface] = None
-        self.selection: list[Rect] = []
+        # self.selection: list[Rect] = []
         self.selection_viewport_rects: list[Rect] = []
         self._selection_overlay: Optional[Surface] = None
 
@@ -753,10 +756,10 @@ class MapController(ScrollableCanvas):
             callback(dx, dy)
 
     def is_in_selection(self, x: int, y: int) -> bool:
-        if len(self.selection) == 0:
+        if len(self.clipboard_controller.selection) == 0:
             return True
 
-        for s in self.selection:
+        for s in self.clipboard_controller.selection:
             if s.collidepoint(x, y):
                 return True
         return False
@@ -819,9 +822,9 @@ class MapController(ScrollableCanvas):
 
     def select_all(self) -> None:
         if self._tiled_map is not None:
-            self.selection = [
+            self.clipboard_controller.set_to_selection(
                 Rect(0, 0, self._tiled_map.width, self._tiled_map.height)
-            ]
+            )
             self.selection_viewport_rects = [
                 Rect(
                     self.rect.x + self.h_scrollbar.offset,
@@ -829,16 +832,16 @@ class MapController(ScrollableCanvas):
                     self._tiled_map.width * self._tiled_map.tilewidth,
                     self._tiled_map.height * self._tiled_map.tileheight)
             ]
-            self.selection_changed_callback(self.selection)
+            self.selection_changed_callback(self.clipboard_controller.selection)
 
     def select_none(self) -> None:
-        self.selection = []
+        self.clipboard_controller.clear_selection()
         self.selection_viewport_rects = []
-        self.selection_changed_callback(self.selection)
+        self.selection_changed_callback(self.clipboard_controller.selection)
 
     def delete_tiles(self) -> None:
         if self._tiled_layer is not None:
-            for s in self.selection:
+            for s in self.clipboard_controller.selection:
                 for y in range(s.y, s.bottom):
                     for x in range(s.x, s.right):
                         self._tiled_layer.data[y][x] = 0
@@ -939,7 +942,7 @@ class MapController(ScrollableCanvas):
                 surface.blit(self.overlay_surface, self.mouse_over_rect)
                 pygame.draw.rect(surface, (255, 255, 255), self.mouse_over_rect, width=1)
 
-            for s in self.selection:
+            for s in self.clipboard_controller.selection:
                 for y in range(s.y, s.bottom):
                     for x in range(s.x, s.right):
                         surface.blit(self._selection_overlay,

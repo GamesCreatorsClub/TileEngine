@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, colorchooser
 from typing import Callable, Optional, Any, Union
 
-from engine.tmx import F
+from engine.tmx import F, TiledElement
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -155,13 +155,15 @@ class Properties(ttk.Treeview):
                  tk_images: dict[str, tk.PhotoImage],
                  add_callback: Optional[Callable[[str, str], None]],
                  update_callback: Callable[[str, str], None],
-                 delete_callback: Optional[Callable[[str], None]]) -> None:
+                 delete_callback: Optional[Callable[[str], None]],
+                 element_select_callback: Optional[Callable[[Optional[str]], None]]) -> None:
         self.root = root
         self.macos = macos
         self.tk_images = tk_images
         self.add_callback = add_callback
         self.update_callback = update_callback
         self.delete_callback = delete_callback
+        self.element_select_callback = element_select_callback
         self.treeview_frame = tk.Frame(root)
         super().__init__(self.treeview_frame, columns=("value",))
 
@@ -201,6 +203,8 @@ class Properties(ttk.Treeview):
 
             if self.remove_button is not None:
                 self.remove_button.configure(state="normal", image=self.tk_images["remove-icon"])
+            if self.element_select_callback is not None:
+                self.element_select_callback(self.selected_rowid)
 
             tags = self.item(self.selected_rowid, "tags")
 
@@ -311,6 +315,8 @@ class Properties(ttk.Treeview):
             self.delete_callback(self.selected_rowid)
             if self.remove_button is not None:
                 self.remove_button.configure(state="disabled", image=self.tk_images["remove-icon-disabled"])
+            if self.element_select_callback is not None:
+                self.element_select_callback(None)
 
     def edit_selected_property(self) -> None:
         if self.selected_rowid is not None:
