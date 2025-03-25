@@ -522,6 +522,8 @@ class ActionsController:
     def add_object(self, obj: TiledObject, layer: TiledObjectGroup = None) -> None:
         if layer is None:
             layer = self._object_layer
+            if layer is None:
+                layer = obj.layer
         obj.id = layer.map.nextobjectid
         layer.map.nextobjectid += 1
         self._add_change(AddObjectChange(self, obj, layer))

@@ -295,7 +295,7 @@ class AddImageObjectMouseAdapter(MouseAdapter):
                 )
                 self.action_controller.add_object(obj)
 
-                self.map_controller.object_added_callback(layer, obj)
+                # self.map_controller.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -681,10 +681,14 @@ class MapController(ScrollableCanvas):
 
     def _tiled_layer_callback(self, tiled_layer: TiledTileLayer) -> None:
         self._tiled_layer = tiled_layer
+        if tiled_layer is not None:
+            self._object_layer = None
         self._action_changed(self._action)
 
     def _object_layer_callback(self, object_layer: TiledObjectGroup) -> None:
         self._object_layer = object_layer
+        if object_layer is not None:
+            self._tiled_layer = None
         self._action_changed(self._action)
 
     def _current_object_callback(self, current_object: Optional[TiledObject]) -> None:
@@ -861,6 +865,7 @@ class MapController(ScrollableCanvas):
         if not isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
             self._mouse_adapter.deselected()
             self._mouse_adapter = self._mouse_object_adapters[MapAction.SELECT_OBJECT]
+            self._object_layer_callback(obj.layer)
 
         self._action_changed(MapAction.SELECT_OBJECT)
         select_object_mouse_adapter = cast(SelectObjectMouseAdapter, self._mouse_adapter)

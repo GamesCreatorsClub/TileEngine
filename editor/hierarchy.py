@@ -54,7 +54,7 @@ class Hierarchy(ttk.Treeview):
                 {k: getattr(selected_object, k) for k in type(selected_object).ATTRIBUTES.keys()},
                 type(selected_object).ATTRIBUTES
             )
-            self.custom_properties.update_properties(selected_object.properties)
+            self.custom_properties.update_properties(selected_object.properties, type(selected_object).OPTIONAL_CUSTOM_PROPERTIES)
             if isinstance(selected_object, BaseTiledLayer):
                 self._selected_layer = selected_object
 

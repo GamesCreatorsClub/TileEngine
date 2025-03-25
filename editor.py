@@ -242,7 +242,7 @@ class Editor:
     def _element_property_change_callback(self, element: TiledElement, kind: ChangeKind, key: str, value: Any) -> None:
         if element == self.current_element:
             if kind == ChangeKind.ADD_PROPERTY:
-                self.custom_properties.update_properties(element.properties)
+                self.custom_properties.update_properties(element.properties, type(element).OPTIONAL_CUSTOM_PROPERTIES)
             elif kind == ChangeKind.UPDATE_PROPERTY:
                 if self.current_element.properties[key] != value:
                     self.custom_properties.update_value(key, value)

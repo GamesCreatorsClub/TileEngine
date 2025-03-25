@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import gzip
 import itertools
 import logging
@@ -62,9 +64,9 @@ def convert_to_bool(value: str) -> bool:
     value = str(value).strip()
     if value:
         value = value.lower()[0]
-        if value in ("1", "y", "t"):
+        if value in ("1", "y", "t", "true"):
             return True
-        if value in ("-", "0", "n", "f"):
+        if value in ("-", "0", "n", "f", "false"):
             return False
     else:
         return False
@@ -184,6 +186,7 @@ NO_TRANSFORM_TILE_FLAGS = TileFlags(False, False, False)
 
 class TiledElement(ABC):
     ATTRIBUTES = {}
+    OPTIONAL_CUSTOM_PROPERTIES = {}
 
     def __init__(self, parent: Optional['TiledElement'] = None) -> None:
         self.parent = parent
@@ -298,7 +301,9 @@ class TiledElement(ABC):
 
     def _xml_properties(self, stream, indent: int, close_tag: bool) -> bool:
         is_nested_dict = isinstance(self.properties, NestedDict)
-        if (is_nested_dict and cast(NestedDict, self.properties).has_original_keys()) or (not is_nested_dict and len(self.properties)) > 0:
+        filtered_properties = {k: v for k, v in self.properties.items() if not k.startswith("__")}
+        # if (is_nested_dict and cast(NestedDict, self.properties).has_original_keys()) or (not is_nested_dict and len(filtered_properties)) > 0:
+        if len(filtered_properties) > 0:
             close_tag = self._close_tag(stream, True)
 
             stream.write(" " * indent)
@@ -306,12 +311,21 @@ class TiledElement(ABC):
             for k, v in self.properties.items():
                 if not k.startswith("__"):
                     stream.write(" " * (indent + 1))
-                    if "\n" in v:
-                        stream.write(f"<property name=\"{k}\">")
-                        stream.write(escape(v))
-                        stream.write(f"</property>\n")
+                    if isinstance(v, str):
+                        if "\n" in v:
+                            stream.write(f"<property name=\"{k}\">")
+                            stream.write(escape(v))
+                            stream.write(f"</property>\n")
+                        else:
+                            stream.write(f"<property name=\"{k}\" value=\"{escape(v)}\"/>\n")
+                    elif isinstance(v, bool):
+                        stream.write(f"<property name=\"{k}\" type=\"bool\" value=\"{str(v).lower()}\"/>\n")
+                    elif isinstance(v, int):
+                        stream.write(f"<property name=\"{k}\" type=\"int\" value=\"{v}\"/>\n")
+                    elif isinstance(v, float):
+                        stream.write(f"<property name=\"{k}\" type=\"float\" value=\"{v}\"/>\n")
                     else:
-                        stream.write(f"<property name=\"{k}\" value=\"{escape(v)}\"/>\n")
+                        stream.write(f"<property name=\"{k}\" value=\"{v}\"/>\n")
 
             stream.write(" " * indent)
             stream.write("</properties>\n")
@@ -355,7 +369,11 @@ class TiledElement(ABC):
                     v = "1" if v else "0"
                 else:
                     v = str(v)
-                attrs[k] = v
+                if k == "name" and v == "":
+                    # fudge to behave the same as original Tiled editor save
+                    pass
+                else:
+                    attrs[k] = v
         return attrs
 
     NODE_TYPES: dict[str, NodeType] = {"properties": NodeType(_parse_xml_to_properties, None, None)}
@@ -436,20 +454,27 @@ class TiledTileLayer(BaseTiledLayer):
         close_tag = self._close_tag(stream, close_tag)
         # encoding = self.original_encoding
         encoding = "base64"
-        # compression = self.original_compression
-        compression = None
+        compression = self.original_compression
+        # compression = None
 
         stream.write(" " * indent)
         stream.write(f"<data encoding=\"{encoding}\"")
         if compression is not None:
-            stream.write(f" compression=\"{self.original_compression}\"")
+            stream.write(f" compression=\"{compression}\"")
 
         stream.write(">\n")
         stream.write(" " * (indent + 1))
         d = [self.map.gid_to_original_gid_and_tile_flags(gid) for gid in itertools.chain.from_iterable(self.data)]
 
-        s = b64encode(struct.pack("<%dL" % len(d), *d))
+        data = struct.pack("<%dL" % len(d), *d)
+        if compression == "gzip":
+            s = b64encode(gzip.compress(data))
+        elif compression == "zlib":
+            s = b64encode(zlib.compress(data))
+        else:
+            s = b64encode(data)
         stream.write(s.decode("ASCII"))
+
         stream.write("\n")
         stream.write(" " * indent)
         stream.write("</data>\n")
@@ -987,7 +1012,11 @@ class TiledMap(TiledElement):
         # "hexsidelength": F(int, False), "staggeraxis": F(str, False, "Y"), "staggerindex": F(int, False),
         "backgroundcolor": F(Color, True, None),
         "infinite": F(bool, False),
-        "nextlayerid": F(int, False), "nextobjectid": F(int, False)
+        "nextlayerid": F(int, False), "nextobjectid": F(int, False),
+    }
+
+    OPTIONAL_CUSTOM_PROPERTIES = TiledElement.OPTIONAL_CUSTOM_PROPERTIES | {
+        "code": F(Path, True)
     }
 
     def __init__(self, invert_y: bool = True) -> None:
@@ -1085,7 +1114,7 @@ class TiledMap(TiledElement):
         self.layer_id_map[layer.id] = layer
         if isinstance(layer, TiledObjectGroup):
             self.object_by_name = ChainMap(*[layer.object_by_name for layer in self.layers if isinstance(layer, TiledObjectGroup)])
-            self.nextobjectid = max(self.nextobjectid, max(map(lambda o: o.id, layer.objects_id_map.values())) if len(layer.objects_id_map) > 0 else 0)
+            self.nextobjectid = max(self.nextobjectid, max(map(lambda o: o.id, layer.objects_id_map.values())) + 1 if len(layer.objects_id_map) > 0 else 0)
         self.nextlayerid = max(self.nextlayerid, max(map(lambda o: o.id, self.layer_id_map.values())) if len(self.layer_id_map) > 0 else 0)
 
     def _update_tileset_change(self) -> None:

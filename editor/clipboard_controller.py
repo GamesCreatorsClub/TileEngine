@@ -181,7 +181,7 @@ class ClipboardController:
         return False
 
     def can_paste(self) -> bool:
-        return self._content is not None
+        return self._content is not None and self._content.can_apply()
 
     def paste(self) -> None:
         if self._content is not None and self._content.can_apply():
