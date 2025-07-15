@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, colorchooser, filedialog
 from typing import Callable, Optional, Any, Union
 
-from engine.tmx import F, TiledElement
+from engine.tmx import F
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -33,6 +33,7 @@ class AddNewPropertyText(tk.Toplevel):
         self.cancel_btn = pack(tk.Button(self.buttons_frame, text="Cancel", command=self.close, width=5), padx=5, pady=10, side=RIGHT)
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.close)
+        self.entry.focus()
 
     def ok(self, _event=None) -> None:
         new_value = self.entry.get()
@@ -76,6 +77,7 @@ class EditText(tk.Toplevel):
         self.bind("<Escape>", self.close)
         self.entry.bind(f"<{control_modifier}-Return>", self.ok)
         self.entry.bind("<Escape>", self.close)
+        self.entry.focus()
 
     def ok(self, _event=None) -> None:
         new_value = self.entry.get("1.0", END)
@@ -307,7 +309,7 @@ class Properties(ttk.Treeview):
         even = True
         for k, v in properties.items():
             if not k.startswith("__"):
-                enabled = "enabled" if types_and_visibility is None or (k in types_and_visibility and types_and_visibility[k].visible) or not k in types_and_visibility else "disabled"
+                enabled = "enabled" if types_and_visibility is None or (k in types_and_visibility and types_and_visibility[k].visible) or k not in types_and_visibility else "disabled"
                 typ = types_and_visibility[k].type.__name__ if types_and_visibility is not None and k in types_and_visibility else "unknown_type"
                 if typ == "Color":
                     v = "(" + ",".join(str(s) for s in v) + ")" if v is not None and v != "" else ""

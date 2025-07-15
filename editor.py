@@ -23,9 +23,10 @@ from editor.main_window import MainWindow
 from editor.mini_map_controller import MiniMap
 from editor.properties import Properties
 from editor.map_controller import MapController
+from editor.python_boilerplate_dialog import PythonBoilerplateDialog
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, TiledTileLayer
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
 MOUSE_DOWN_COUNTER = 1
 
@@ -409,6 +410,9 @@ class Editor:
     def _run_map_action(self, _event=None) -> None:
         self.run_map()
 
+    def _create_boilerplate_map_action(self, _event=None) -> None:
+        self.create_boilerplate_map()
+
     def _delete_action(self, _event=None) -> None:
         if self.actions_controller.current_object is not None and self.actions_controller.object_layer is not None:
             obj = self.actions_controller.current_object
@@ -454,16 +458,18 @@ class Editor:
         self.actions_controller.tiled_map = tiled_map
         map_name = self._tiled_map.name
         if map_name is not None:
-            self.run_menu.entryconfig(1, label=f"Run '{map_name}'", state="normal")
+            self.run_menu.entryconfig(0, label=f"Run '{map_name}'", state="normal")
         else:
-            self.run_menu.entryconfig(1, label=f"Run", state="normal")
+            self.run_menu.entryconfig(0, label=f"Run", state="normal")
+
+        self.run_menu.entryconfig(1, state="normal")
 
         filename = os.path.split(self._tiled_map.filename)[-1]
         pygame.display.set_caption(filename)
         self.actions_controller.mark_saved()
 
     def run_map(self) -> None:
-        if "code" in self._tiled_map.properties:
+        if "python_file" in self._tiled_map.properties:
             python_file = self._tiled_map.properties["code"]
             map_file = self._tiled_map.filename if self._tiled_map.filename is not None else os.getcwd()
             map_file_dir = os.path.dirname(map_file)
@@ -507,7 +513,13 @@ class Editor:
             subprocess.Popen([f"{python_exec}", python_file], cwd=python_file_dir)
             return
         else:
-            tk.messagebox.showerror(title="Error", message="No 'code' property in the map")
+            tk.messagebox.showerror(title="Error", message="No 'python_file' property in the map")
+
+    def create_boilerplate_map(self) -> None:
+        python_file = None
+        if self._tiled_map is not None and "python_file" in self._tiled_map.properties:
+            python_file = self._tiled_map["python_file"]
+        x = PythonBoilerplateDialog(self.root, None, python_file)
 
     def _add_tk_image(self, name: str) -> tk.PhotoImage:
         image = tk.PhotoImage(file=os.path.join(os.path.dirname(__file__), "editor", "images", name + ".png"))
@@ -574,6 +586,7 @@ class Editor:
 
         self.run_menu = tk.Menu(menu, tearoff=0)
         self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{control_modifier}+R")
+        self.run_menu.add_command(label="Create", command=self._create_boilerplate_map_action, state="disabled")
 
         menu.add_cascade(label="Run", menu=self.run_menu)
 

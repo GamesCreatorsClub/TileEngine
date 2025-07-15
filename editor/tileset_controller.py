@@ -34,6 +34,8 @@ class TilesetController(ScrollableCanvas):
 
         self.tile_selected_callback = tile_selected_callback
 
+        self._draw_tile_rects = True
+
         self._selection_rect = Rect(0, 0, 1, 1)
         self._selection: Optional[list[list[int]]] = None
         self._mouse_is_down = False
@@ -91,11 +93,22 @@ class TilesetController(ScrollableCanvas):
             self._calc_tileset_rect()
 
     def _local_draw(self, surface: Surface) -> None:
-        if self._tileset is not None:
+        tileset = self._tileset
+        if tileset is not None:
             x = self.rect.x
             y = self.rect.y
             pygame.draw.rect(surface, (0, 0, 0), self.rect)
-            surface.blit(self._tileset.image_surface, (x + self.h_scrollbar.offset, y + self.v_scrollbar.offset))
+            surface.blit(tileset.image_surface, (x + self.h_scrollbar.offset, y + self.v_scrollbar.offset))
+
+            if self._draw_tile_rects:
+                total_x_offset = x + tileset.margin + self.h_scrollbar.offset
+                total_y_offset = y + tileset.margin + self.v_scrollbar.offset
+                rect = Rect(0, 0, tileset.tilewidth, tileset.tileheight)
+                for t_y in range(tileset.height):
+                    for t_x in range(tileset.width):
+                        rect.x = t_x * (tileset.tilewidth + tileset.spacing) + total_x_offset
+                        rect.y = t_y * (tileset.tileheight + tileset.spacing) + total_y_offset
+                        pygame.draw.rect(surface, (64, 32, 32), rect, width=1)
 
             if self._tileset_rect is not None:
                 pygame.draw.rect(surface, (128, 0, 0), self._tileset_rect3, width=1)
