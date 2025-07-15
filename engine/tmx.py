@@ -245,7 +245,10 @@ class TiledElement(ABC):
         for key, value in node.items():
             casted_value = TYPES[key](value)
             if hasattr(self, key):
-                setattr(self, key, casted_value)
+                try:
+                    setattr(self, key, casted_value)
+                except AttributeError:
+                    setattr(self, "_" + key, casted_value)
             else:
                 logger.debug(f"Object {self} does not have attr {key}")
 
@@ -299,9 +302,13 @@ class TiledElement(ABC):
             stream.write(" ")
             stream.write(" ".join(f"{k}=\"{v}\"" for k, v in attrs.items()))
 
+    def _get_xml_properties(self) -> dict:
+        filtered_properties = {k: v for k, v in self.properties.items() if not k.startswith("__")}
+        return filtered_properties
+
     def _xml_properties(self, stream, indent: int, close_tag: bool) -> bool:
         is_nested_dict = isinstance(self.properties, NestedDict)
-        filtered_properties = {k: v for k, v in self.properties.items() if not k.startswith("__")}
+        filtered_properties = self._get_xml_properties()
         # if (is_nested_dict and cast(NestedDict, self.properties).has_original_keys()) or (not is_nested_dict and len(filtered_properties)) > 0:
         if len(filtered_properties) > 0:
             close_tag = self._close_tag(stream, True)
@@ -571,6 +578,7 @@ class TiledTileLayer(BaseTiledLayer):
 
 
 class TiledGroupLayer(BaseTiledLayer):
+    # TODO Implement this  loading, etc...
     def __init__(self, tiled_map: 'TiledMap') -> None:
         super().__init__(tiled_map)
 
@@ -674,8 +682,7 @@ class TiledObject(TiledSubElement):
         if self.map.invert_y and self.gid > 0:
             self.y -= self.height
 
-    def _tag_name(self) -> str:
-        return "object"
+    def _tag_name(self) -> str: return "object"
 
     @property
     def image(self) -> Optional[Surface]:
@@ -864,7 +871,7 @@ class TiledTileAnimations:
 class TiledTileset(TiledElement):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
         "firstgid": F(int, False), "name": F(str, True), "tilewidth": F(int, True), "tileheight": F(int, True),
-        "spacing": F(int, True), "margin": F(int, True), "tilecount": F(int, False), "columns": F(int, True),
+        "spacing": F(int, True), "margin": F(int, True), "tilecount": F(int, False), "columns": F(int, False),
         "width": F(int, True), "height": F(int, True)
     }
 
@@ -875,6 +882,7 @@ class TiledTileset(TiledElement):
         self.map = cast(TiledMap, parent)
         self._parent_dir = os.path.dirname(self.map.filename) if self.map.filename is not None else None
 
+        self.dirty = False
         self._source_filename: str = ""
         self._source_image_filename: str = ""
         self.image_surface: Optional[Surface] = None
@@ -890,17 +898,162 @@ class TiledTileset(TiledElement):
         # defaults from the specification
         self.firstgid: int = 0
         self.name: Optional[str] = None
-        self.tilewidth: int = 0
-        self.tileheight: int = 0
-        self.spacing: int = 0
-        self.margin: int = 0
-        self.tilecount: int = 0
-        self.columns: int = 0
+        self._tilewidth: int = 0
+        self._tileheight: int = 0
+        self._columns: int = 0
+        self._spacing: int = 0
+        self._margin: int = 0
+        self._spacing_not_set: bool = True
+        self._margin_not_set: bool = True
+
+        self._tilecount: int = 0
 
         # image properties
         self.trans = None
-        self.width: int = 0
-        self.height: int = 0
+        self._width: int = 0
+        self._height: int = 0
+
+    @property
+    def tilewidth(self) -> int:
+        return self._tilewidth
+
+    @tilewidth.setter
+    def tilewidth(self, tilewidth: int) -> None:
+        if self._tilewidth == 0:
+            self._tilewidth = tilewidth
+        else:
+            self._tilewidth = tilewidth
+            pass  # TODO change tilewidth and image size etc...
+
+    @property
+    def tileheight(self) -> int:
+        return self._tileheight
+
+    @tileheight.setter
+    def tileheight(self, tileheight: int) -> None:
+        if self._tileheight == 0:
+            self._tileheight = tileheight
+        else:
+            self._tileheight = tileheight
+            pass  # TODO change tileheight and image size etc...
+
+    @property
+    def width(self) -> int:
+        return self._width
+
+    @property
+    def height(self) -> int:
+        return self._height
+
+    @property
+    def columns(self) -> int:
+        return self._columns
+
+    @property
+    def spacing(self) -> int:
+        return self._spacing
+
+    @property
+    def margin(self) -> int:
+        return self._margin
+
+    @columns.setter
+    def columns(self, columns: int) -> None:
+        if self._columns <= 0:
+            self._columns = columns
+        else:
+            self._columns = columns
+            pass  # TODO Do something about changing image size!
+
+    @property
+    def tilecount(self) -> int:
+        return self._tilecount
+
+    def _reshape_tileset(self, margin: int, spacing: int, tilewidth: int, tileheight: int, width: int, height: int) -> None:
+        if (margin != self._margin or spacing != self._spacing
+                or tilewidth != self.tilewidth or tileheight != self.tileheight
+                or width != self._width or height != self._height):
+
+            self.dirty = True
+            pixel_width = margin + width * tilewidth + (width - 1) * spacing
+            pixel_height = margin + height * tileheight + (height - 1) * spacing
+            image_surface = Surface((pixel_width, pixel_height), pygame.HWSURFACE).convert_alpha()
+            pygame.draw.rect(image_surface, (0, 0, 0), Rect(0, 0, pixel_width, pixel_height))
+
+            for t_y in range(self.height):
+                if t_y < height:
+                    for t_x in range(self.width):
+                        if t_x < width:
+                            sub_surface = self.image_surface.subsurface(
+                                Rect(
+                                    t_x * (self.tilewidth + self._spacing) + self._margin,
+                                    t_y * (self.tileheight + self._spacing) + self._margin,
+                                    self.tilewidth, self.tileheight))
+
+                            image_surface.blit(
+                                sub_surface, (
+                                    t_x * (tilewidth + spacing) + margin,
+                                    t_y * (tileheight + spacing) + margin
+                                ))
+
+            if self.margin > 0:
+                image_surface.blit(self.image_surface.subsurface(Rect(0, 0, self.image_surface.get_width(), margin)), (0, 0))
+                image_surface.blit(self.image_surface.subsurface(Rect(0, 0, margin, self.image_surface.get_height())), (0, 0))
+
+                old_right_margin = self._margin + self._width * (self._tilewidth + self._spacing) - self._spacing
+                new_right_margin = margin + width * (tilewidth + spacing) - spacing
+                if self.image_surface.get_width() >= old_right_margin:
+                    image_surface.blit(self.image_surface.subsurface(Rect(old_right_margin, 0, self.image_surface.get_width() - old_right_margin, self.image_surface.get_height())), (new_right_margin, 0))
+
+                old_bottom_margin = self._margin + self._height * (self._tileheight + self._spacing) - self._spacing
+                new_bottom_margin = margin + height * (tileheight + spacing) - spacing
+                if self.image_surface.get_height() >= old_bottom_margin:
+                    image_surface.blit(self.image_surface.subsurface(Rect(0, old_bottom_margin, self.image_surface.get_width(), self.image_surface.get_height() - old_bottom_margin)), (0, new_bottom_margin, 0))
+
+            old_width = self._width
+            old_height = self._height
+            tile_count_delta = width * height - old_width * old_height
+            old_max_gid = self.firstgid + self._width * self._height
+
+            self._margin = margin
+            self._spacing = spacing
+            self._tilewidth = tilewidth
+            self._tileheight = tileheight
+            self._width = width
+            self._height = height
+            self._tilecount = width * height
+            self.image_surface = image_surface
+
+            def translate_gid(gid: int) -> int:
+                if gid < self.firstgid:
+                    return gid
+                if gid > old_max_gid:
+                    return gid + tile_count_delta
+                gid = gid - self.firstgid
+                y = gid // old_width
+                x = gid - y * old_width
+
+                return gid + self.firstgid + y * width + x
+
+            def process_layer(layer: TiledTileLayer) -> None:
+                for t_y in range(old_height):
+                    for t_x in range(old_width):
+                        gid = layer.data[t_y][t_x]
+                        translate_gid(gid)
+
+            if isinstance(self.parent, TiledMap):
+                tiled_map = self.parent
+                if old_width != width or old_height != height:
+                    for layer in tiled_map.layers:
+                        if isinstance(layer, TiledGroupLayer):
+                            # TODO TiledGroupLayer not implemented yet
+                            pass
+                        elif isinstance(layer, TiledTileLayer):
+                            process_layer(layer)
+                        elif isinstance(layer, TiledObjectGroup):
+                            for object in layer.objects:
+                                object.gid = translate_gid(object.gid)
+                tiled_map.update_tileset(self)
 
     @property
     def image(self) -> str:
@@ -940,9 +1093,34 @@ class TiledTileset(TiledElement):
         else:
             full_filename = os.path.join(os.path.dirname(self._source_filename), self._source_image_filename)
         self.image_surface = pygame.image.load(full_filename)
+        self._update_width_and_height()
+
+    def _update_image(self, image_surface: Surface) -> None:
+        self.image_surface = image_surface
+        self._update_width_and_height()
+
+    def _update_width_and_height(self) -> None:
         self.image_rect = self.image_surface.get_rect()
-        self.width = self.image_rect.width // self.tilewidth
-        self.height = self.image_rect.height // self.tileheight
+        # width = self.image_rect.width
+        height = self.image_rect.height
+        self._width = self._columns
+        self._height = (height + self._spacing - self._margin) // (self.tileheight + self._spacing)
+
+    def save(self) -> None:
+        with open(self._source_filename, "w", buffering=128 * 1024) as f:
+            f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+            self._save(f, 0)
+
+    def _get_xml_properties(self) -> dict:
+        return {
+            "name": self.name,
+            "tilewidth": str(self.tilewidth),
+            "tileheight": str(self.tileheight),
+            "tilecount": str(self.tilecount),
+            "columns": str(self.columns),
+            **({"spacing": str(self._spacing)} if self._spacing != 0 else {}),
+            **({"margin": str(self._margin)} if self._margin != 0 else {})
+        }
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
@@ -978,14 +1156,18 @@ class TiledTileset(TiledElement):
         for terrain_node in terrain_types_element.findall("terrain"):
             terrain = TiledTerrain(self)
             terrain.name = terrain_node.get("name")
-            terrain.tile = terrain_node.get("tile")
+            terrain.tile = int(terrain_node.get("tile"))
             self.terrain.append(terrain)
 
     def get_image(self, gid) -> Surface:
         gid = gid - self.firstgid
-        y = (gid // self.columns)
-        x = (gid - y * self.columns)
-        return self.image_surface.subsurface(Rect(x * self.tilewidth, y * self.tileheight, self.tilewidth, self.tileheight))
+        y = gid // self._columns
+        x = gid - y * self._columns
+        return self.image_surface.subsurface(
+            Rect(
+                x * (self.tilewidth + self._spacing) + self._margin,
+                y * (self.tileheight + self._spacing) + self._margin,
+                self.tilewidth, self.tileheight))
 
     def _tag_name(self) -> str: return "tileset"
 
@@ -1016,7 +1198,7 @@ class TiledMap(TiledElement):
     }
 
     OPTIONAL_CUSTOM_PROPERTIES = TiledElement.OPTIONAL_CUSTOM_PROPERTIES | {
-        "code": F(Path, True)
+        "python_file": F(Path, True)
     }
 
     def __init__(self, invert_y: bool = True) -> None:
@@ -1145,6 +1327,15 @@ class TiledMap(TiledElement):
         self.tilesets.append(tileset)
         self._update_tileset_change()
 
+    def update_tileset(self, tileset: TiledTileset) -> None:
+        self.images = []
+        self.maxgid = 0
+        for ts in self.tilesets:
+            ts.firstgid = self.maxgid + 1
+            self.maxgid = ts.firstgid + tileset.tilecount
+
+        self._update_tileset_change()
+
     def load(self, filename: str) -> None:
         self.filename = filename
         self._parse_xml(ElementTree.parse(filename).getroot())
@@ -1158,6 +1349,10 @@ class TiledMap(TiledElement):
         with open(filename, "r") as f:
             r = f.read()
             print(r)
+
+        for tileset in self.tilesets:
+            if tileset.dirty:
+                tileset.save()
 
     def _tag_name(self) -> str: return "map"
 
