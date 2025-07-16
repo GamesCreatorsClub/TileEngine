@@ -370,15 +370,15 @@ class TiledElement(ABC):
                 elif f.type == int:
                     v = str(int(v)) if v is not None else None
                 elif f.type == float:
-                    v = str(float(v))
-                    if v.endswith(".0"):
+                    v = str(float(v)) if v is not None else None
+                    if v is not None and v.endswith(".0"):
                         v = v[:-2]
                     # if "." not in v:
                     #     v = v + ".0"
                 elif f.type == bool:
-                    v = "1" if v else "0"
+                    v = ("1" if v else "0") if v is not None else None
                 else:
-                    v = str(v)
+                    v = str(v) if v is not None else None
                 if v is None or (k == "name" and v == ""):
                     # fudge to behave the same as original Tiled editor save
                     pass
