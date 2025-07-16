@@ -310,6 +310,9 @@ class TiledElement(ABC):
         is_nested_dict = isinstance(self.properties, NestedDict)
         filtered_properties = self._get_xml_properties()
         # if (is_nested_dict and cast(NestedDict, self.properties).has_original_keys()) or (not is_nested_dict and len(filtered_properties)) > 0:
+        return self._write_xml_properties(stream, indent, close_tag, filtered_properties)
+
+    def _write_xml_properties(self, stream, indent: int, close_tag: bool, filtered_properties: dict) -> bool:
         if len(filtered_properties) > 0:
             close_tag = self._close_tag(stream, True)
 
@@ -351,9 +354,9 @@ class TiledElement(ABC):
     def _sub_xml(self, stream, indent: int, close_tag: bool) -> bool:
         return close_tag
 
-    def _collect_xml_attributes(self) -> dict[str, Union[str, int, bool, float]]:
+    def _collect_xml_attributes(self, attributes_constant_name: str = "XML_ATTRIBUTES") -> dict[str, Union[str, int, bool, float]]:
         attrs = {}
-        attributes_on_type = type(self).__dict__["XML_ATTRIBUTES"] if "XML_ATTRIBUTES" in type(self).__dict__ else type(self).ATTRIBUTES
+        attributes_on_type = type(self).__dict__[attributes_constant_name] if attributes_constant_name in type(self).__dict__ else type(self).ATTRIBUTES
         for k, f in attributes_on_type.items():
             v = getattr(self, k)
             v = f.adjust(self, v)
@@ -365,7 +368,7 @@ class TiledElement(ABC):
                     elif isinstance(v, Color):
                         v = f"#{v.r:02x}{v.g:02x}{v.b:02x}"
                 elif f.type == int:
-                    v = str(int(v))
+                    v = str(int(v)) if v is not None else None
                 elif f.type == float:
                     v = str(float(v))
                     if v.endswith(".0"):
@@ -376,7 +379,7 @@ class TiledElement(ABC):
                     v = "1" if v else "0"
                 else:
                     v = str(v)
-                if k == "name" and v == "":
+                if v is None or (k == "name" and v == ""):
                     # fudge to behave the same as original Tiled editor save
                     pass
                 else:
@@ -713,12 +716,13 @@ class TiledObject(TiledSubElement):
 
 class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
-        "id": F(int, False), "name": F(str, True)
+        "id": F(int, False), "name": F(str, True), "draworder": F(str, False)
     }
 
-    def __init__(self, parent: TiledElement) -> None:
+    def __init__(self, parent: TiledElement, draworder: Optional[str] = None) -> None:
         super().__init__(parent)
-        self.id: int = 0
+        self.draworder = draworder
+        self.id: Optional[int] = None
         self.name: str = ""
         self.parent_tile_id: Optional[int] = None
         self.objects_id_map: dict[int, TiledObject] = {}
@@ -830,6 +834,17 @@ class TiledWangSet(TiledElement):
 
     def _tag_name(self) -> str: return "wangset"
 
+    def _sub_xml(self, stream, indent: int, close_tag: bool) -> bool:
+        close_tag = self._close_tag(stream, close_tag)
+
+        for wangcolor in self.wangcolors:
+            wangcolor._save(stream, indent)
+
+        for wangtile in self.wangtiles:
+            wangtile._save(stream, indent)
+
+        return close_tag
+
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "wangtile": NodeType(None, TiledWangTile, "wangtiles"),
         "wangcolor": NodeType(None, TiledWangColor, "wangcolors")
@@ -844,6 +859,14 @@ class TiledWangSets(TiledElement):
         self.wangset_by_name: dict[str, TiledWangSet] = {}
 
     def _tag_name(self) -> str: return "wangsets"
+
+    def _sub_xml(self, stream, indent: int, close_tag: bool) -> bool:
+        close_tag = self._close_tag(stream, close_tag)
+
+        for wangset in self.wangset_by_name.values():
+            wangset._save(stream, indent)
+
+        return close_tag
 
     NODE_TYPES = TiledElement.NODE_TYPES | {
         "wangset": NodeType(None, TiledWangSet, "wangset_by_name")
@@ -875,7 +898,13 @@ class TiledTileset(TiledElement):
         "width": F(int, True), "height": F(int, True)
     }
 
-    XML_ATTRIBUTES = {"firstgid": F(int, False), "source": F(str, False)}
+    XML_ATTRIBUTES = {
+        "name": F(str, True),
+        "tilewidth": F(int, True), "tileheight": F(int, True),
+        "tilecount": F(int, False), "columns": F(int, False),
+    }
+
+    XML_ATTRIBUTES_SHORT = {"firstgid": F(int, False), "source": F(str, False)}
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
@@ -886,9 +915,11 @@ class TiledTileset(TiledElement):
         self._source_filename: str = ""
         self._source_image_filename: str = ""
         self.image_surface: Optional[Surface] = None
+        self.tile_ids: list[int] = []
         self.tile_properties: dict[int, dict[str, Any]] = {}
         self.tile_terrain: dict[int, str] = {}
         self.tiles_by_name: dict[str: int] = {}
+        self.tile_objectgroup: dict[int , TiledObjectGroup] = {}
         self.terrain: list[TiledTerrain] = []
         self.wangsets: Optional[TiledWangSets] = None
         self.tile_animations: dict[int, TiledTileAnimations] = {}
@@ -1075,14 +1106,21 @@ class TiledTileset(TiledElement):
     def update_source_filename(self, filename) -> None:
         self._source_filename = filename
 
-    def load(self, filename: str) -> None:
+    def _full_filename(self, filename: str) -> str:
         self._source_filename = filename
 
         filename = filename.replace("\\", "/")
         filename = filename.replace("/", os.path.sep)
 
         full_filename = os.path.join(self._parent_dir, filename) if self._parent_dir is not None else filename
+        return full_filename
+
+    def load(self, filename: str) -> None:
+        self._source_filename = filename
+
+        full_filename = self._full_filename(filename)
         self._parse_xml(ElementTree.parse(full_filename).getroot())
+        self.dirty = filename.endswith("tilea2.tsx")
 
     def _load_image(self, image_element: Element) -> None:
         self._source_image_filename = image_element.get("source")
@@ -1106,12 +1144,70 @@ class TiledTileset(TiledElement):
         self._width = self._columns
         self._height = (height + self._spacing - self._margin) // (self.tileheight + self._spacing)
 
+    def _save_short(self, stream, indent: int) -> None:
+        tag = self._tag_name()
+        attrs = self._collect_xml_attributes(attributes_constant_name="XML_ATTRIBUTES_SHORT")
+        stream.write(" " * indent)
+        stream.write(f"<{tag}")
+        if len(attrs) > 0:
+            stream.write(" ")
+            stream.write(" ".join(f"{k}=\"{v}\"" for k, v in attrs.items()))
+
+        stream.write("/>\n")
+
     def save(self) -> None:
-        with open(self._source_filename, "w", buffering=128 * 1024) as f:
+        filename = self._full_filename(self._source_filename)
+        with open(filename, "w", buffering=128 * 1024) as f:
             f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
             self._save(f, 0)
 
-    def _get_xml_properties(self) -> dict:
+    def _sub_xml(self, stream, indent: int, close_tag: bool) -> bool:
+        close_tag = self._close_tag(stream, close_tag)
+
+        image_pixel_width, image_pixel_height = self.image_surface.get_size()
+        stream.write(" " * indent)
+        stream.write(f"<image source=\"{self._source_image_filename}\" width=\"{image_pixel_width}\" height=\"{image_pixel_height}\"/>\n")
+
+        stream.write(" " * indent)
+        stream.write(f"<terraintypes>\n")
+        for terrain in self.terrain:
+            terrain._save(stream, indent + 1)
+        stream.write(" " * indent)
+        stream.write(f"</terraintypes>\n")
+
+        for tile_id in self.tile_ids:
+            stream.write(" " * indent)
+            stream.write(f"<tile id=\"{tile_id - self.firstgid}\"")
+            if tile_id in self.tile_terrain:
+                stream.write(f" terrain=\"{self.tile_terrain[tile_id]}\"")
+            if tile_id in self.tile_properties:
+                stream.write(">\n")
+
+                props = self.tile_properties[tile_id]
+                colliders: Optional[TiledObjectGroup] = None
+                if "colliders" in props:
+                    colliders = props["colliders"]
+                    del props["colliders"]
+
+                if len(props) > 0:
+                    close_tag = self._write_xml_properties(stream, indent + 2, close_tag, props)
+
+                if colliders is not None:
+                    props["colliders"] = colliders
+
+                if tile_id in self.tile_objectgroup:
+                    self.tile_objectgroup[tile_id]._save(stream, indent + 1)
+
+                stream.write(" " * indent)
+                stream.write(f"</tile>\n")
+            else:
+                stream.write("/>\n")
+
+        self.wangsets._save(stream, indent)
+
+        return close_tag
+
+    def _Xget_xml_properties(self) -> dict:
         return {
             "name": self.name,
             "tilewidth": str(self.tilewidth),
@@ -1124,6 +1220,7 @@ class TiledTileset(TiledElement):
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
+        self.tile_ids.append(id_)
         terrain = tile_element.get("terrain")
         if terrain is not None:
             self.tile_terrain[id_] = terrain
@@ -1132,10 +1229,11 @@ class TiledTileset(TiledElement):
         if properties_node:
             properties.update(self._parse_xml_properties(properties_node))
         for obj_group_node in tile_element.findall("objectgroup"):
-            objectgroup = TiledObjectGroup(self)
+            objectgroup = TiledObjectGroup(self, draworder="index")
             objectgroup.parent_tile_id = id_
             objectgroup._parse_xml(obj_group_node)
             properties["colliders"] = objectgroup.objects
+            self.tile_objectgroup[id_] = objectgroup
         if len(properties) > 0:
             self.tile_properties[id_] = properties
             if "name" in properties:
@@ -1360,7 +1458,7 @@ class TiledMap(TiledElement):
         close_tag = self._close_tag(stream, close_tag)
 
         for tiledset in self.tilesets:
-            tiledset._save(stream, indent)
+            tiledset._save_short(stream, indent)
 
         for layer in self.layers:
             layer._save(stream, indent)
