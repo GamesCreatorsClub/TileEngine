@@ -38,6 +38,8 @@ class ToolbarPanel(ComponentCollection):
                    image_number: int,
                    disabled_image_number: Optional[int] = None,
                    callback: Optional[Callable[[], None]] = None) -> Button:
+        if disabled_image_number is not None and disabled_image_number < 0:
+            disabled_image_number = -disabled_image_number + self.icons_in_one_row
         button = Button(
             Rect(0, 0, self.image_size, self.image_size),
             self.icon_surface.subsurface(Rect(self.image_size * (image_number % self.icons_in_one_row), (image_number // self.icons_in_one_row) * self.image_size, self.image_size, self.image_size)),

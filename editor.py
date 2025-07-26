@@ -120,14 +120,14 @@ class Editor:
 
         self._new_map_button = self.main_window.toolbar.add_button(12, callback=self._create_new_map_action)
         self._load_map_button = self.main_window.toolbar.add_button(10, callback=self._load_file_action)
-        self._save_map_button = self.main_window.toolbar.add_button(11, 31, callback=self._save_map_action)
+        self._save_map_button = self.main_window.toolbar.add_button(11, -11, callback=self._save_map_action)
         self.main_window.toolbar.add_spacer()
-        self._redo_button = self.main_window.toolbar.add_button(13, 33, callback=self._undo_action)
+        self._redo_button = self.main_window.toolbar.add_button(13, -13, callback=self._undo_action)
         self._undo_button = self.main_window.toolbar.add_button(14, 34, callback=self._redo_action)
         self.main_window.toolbar.add_spacer()
-        self._cut_button = self.main_window.toolbar.add_button(16, 36, callback=self._cut_action)
-        self._copy_button = self.main_window.toolbar.add_button(15, 35, callback=self._copy_action)
-        self._paste_button = self.main_window.toolbar.add_button(17, 37, callback=self._paste_action)
+        self._cut_button = self.main_window.toolbar.add_button(16, -16, callback=self._cut_action)
+        self._copy_button = self.main_window.toolbar.add_button(15, -15, callback=self._copy_action)
+        self._paste_button = self.main_window.toolbar.add_button(17, -17, callback=self._paste_action)
         self.main_window.toolbar.add_spacer()
 
         self._save_map_button.disabled = True
@@ -142,7 +142,8 @@ class Editor:
             Rect(0, 0, 0, 0),
             None,
             self.actions_controller,
-            self._tile_selected_callback
+            self._tile_selected_callback,
+            self._tileset_grid_toggle_callback
         )
         self.main_window.tileset_actions_toolbar = TilesetActionsPanel(
             # Rect(right_column, self.main_window.tileset_controller.rect.bottom + 10, 300, 32),
@@ -364,6 +365,9 @@ class Editor:
     def _remove_tileset_action(self) -> None:
         tileset_controller = self.main_window.tileset_controller
         self.actions_controller.remove_tileset(tileset_controller.tileset)
+
+    def _tileset_grid_toggle_callback(self, grid_on: bool) -> None:
+        self.main_window.tileset_actions_toolbar.grid_button.disabled = grid_on
 
     def _add_tile_action(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(

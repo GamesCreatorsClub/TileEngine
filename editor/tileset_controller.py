@@ -20,11 +20,11 @@ class TilesetActionsPanel(ToolbarPanel):
                  erase_tile: Callable[[], None]) -> None:
         super().__init__(rect, icon_surface=icon_surface)
 
-        self.add_tileset_button = self.add_button(18, 38, add_tileset_callback)
-        self.remove_tileset_button = self.add_button(19, 39, remove_tileset_callback)
-        self.grid_button = self.add_button(20, 40, grid_on_off)
-        self.add_tile_button = self.add_button(21, 41, add_tile)
-        self.erase_tile_button = self.add_button(1, 21, erase_tile)
+        self.add_tileset_button = self.add_button(18, -18, add_tileset_callback)
+        self.remove_tileset_button = self.add_button(19, -19, remove_tileset_callback)
+        self.grid_button = self.add_button(20, -20, grid_on_off)
+        self.add_tile_button = self.add_button(21, -21, add_tile)
+        self.erase_tile_button = self.add_button(1, -1, erase_tile)
 
 
 class TilesetController(ScrollableCanvas):
@@ -32,15 +32,17 @@ class TilesetController(ScrollableCanvas):
                  rect: Rect,
                  tileset: Optional[TiledTileset],
                  action_controller: ActionsController,
-                 tile_selected_callback: Callable[[Optional[list[list[int]]]], None]) -> None:
+                 tile_selected_callback: Callable[[Optional[list[list[int]]]], None],
+                 grid_toggle_callback: Callable[[bool], None]) -> None:
         super().__init__(rect, allow_over=False)
         self._tileset = tileset
         self.action_controller = action_controller
         action_controller.current_tileset_callbacks.append(self._current_tileset_callback)
 
         self.tile_selected_callback = tile_selected_callback
+        self.grid_toggle_callback = grid_toggle_callback
 
-        self._draw_tile_rects = True
+        self._draw_tile_rects = False
 
         self._selection_rect = Rect(0, 0, 1, 1)
         self._selection: Optional[list[list[int]]] = None
@@ -74,6 +76,8 @@ class TilesetController(ScrollableCanvas):
             self._draw_tile_rects = not self._draw_tile_rects
         else:
             self._draw_tile_rects = on
+
+        self.grid_toggle_callback(self._draw_tile_rects)
 
     def redefine_rect(self, rect) -> None:
         super().redefine_rect(rect)
