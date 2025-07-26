@@ -149,7 +149,10 @@ class Editor:
             Rect(0, 0, 0, 0),
             self.main_window.icon_surface,
             self._add_tileset_action,
-            self._remove_tileset_action
+            self._remove_tileset_action,
+            self.main_window.tileset_controller.grid_on_off,
+            self._add_tile_action,
+            self._erase_tile_action
         )
         self.main_window.map_controller = MapController(
             # Rect(0, 0, right_column, self.viewport.height),
@@ -359,7 +362,21 @@ class Editor:
             self.actions_controller.add_tileset(filename)
 
     def _remove_tileset_action(self) -> None:
-        print(f"Calculate removing tileset")
+        tileset_controller = self.main_window.tileset_controller
+        self.actions_controller.remove_tileset(tileset_controller.tileset)
+
+    def _add_tile_action(self) -> None:
+        filename = filedialog.askopenfilename(title="Open file", filetypes=(
+            ("png", "*.png"), ("jpg", "*.jpg"), ("jpeg", "*.jpeg"), ("gif", "*.gif")))
+        if filename != "":
+            tileset_controller = self.main_window.tileset_controller
+            x, y = tileset_controller.selection_origin
+            self.actions_controller.add_tile(filename, tileset_controller.tileset, x, y)
+
+    def _erase_tile_action(self) -> None:
+        tileset_controller = self.main_window.tileset_controller
+        x, y = tileset_controller.selection_origin
+        self.actions_controller.erase_tile(tileset_controller.tileset, x, y)
 
     def _load_file_action(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))

@@ -1032,7 +1032,7 @@ class TiledTileset(TiledElement):
             self.dirty_data = True
             pixel_width = margin + width * tilewidth + (width - 1) * spacing
             pixel_height = margin + height * tileheight + (height - 1) * spacing
-            image_surface = Surface((pixel_width, pixel_height), pygame.HWSURFACE).convert_alpha()
+            image_surface = Surface((pixel_width, pixel_height), pygame.SRCALPHA, 32)
             pygame.draw.rect(image_surface, (0, 0, 0), Rect(0, 0, pixel_width, pixel_height))
 
             for t_y in range(self.height):
@@ -1062,7 +1062,7 @@ class TiledTileset(TiledElement):
 
                 old_bottom_margin = self._margin + self._height * (self._tileheight + self._spacing) - self._spacing
                 new_bottom_margin = margin + height * (tileheight + spacing) - spacing
-                if self.image_surface.get_height() >= old_bottom_margin:
+                if self.image_surface.get_height() > old_bottom_margin:
                     image_surface.blit(self.image_surface.subsurface(Rect(0, old_bottom_margin, self.image_surface.get_width(), self.image_surface.get_height() - old_bottom_margin)), (0, new_bottom_margin, 0))
 
             old_width = self._width

@@ -1,3 +1,4 @@
+import pygame
 from contextlib import contextmanager
 
 import time
@@ -5,7 +6,7 @@ from abc import ABC
 from enum import Enum
 from typing import Optional, cast, Callable, Any
 
-from pygame import Color
+from pygame import Color, Surface, Rect
 
 from engine.tmx import TiledMap, TiledObjectGroup, BaseTiledLayer, TiledTileLayer, TiledObject, TiledTileset, TiledElement
 
@@ -25,6 +26,8 @@ class ChangeKind(Enum):
     UPDATE_ATTRIBUTE = (False, )
     ADD_TILESET = (False, )
     REMOVE_TILESET = (False, )
+    ADD_TILE = (False, )
+    ERASE_TILE = (False, )
 
     def __new__(cls, cumulative: bool):
         obj = object.__new__(cls)
@@ -244,6 +247,53 @@ class RemoveTileset(Change):
         tiled_map = self.action_controller.tiled_map
         tiled_map.remove_tileset(self.tileset)
         self.action_controller.notify_remove_tileset(self.tileset)
+
+
+class ClearTile(Change):
+    def __init__(self, kind: ChangeKind, action_controller: 'ActionsController', tileset: TiledTileset, tile_x: int, tile_y: int) -> None:
+        super().__init__(kind, action_controller)
+        self.tileset = tileset
+        self.tile_x = tile_x
+        self.tile_y = tile_y
+        self.previous_tileset_surface = Surface((tileset.image_surface.get_size()), pygame.SRCALPHA, 32)
+        # self.previous_tileset_surface = Surface((tileset.image_surface.get_size()), pygame.HWSURFACE, 32)
+        self.previous_tileset_surface.blit(tileset.image_surface, (0, 0))
+        self.previous_dirty_data = tileset.dirty_data
+        self.previous_dirty_image = tileset.dirty_image
+
+    def undo(self) -> None:
+        self.tileset.image_surface.blit(self.previous_tileset_surface, (0, 0))
+        self.tileset.dirty_data = self.previous_dirty_data
+        self.tileset.dirty_image = self.previous_dirty_image
+
+    def redo(self) -> None:
+        x, y = self._calc_pos()
+        pygame.draw.rect(self.tileset.image_surface, (0, 0, 0, 255), Rect(x, y, self.tileset.tilewidth, self.tileset.tileheight))
+        pygame.draw.rect(self.tileset.image_surface, (0, 0, 0, 0), Rect(x, y, self.tileset.tilewidth, self.tileset.tileheight))
+        self.tileset.dirty_data = True
+        self.tileset.dirty_image = True
+
+    def _calc_pos(self) -> tuple[int, int]:
+        tileset = self.tileset
+        x = tileset.margin + self.tile_x * (tileset.tilewidth + tileset.spacing)
+        y = tileset.margin + self.tile_y * (tileset.tilewidth + tileset.spacing)
+        return x, y
+
+
+class EraseTile(ClearTile):
+    def __init__(self, action_controller: 'ActionsController', tileset: TiledTileset, tile_x: int, tile_y: int) -> None:
+        super().__init__(ChangeKind.ERASE_TILE, action_controller, tileset, tile_x, tile_y)
+
+
+class AddTile(ClearTile):
+    def __init__(self, action_controller: 'ActionsController', tileset: TiledTileset, tile_x: int, tile_y: int, tile: Surface) -> None:
+        super().__init__(ChangeKind.ADD_TILE, action_controller, tileset, tile_x, tile_y)
+        self.tile = tile
+
+    def redo(self) -> None:
+        super().redo()
+        x, y = self._calc_pos()
+        self.tileset.image_surface.blit(self.tile, (x, y))
 
 
 class ActionsController:
@@ -610,10 +660,18 @@ class ActionsController:
         self._add_change(AddTileset(self, tileset))
         self.notify_add_tileset(tileset)
 
-    def remove_tileset(self, filename: str) -> None:
-        tileset = TiledTileset(self._tiled_map)
-        tileset.source = filename
+    def remove_tileset(self, tileset: TiledTileset) -> None:
         self._tiled_map.remove_tileset(tileset)
-
         self._add_change(RemoveTileset(self, tileset))
         self.notify_remove_tileset(tileset)
+
+    def add_tile(self, tile_filename: str, tileset: TiledTileset, x: int, y: int) -> None:
+        tile = pygame.image.load(tile_filename).convert_alpha(tileset.image_surface)
+        add_tile_change = AddTile(self, tileset, x, y, tile)
+        add_tile_change.redo()
+        self._add_change(add_tile_change)
+
+    def erase_tile(self, tileset: TiledTileset, x: int, y: int) -> None:
+        erase_tile_change = EraseTile(self, tileset, x, y)
+        erase_tile_change.redo()
+        self._add_change(erase_tile_change)
