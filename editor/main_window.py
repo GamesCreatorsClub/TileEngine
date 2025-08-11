@@ -11,13 +11,16 @@ from editor.mini_map_controller import MiniMap
 from editor.pygame_components import ComponentCollection, UISize, Divider
 from editor.tileset_controller import TilesetActionsPanel, TilesetController
 from editor.toolbar_panel import ToolbarPanel
+from editor import resources_prefix
 
 
 class MainWindow(ComponentCollection):
     def __init__(self, rect: Rect) -> None:
         super().__init__(rect)
 
-        self.icon_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "icons.png"))
+        icons_file = os.path.join(resources_prefix.RESOURCES_PREFIX, "editor", "icons.png")
+        print(f"Loading icons from {icons_file}")
+        self.icon_surface = pygame.image.load(icons_file)
 
         self.toolbar = ToolbarPanel(Rect(0, 0, 0, 0), icon_surface=self.icon_surface)
         self.divider = Divider(Rect(0, 0, 0, 0), False, self)

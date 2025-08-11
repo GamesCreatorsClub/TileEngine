@@ -6,7 +6,7 @@ from editor.properties import pack
 
 
 class PythonBoilerplateDialog(tk.Toplevel):
-    def __init__(self, root: Union[tk.Widget, tk.Tk], callback: Callable[[str], None], python_file: Optional[str]) -> None:
+    def __init__(self, root: Union[tk.Widget, tk.Tk], callback: Optional[Callable[[str], None]], python_file: Optional[str]) -> None:
         super().__init__(root)
         self.root = root
         self.callback = callback

@@ -14,8 +14,10 @@ from editor.pygame_components import ScrollableCanvas
 from editor.resize_component import ResizeButton, ResizePosition
 from editor.tileset_controller import TilesetController
 from editor.toolbar_panel import ToolbarPanel
+from editor import resources_prefix
 from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup, TiledObject
 from engine.utils import clip
+
 
 SCROLLING_MARGIN = 10
 SCROLLING_STEP = 10
@@ -583,7 +585,7 @@ class MapController(ScrollableCanvas):
         actions_controller.current_object_callbacks.append(self._current_object_callback)
 
         self.clipboard_controller = clipboard_controller
-        self.arrows_surface = pygame.image.load(os.path.join(os.path.dirname(__file__), "arrows-small.png"))
+        self.arrows_surface = pygame.image.load(os.path.join(resources_prefix.RESOURCES_PREFIX, "editor", "arrows-small.png"))
 
         self.object_added_callback = object_added_callback
         self.object_selected_callback = object_selected_callback
