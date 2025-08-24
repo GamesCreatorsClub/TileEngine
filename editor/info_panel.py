@@ -28,7 +28,10 @@ class InfoPanel(Component):
         if tileset is None:
             self.tileset_text = None
         else:
-            self.tileset_text = self.font.render("Tileset: " + tileset.name, False, (0, 0, 0))
+            if tileset.name is not None:
+                self.tileset_text = self.font.render("Tileset: " + tileset.name, False, (0, 0, 0))
+            else:
+                self.tileset_text = self.font.render("Tileset: <>", False, (0, 0, 0))
 
     def _update_layer_name(self) -> None:
         if self._tiled_layer is not None:

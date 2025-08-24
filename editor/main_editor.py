@@ -20,10 +20,12 @@ from pygame import Surface, Rect, K_BACKSPACE
 
 from editor.actions_controller import ActionsController, ChangeKind
 from editor.clipboard_controller import ClipboardController, element_property
+from editor.helper import backup_file
 from editor.hierarchy import Hierarchy
 from editor.info_panel import InfoPanel
 from editor.main_window import MainWindow
 from editor.mini_map_controller import MiniMap
+from editor.new_tileset_popup import NewTilesetPopup
 from editor.properties import Properties
 from editor.map_controller import MapController
 from editor.python_boilerplate_dialog import PythonBoilerplateDialog
@@ -358,13 +360,38 @@ class Editor:
         exit(0)
 
     def _add_tileset_action(self) -> None:
-        # if self._tiled_map.filename is None:
-        #     tk.messagebox.showerror(title="Error", message=f"You first must save the map")
-        #     return
-
-        filename = filedialog.askopenfilename(title="Open file", filetypes=(("Tileset file", "*.tsx"), ))
+        filename = filedialog.askopenfilename(title="Open file", filetypes=(("Tileset file", "*.tsx"), ("PNG Image", "*.png"), ("JPeg Image", "*.jpg"), ("JPeg Image", "*.jpeg")))
         if filename != "":
-            self.actions_controller.add_tileset(filename)
+            if filename.endswith(".tsx"):
+                self.actions_controller.add_tileset(filename)
+            else:
+                image_filename = filename
+                tsx_filename = filedialog.asksaveasfilename(title="Save TSX file", filetypes=(("Tileset file", "*.tsx"),))
+                tileset = TiledTileset(self._tiled_map)
+                tileset.update_source_filename(tsx_filename)
+                tileset.update_source_image_filename(image_filename)
+
+                simple_filename = os.path.split(tsx_filename)[1]
+                i = simple_filename.rfind(".")
+                tileset.name = simple_filename[:i] if i > 0 else simple_filename
+
+                tileset.image_surface = pygame.image.load(image_filename)
+
+                def completed_callback(tilewidth: int, tileheight: int, columns: int, spacing: int, margin: int) -> None:
+                    print(f"Create new TSX with")
+                    print(f"tilewidth, tileheight {tileheight}, {tileheight}")
+                    print(f"columns {columns}")
+                    print(f"spacing, margin {spacing}, {margin}")
+                    tileset.update_shape(tilewidth, tileheight, columns, spacing, margin)
+                    tileset.save()
+                    self.actions_controller.add_tileset(tsx_filename)
+
+                NewTilesetPopup(self.root,
+                                tsx_filename,
+                                self.macos,
+                                self.tkinter_images,
+                                tileset.image_surface.get_width(),
+                                completed_callback)
 
     def _remove_tileset_action(self) -> None:
         tileset_controller = self.main_window.tileset_controller
@@ -892,7 +919,9 @@ def prepare_resources():
                 "editor/icons.png",
                 "editor/arrows-small.png"
             ]:
-                with open(os.path.join(temp_dir, name), "wb") as f:
+                filename = os.path.join(temp_dir, name)
+                backup_file(filename)
+                with open(filename, "wb") as f:
                     with zf.open(name) as zff:
                         f.write(zff.read())
 

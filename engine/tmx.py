@@ -19,6 +19,7 @@ import pygame
 from pygame import Surface, Rect, Color
 from pygame.transform import flip, rotate
 
+from editor.helper import backup_file
 from engine.collision_result import CollisionResult
 
 from engine.utils import NestedDict
@@ -947,6 +948,14 @@ class TiledTileset(TiledElement):
         self._width: int = 0
         self._height: int = 0
 
+    def update_shape(self, tilewidth: int, tileheight: int, columns: int, spacing: int, marign: int) -> None:
+        self._tilewidth = tilewidth
+        self._tileheight = tileheight
+        self._columns = columns
+        self._spacing = spacing
+        self._margin = marign
+        self._update_width_and_height()
+
     @property
     def tilewidth(self) -> int:
         return self._tilewidth
@@ -1119,6 +1128,9 @@ class TiledTileset(TiledElement):
         self._source_image_filename = filename
         self.load(self._source_image_filename)
 
+    def update_source_image_filename(self, filename: str) -> None:
+        self._source_image_filename = filename
+
     @property
     def source(self) -> str:
         return self._source_filename
@@ -1176,6 +1188,7 @@ class TiledTileset(TiledElement):
         height = self.image_rect.height
         self._width = self._columns
         self._height = (height + self._spacing - self._margin) // (self.tileheight + self._spacing)
+        self._tilecount = self._width * self._height
 
     def _save_short(self, stream, indent: int) -> None:
         tag = self._tag_name()
@@ -1189,7 +1202,9 @@ class TiledTileset(TiledElement):
         stream.write("/>\n")
 
     def save(self) -> None:
-        with open(self._full_filename(self._source_filename), "w", buffering=128 * 1024) as f:
+        filename = self._full_filename(self._source_filename)
+        backup_file(filename)
+        with open(filename, "w", buffering=128 * 1024) as f:
             f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
             self._save(f, 0)
 
@@ -1238,7 +1253,8 @@ class TiledTileset(TiledElement):
             else:
                 stream.write("/>\n")
 
-        self.wangsets._save(stream, indent)
+        if self.wangsets is not None:
+            self.wangsets._save(stream, indent)
 
         return close_tag
 
@@ -1484,13 +1500,14 @@ class TiledMap(TiledElement):
 
     def save(self, filename: str) -> None:
         self.filename = filename
+        backup_file(filename)
         with open(filename, "w", buffering=128 * 1024) as f:
             f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
             self._save(f, 0)
 
-        with open(filename, "r") as f:
-            r = f.read()
-            print(r)
+        # with open(filename, "r") as f:
+        #     r = f.read()
+        #     print(r)
 
         for tileset in self.tilesets:
             if tileset.dirty_data:
