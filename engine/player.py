@@ -85,11 +85,11 @@ class Player(TiledObject):
     def animate_walk(self) -> None:
         self.animation_tick += 1
         stage = self.animation_tick // self.animation_speed
-        if stage > 1:
+        animation_list = self.animations[self.orientation]
+
+        if stage >= len(animation_list):
             self.animation_tick = 0
             stage = 0
-
-        animation_list = self.animations[self.orientation]
 
         self.tile = animation_list[stage]
 

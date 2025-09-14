@@ -243,6 +243,12 @@ class Level:
     def start(self, player: Player) -> None:
         player.tiled_object = self.player_object
         player.orientation = self.player_orientation
+
+        if len(self.player_left_animation) == 0: self.player_left_animation.append(player.tile)
+        if len(self.player_right_animation) == 0: self.player_right_animation.append(player.tile)
+        if len(self.player_up_animation) == 0: self.player_up_animation.append(player.tile)
+        if len(self.player_down_animation) == 0: self.player_down_animation.append(player.tile)
+
         player.left_animation[:] = self.player_left_animation
         player.right_animation[:] = self.player_right_animation
         player.up_animation[:] = self.player_up_animation

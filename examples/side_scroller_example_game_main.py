@@ -2,6 +2,8 @@ import os
 import pygame
 import sys
 
+from examples.side_scroller_example_game_context import SideScrollerExampleGameContext
+
 # This is needed to ensure examples can be run from the subfolder
 if not os.path.exists("engine"):
     os.chdir(os.path.dirname(os.path.abspath(".")))
@@ -10,8 +12,6 @@ sys.path.append(os.getcwd())
 
 from engine.game import Game
 from engine.level import Level
-
-from game.side_scroller_game_context import SideScrollerGameContext
 
 screen_size = (1024, 640)
 
@@ -27,7 +27,7 @@ levels = Level.load_levels(
     "assets/side_scroller/level1.tmx",
     "assets/side_scroller/level2.tmx")
 
-game_context = SideScrollerGameContext(levels)
+game_context = SideScrollerExampleGameContext(levels)
 game_context.set_level(levels["level1"])
 
 game = Game(screen, game_context, 60, True)

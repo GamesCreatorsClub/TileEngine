@@ -25,7 +25,9 @@ SOURCE_PATHS = [
     (join(CURRENT_PATH, "editor.py"), "__main__.py"),
     (join(CURRENT_PATH, "editor"), ("editor")),
     (join(CURRENT_PATH, "engine"), ("engine")),
+    (join(CURRENT_PATH, "game"), ("game")),
     (join(CURRENT_PATH, "assets"), "assets"),
+    (join(CURRENT_PATH, "examples"), "examples")
 ]
 
 RESULT_NAME = "tile_editor"  # CHANGE: your project name - name of resulting executable

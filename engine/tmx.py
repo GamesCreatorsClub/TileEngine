@@ -19,9 +19,9 @@ import pygame
 from pygame import Surface, Rect, Color
 from pygame.transform import flip, rotate
 
-from editor.helper import backup_file
 from engine.collision_result import CollisionResult
 
+from engine.helper import backup_file
 from engine.utils import NestedDict
 
 
@@ -203,6 +203,9 @@ class TiledElement(ABC):
 
     def __delitem(self, key: str) -> None:
         del self.properties[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.properties
 
     # def __getattr__(self, item: str) -> Any:
     #     try:
@@ -573,7 +576,7 @@ class TiledTileLayer(BaseTiledLayer):
                             if 0 <= dx < width:
                                 gid = self.data[dy][dx]
                                 if gid > 0:
-                                    surface.blit(images[gid], (x, y))
+                                        surface.blit(images[gid], (x, y))
                             dx += 1
                     dy += 1
 

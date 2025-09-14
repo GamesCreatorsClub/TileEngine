@@ -20,7 +20,6 @@ from pygame import Surface, Rect, K_BACKSPACE
 
 from editor.actions_controller import ActionsController, ChangeKind
 from editor.clipboard_controller import ClipboardController, element_property
-from editor.helper import backup_file
 from editor.hierarchy import Hierarchy
 from editor.info_panel import InfoPanel
 from editor.main_window import MainWindow
@@ -28,10 +27,11 @@ from editor.mini_map_controller import MiniMap
 from editor.new_tileset_popup import NewTilesetPopup
 from editor.properties import Properties
 from editor.map_controller import MapController
-from editor.python_boilerplate_dialog import PythonBoilerplateDialog
+from editor.python_boilerplate import PythonBoilerplateDialog
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
 from editor import resources_prefix
+from engine.helper import backup_file
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
 
 MOUSE_DOWN_COUNTER = 1
@@ -569,10 +569,10 @@ class Editor:
 
     def create_boilerplate_map(self) -> None:
         python_file = None
-        if self._tiled_map is not None and "python_file" in self._tiled_map.properties:
-            python_file = self._tiled_map["python_file"]
-        x = PythonBoilerplateDialog(self.root, None, python_file)
-        # TODO finish this
+        if self._tiled_map is not None and self._tiled_map.filename is not None:
+            PythonBoilerplateDialog(self.root, self._tiled_map, os.path.dirname(os.path.dirname(__file__)) if resources_prefix.STARTED_FROM_ZIP else None)
+        else:
+            tk.messagebox.showerror(title="Error", message=f"You must save the map first")
 
     def _add_tk_image(self, name: str) -> tk.PhotoImage:
         image = tk.PhotoImage(file=os.path.join(resources_prefix.RESOURCES_PREFIX, "editor", "images", name + ".png"))
@@ -900,7 +900,7 @@ class Editor:
                 self.root.update()
 
 
-def prepare_resources():
+def prepare_resources() -> None:
     this_zip_file = os.path.dirname(os.path.dirname(__file__))
     current_path = os.path.dirname(this_zip_file)
     temp_dir = os.path.join(current_path, "temp")
@@ -920,7 +920,32 @@ def prepare_resources():
                 "editor/arrows-small.png"
             ]:
                 filename = os.path.join(temp_dir, name)
-                backup_file(filename)
+                with open(filename, "wb") as f:
+                    with zf.open(name) as zff:
+                        f.write(zff.read())
+
+
+def prepare_game_resources(game_path: str) -> None:
+    this_zip_file = os.path.dirname(os.path.dirname(__file__))
+    current_path = os.path.dirname(this_zip_file)
+    print(f"Game path is {game_path}")
+    engine_dir = os.path.join(game_path, "engine")
+    game_dir = os.path.join(game_path, "game")
+    if not os.path.exists(engine_dir):
+        print(f"Creating {engine_dir}")
+        os.makedirs(engine_dir, exist_ok=True)
+    if not os.path.exists(game_dir):
+        print(f"Creating {game_dir}")
+        os.makedirs(game_dir, exist_ok=True)
+
+    print(f"Opening zipfile {this_zip_file}")
+    with ZipFile(this_zip_file) as zf:
+        for name in zf.namelist():
+            if name.startswith("engine") or name.startswith("game"):
+                filename = os.path.join(game_path, name)
+                path = os.path.split(filename)[0]
+                if not os.path.exists(path):
+                    os.makedirs(path, exist_ok=True)
                 with open(filename, "wb") as f:
                     with zf.open(name) as zff:
                         f.write(zff.read())
