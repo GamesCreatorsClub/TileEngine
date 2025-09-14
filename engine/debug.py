@@ -19,16 +19,16 @@ class Debug:
         self.debug_colour_main = pygame.color.THECOLORS["darkgreen"]
         self.debug_colour_decoration = pygame.color.THECOLORS["black"]
         self.utilisation_rect = Rect(0, 0, 0, 0)
-        self.show_utilisation = True
+        self.show_utilisation = False
         self.show_fps = False
         self.debug_key_expected = False
-        self.debug_font_small = pygame.font.SysFont("Comic Sans MS", 30)
-        self.debug_font_big = pygame.font.SysFont("Comic Sans MS", 60)
+        self.debug_font_small = pygame.font.SysFont("verdana", 13)
+        self.debug_font_big = pygame.font.SysFont("verdana", 20)
         self.show_player = False
 
         self._show_jumps = False
 
-        self.input_expected_text = self.debug_font_big.render("Input:", True, self.debug_colour_main)
+        self.input_expected_text = self.debug_font_big.render("Input: (u/f/p/j)", True, self.debug_colour_main)
 
     def frame_start(self) -> None:
         self._frame_start = time.time()

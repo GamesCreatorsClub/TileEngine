@@ -207,6 +207,13 @@ class PythonBoilerplateDialog(tk.Toplevel):
                    .replace(",\n    \"assets/side_scroller/level2.tmx\"", "")
                    .replace("game_context.set_level(levels[\"test-level\"])", f"game_context.set_level(levels[\"{level_name}\"])")
                    .replace("game_context.set_level(levels[\"level1\"])", f"game_context.set_level(levels[\"{level_name}\"])")
+                   .replace("""
+# This is needed to ensure examples can be run from the subfolder
+if not os.path.exists("engine"):
+    os.chdir(os.path.dirname(os.path.abspath(".")))
+
+sys.path.append(os.getcwd())
+""", "")
                    )
         return content
 

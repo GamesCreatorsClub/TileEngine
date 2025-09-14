@@ -8,7 +8,6 @@ if not os.path.exists("engine"):
 
 sys.path.append(os.getcwd())
 
-
 from engine.game import Game
 from engine.level import Level
 from examples.top_down_example_game_context import TopDownExampleGameContext
