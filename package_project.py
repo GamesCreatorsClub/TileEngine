@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import base64
 ################################################################################
 # Copyright (C) 2020 Abstract Horizon
 # All rights reserved. This program and the accompanying materials
@@ -134,18 +134,41 @@ EOF`
 exit $?
 """
 
-START_PYTHON = f"""#!/bin/bash
+START_PYTHON_1 = """#!/bin/bash
+import base64
 import sys
 import os
 import runpy
 
-sys.path.insert(0, sys.argv[0])
+CHUNK_SIZE = 10240
+
 print(f"In main file - starting editor now")
+
+"""
+
+START_PYTHON_2 = """
+
 if __name__ == "__main__":
-    runpy.run_module("{MAIN_FILE}", run_name="run_editor.py")
+    this_path = os.path.dirname(__file__)
+    temp_path = os.path.join(this_path, "temp")
+    if not os.path.exists(temp_path):
+        os.makedirs(temp_path, exist_ok=True)
+    zip_file_path = os.path.join(temp_path, "editor.zip")
+
+    with open(zip_file_path, "wb") as zip_file:
+        for chunk in zip_file_base64:
+            encoded = base64.b64decode(chunk)
+            zip_file.write(encoded)
+
+    sys.path.insert(0, zip_file_path)
+    print(f"sys.path={sys.path}")
+    # runpy.run_module("editor")
+
+    from editor.main_editor import start
+    start()
+
 print(f"Finished...")
 
-\"\"\"
 """
 
 if __name__ == "__main__":
@@ -160,17 +183,35 @@ if __name__ == "__main__":
     create_zipfile(zip_file, SOURCE_PATHS, TARGET_REQUIREMENTS_PATH, TARGET_TEMPLATES_PATH)
 
     with open(result_executable + ".zip", "wb") as f:
-        # f.write(START_PYTHON.encode("utf-8"))
         with open(zip_file, "rb") as zf:
             f.write(zf.read())
 
-    # SOURCE_PATHS[0] = (join(CURRENT_PATH, "editor.py"), "run_editor.py")
-    # install_requirements(REQUIREMENTS_FILE, target_directory=TARGET_REQUIREMENTS_PATH)
-    # create_zipfile(zip_file, SOURCE_PATHS, TARGET_REQUIREMENTS_PATH, TARGET_TEMPLATES_PATH)
-    #
-    # with open(result_executable, "wb") as f:
-    #     f.write(START_SCRIPT.encode("utf-8"))
-    #     with open(zip_file, "rb") as zf:
-    #         f.write(zf.read())
-    #
-    # os.system(f"chmod u+x '{result_executable}'")
+    BUFFER_SIZE = 10240
+
+    with open(result_executable + ".py", "w") as f:
+        f.write(START_PYTHON_1)
+        f.write("zip_file_base64 = [\n")
+        with open(zip_file, "rb") as zf:
+            total_read = 0
+            total_written = 0
+            buf = zf.read(BUFFER_SIZE)
+            while len(buf) == BUFFER_SIZE:
+                encoded = base64.b64encode(buf).decode("utf-8")
+                total_read += len(buf)
+                total_written += len(encoded)
+                f.write("    \"\"\"")
+                f.write(encoded)
+                f.write("\"\"\",\n")
+                buf = zf.read(BUFFER_SIZE)
+            total_read += len(buf)
+            total_written += len(encoded)
+            encoded = base64.b64encode(buf).decode("utf-8")
+            f.write("    \"\"\"")
+            f.write(encoded)
+            f.write("\"\"\"\n")
+            print(f"Total read {total_read} and written {total_written}")
+        f.write("]\n")
+        f.write(START_PYTHON_2)
+        f.write("\n# EOF\n")
+
+    os.system(f"chmod u+x '{result_executable}'")

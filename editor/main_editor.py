@@ -346,7 +346,7 @@ class Editor:
 
     def _clean_flag_callback(self, clean_flag) -> None:
         if self._tiled_map is not None and self._tiled_map.filename is not None and self._tiled_map.filename != "":
-            filename = os.path.split(self._tiled_map.filename)[-1]
+            filename = os.path.split(self._tiled_map.filename)[1]
             pygame.display.set_caption(f"{'' if clean_flag else '* '} {filename}")
         else:
             pygame.display.set_caption("Editor")
@@ -423,7 +423,7 @@ class Editor:
             self._save_as_map_action()
         else:
             self._tiled_map.save(self._tiled_map.filename)
-            filename = os.path.split(self._tiled_map.filename)[-1]
+            filename = os.path.split(self._tiled_map.filename)[1]
             pygame.display.set_caption(filename)
             self.actions_controller.mark_saved()
 
@@ -516,7 +516,7 @@ class Editor:
 
         self.run_menu.entryconfig(1, state="normal")
 
-        filename = os.path.split(self._tiled_map.filename)[-1]
+        filename = os.path.split(self._tiled_map.filename)[1]
         pygame.display.set_caption(filename)
         self.actions_controller.mark_saved()
 
@@ -559,7 +559,7 @@ class Editor:
                 return
 
             python_exec = os.path.abspath(python_exec)
-            python_file = os.path.split(full_python_file)[-1]
+            python_file = os.path.split(full_python_file)[1]
             python_file_dir = os.path.abspath(os.path.dirname(full_python_file))
             print(f"Running '{python_exec} {python_file}' in {python_file_dir}")
             subprocess.Popen([f"{python_exec}", python_file], cwd=python_file_dir)
@@ -943,7 +943,7 @@ def prepare_game_resources(game_path: str) -> None:
         for name in zf.namelist():
             if name.startswith("engine") or name.startswith("game"):
                 filename = os.path.join(game_path, name)
-                path = os.path.split(filename)[0]
+                path = os.path.dirname(filename)
                 if not os.path.exists(path):
                     os.makedirs(path, exist_ok=True)
                 with open(filename, "wb") as f:

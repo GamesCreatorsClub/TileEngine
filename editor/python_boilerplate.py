@@ -68,10 +68,10 @@ class PythonBoilerplateDialog(tk.Toplevel):
             name = name.replace(" ", "_")
 
             if "python_file" in self.tiled_map:
-                game_path, _ = os.path.split(self.tiled_map["python_file"])
+                game_path = os.path.dirname(self.tiled_map["python_file"])
             else:
-                map_dir, _ = os.path.split(self.tiled_map.filename)
-                game_path = os.path.split(map_dir)[0] if map_dir.endswith("assets") else map_dir
+                map_dir = os.path.dirname(self.tiled_map.filename)
+                game_path = os.path.dirname(map_dir) if map_dir.endswith("assets") else map_dir
 
             map_filename = self.tiled_map.filename[len(game_path) + 1:]
 
