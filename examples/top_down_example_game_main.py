@@ -22,22 +22,25 @@ font = pygame.font.SysFont("apple casual", 24)
 
 screen = pygame.display.set_mode(screen_size)
 
+# Load all levels here
 levels = Level.load_levels(
     screen.get_rect(),
     "assets/top_down/test-level.tmx")
 
 game_context = TopDownExampleGameContext(levels, font, small_font)
+# Starting/first level
 game_context.set_level(levels["test-level"])
 game_context.screen_size = screen_size
 
-game = Game(
-    screen,
-    game_context,
-    framerate=60, debug=True)
+game = Game(screen, game_context, framerate=60, debug=True)
 
-game.before_map = None
+# Method to be called before the map is drawn on screen with signature def xxx(surface: Surface)
+game.before_map = game_context.before_map
+
+# Method to be called after the map is drawn on screen with signature def xxx(surface: Surface)
 game.after_map = game_context.after_map
 
+# Main game loop - see context for key processing
 game.main_loop()
 
 pygame.display.quit()

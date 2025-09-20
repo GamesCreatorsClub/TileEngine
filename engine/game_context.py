@@ -131,7 +131,7 @@ class GameContext(ABC):
 
     @property
     @in_context
-    def object_by_name(self) -> ChainMap[str, int]:
+    def object_by_name(self) -> ChainMap[str, TiledObject]:
         return self.level.map.object_by_name
 
     @in_context
@@ -512,3 +512,47 @@ class GameContext(ABC):
 
         self.move_object(obj, dx, dy, test_collisions)
         self.prevent_moving()
+
+    @in_context
+    def record_position(self, obj: TiledObject) -> None:
+        obj.properties["startx"] = obj.x
+        obj.properties["starty"] = obj.y
+
+    @in_context
+    def move_object_away(self, this: TiledObject, obj: TiledObject, at_distance: float, test_collisions: bool = False, above_everything: bool = True) -> None:
+        dx = this.rect.x - obj.rect.x
+        dy = this.rect.y - obj.rect.y
+        d = math.sqrt(dx * dx + dy * dy)
+        factor = d / at_distance
+        new_dx = dx * factor
+        new_dy = dy * factor
+
+        if above_everything:
+            this.x += dx - new_dx
+            this.y += dy - new_dy
+        else:
+            self.move_object(this, dx - new_dx, dy - new_dy, test_collisions)
+
+    @in_context
+    def move_object_towards(self, this: TiledObject, obj: TiledObject, speed: float, test_collisions: bool = False, above_everything: bool = True) -> None:
+        dx = this.rect.x - obj.rect.x
+        dy = this.rect.y - obj.rect.y
+        d = math.sqrt(dx * dx + dy * dy)
+        if d >= 1.0:
+            factor = (d - speed) / d
+            new_dx = dx * factor
+            new_dy = dy * factor
+
+            if above_everything:
+                this.next_rect.update(this.rect)
+                this.next_rect.x -= dx - new_dx
+                this.next_rect.y -= dy - new_dy
+                if obj == self.player:
+                    object_moved = self.test_collisions_with_objects(obj.rect, obj, {this: this.rect})
+                else:
+                    # TODO - this means object collided with another object
+                    object_moved = True
+                if object_moved:
+                    this.rect.update(this.next_rect)
+            else:
+                self.move_object(this, new_dx - dx, new_dy - dy, test_collisions)
