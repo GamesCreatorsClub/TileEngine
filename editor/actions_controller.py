@@ -661,9 +661,17 @@ class ActionsController:
         self.notify_add_tileset(tileset)
 
     def remove_tileset(self, tileset: TiledTileset) -> None:
-        self._tiled_map.remove_tileset(tileset)
-        self._add_change(RemoveTileset(self, tileset))
-        self.notify_remove_tileset(tileset)
+        try:
+            tileset_index = self._tiled_map.tilesets.index(tileset)
+            self._tiled_map.remove_tileset(tileset)
+            self._add_change(RemoveTileset(self, tileset))
+            self.notify_remove_tileset(tileset)
+            if len(self._tiled_map.tilesets) == 0:
+                self.current_tileset = None
+            else:
+                self.current_tileset = self._tiled_map.tilesets[tileset_index - 1 if tileset_index > 0 else 0]
+        except ValueError:
+            pass
 
     def add_tile(self, tile_filename: str, tileset: TiledTileset, x: int, y: int) -> None:
         tile = pygame.image.load(tile_filename).convert_alpha(tileset.image_surface)

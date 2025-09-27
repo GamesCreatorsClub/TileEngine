@@ -1455,6 +1455,8 @@ class TiledMap(TiledElement):
                     self.images[ts.firstgid + i] = ts.get_image(i + ts.firstgid)
 
     def add_tileset(self, tileset: TiledTileset) -> None:
+        if len(self.tilesets) == 0:
+            self.maxgid = 0
         tileset.firstgid = self.maxgid + 1
         self.tilesets.append(tileset)
         self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
@@ -1463,17 +1465,24 @@ class TiledMap(TiledElement):
         self._update_tileset_change(tileset)
 
     def remove_tileset(self, tileset: TiledTileset) -> None:
-        self.tilesets.remove(tileset)
-        self.tilesets.append(tileset)
-        self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
-        self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
-        self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
+        tilesets_to_update_change = []
         before = True
+        self.maxgid = 1
         for ts in self.tilesets:
             if ts == tileset:
                 before = False
             elif not before:
-                self._update_tileset_change(ts)
+                tilesets_to_update_change.append(ts)
+            else:
+                self.maxgid = ts.firstgid + ts.tilecount
+
+        self.tilesets.remove(tileset)
+        self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
+        self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
+        self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
+
+        for ts in tilesets_to_update_change:
+            self._update_tileset_change(ts)
 
     def update_tileset(self, tileset: TiledTileset) -> None:
         self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])

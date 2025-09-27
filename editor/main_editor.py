@@ -278,6 +278,7 @@ class Editor:
 
     @current_element.setter
     def current_element(self, current_element: Optional[TiledElement]) -> None:
+        old_selected_element = self._current_element
         self._current_element = current_element
         self.clipboard_controller.focused_element = current_element
 
@@ -366,7 +367,13 @@ class Editor:
                 self.actions_controller.add_tileset(filename)
             else:
                 image_filename = filename
-                tsx_filename = filedialog.asksaveasfilename(title="Save TSX file", filetypes=(("Tileset file", "*.tsx"),))
+
+                suggested_tsx_filename = os.path.split(filename)[1]
+
+                i = suggested_tsx_filename.rfind(".")
+                suggested_tsx_filename = suggested_tsx_filename[:i] + ".tsx" if i > 0 else suggested_tsx_filename
+
+                tsx_filename = filedialog.asksaveasfilename(title="Save TSX file", initialfile=suggested_tsx_filename, filetypes=(("Tileset file", "*.tsx"),))
                 tileset = TiledTileset(self._tiled_map)
                 tileset.update_source_filename(tsx_filename)
                 tileset.update_source_image_filename(image_filename)
