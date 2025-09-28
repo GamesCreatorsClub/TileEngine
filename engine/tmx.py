@@ -1261,7 +1261,7 @@ class TiledTileset(TiledElement):
             tile = self.tiles[tile_id]
             if float(tile.probability) != 1.0 or tile.type != "" or len(tile.properties) > 0 or tile_id in self.tile_terrain:
                 stream.write(" " * indent)
-                stream.write(f"<tile id=\"{tile_id}\"")
+                stream.write(f"<tile id=\"{tile_id - 1}\"")
                 if tile.type != "":
                     stream.write(f" type=\"{tile.type}\"")
                 if float(tile.probability) != 1.0:

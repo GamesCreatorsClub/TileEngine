@@ -791,8 +791,8 @@ class MapController(ScrollableCanvas):
             y = self.rect.y + tile_y * tilemap.tileheight + self.v_scrollbar.offset
             if self._action == MapAction.BRUSH_TILE or self._action == MapAction.FILL_TILE:
                 selection = self.tileset_controller.selection
-                w = len(selection) * tilemap.tilewidth if selection is not None else tilemap.tilewidth
-                h = len(selection[0]) * tilemap.tileheight if selection is not None else tilemap.tileheight
+                w = len(selection[0]) * tilemap.tilewidth if selection is not None else tilemap.tilewidth
+                h = len(selection) * tilemap.tileheight if selection is not None else tilemap.tileheight
             else:
                 w = tilemap.tilewidth
                 h = tilemap.tileheight
@@ -973,17 +973,24 @@ class MapController(ScrollableCanvas):
         if not super().mouse_up(x, y, button, modifier):
             return self._mouse_adapter.mouse_up(x, y, button, modifier)
 
+        return False
+
     def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
         if not super().mouse_down(x, y, button, modifier):
             return self._mouse_adapter.mouse_down(x, y, button, modifier)
+
+        return False
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
         if (self._action == MapAction.SELECT_OBJECT
                 and cast(SelectObjectMouseAdapter, self._mouse_adapter).mouse_is_down
                 and cast(SelectObjectMouseAdapter, self._mouse_adapter).selected_object is not None):
             return self._mouse_adapter.mouse_move(x, y, modifier)
+
         if not super().mouse_move(x, y, modifier):
             return self._mouse_adapter.mouse_move(x, y, modifier)
+
+        return False
 
     def mouse_in(self, x: int, y: int) -> bool:
         if not super().mouse_in(x, y):
