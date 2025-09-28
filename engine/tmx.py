@@ -192,6 +192,7 @@ class TiledElement(ABC):
     def __init__(self, parent: Optional['TiledElement'] = None) -> None:
         self.parent = parent
         self.properties: dict[str, Any] = {}
+        self.dirty_data = False
         # self.id: int = 0
         # self.name: str = ""
 
@@ -220,22 +221,20 @@ class TiledElement(ABC):
     def _parse_xml_properties(node: Element) -> dict[str, Any]:
         properties: dict[str, Any] = {}
         for subnode in node.findall("property"):
-            cls = None
-            if "type" in subnode.keys():
-                cls = PROPERTY_TYPES[subnode.get("type")]
+            cls: Optional[Callable[[Any], Any]] = PROPERTY_TYPES[subnode.get("type")] if "type" in subnode.keys() else None
 
             name = subnode.get("name")
 
             if "class" == subnode.get("type"):
                 raise NotImplemented("Class being type of property")
             else:
-                if cls is None:
+                if cls is not None:
+                    properties[name] = cls(subnode.get("value"))
+                else:
                     value = subnode.get("value")
                     if value is None:
                         value = subnode.text
                     properties[name] = value
-                else:
-                    properties[name] = cls(subnode.get("value"))
         return properties
 
     def _parse_xml_to_properties(self, node: Element) -> None:
@@ -311,7 +310,7 @@ class TiledElement(ABC):
         return filtered_properties
 
     def _xml_properties(self, stream, indent: int, close_tag: bool) -> bool:
-        is_nested_dict = isinstance(self.properties, NestedDict)
+        # is_nested_dict = isinstance(self.properties, NestedDict)
         filtered_properties = self._get_xml_properties()
         # if (is_nested_dict and cast(NestedDict, self.properties).has_original_keys()) or (not is_nested_dict and len(filtered_properties)) > 0:
         return self._write_xml_properties(stream, indent, close_tag, filtered_properties)
@@ -576,7 +575,7 @@ class TiledTileLayer(BaseTiledLayer):
                             if 0 <= dx < width:
                                 gid = self.data[dy][dx]
                                 if gid > 0:
-                                        surface.blit(images[gid], (x, y))
+                                    surface.blit(images[gid], (x, y))
                             dx += 1
                     dy += 1
 
@@ -634,25 +633,25 @@ class TiledObject(TiledSubElement):
 
     @x.setter
     def x(self, v: float) -> None:
-        self.rect.x = v
+        self.rect.x = int(v)
 
     @property
     def y(self) -> float: return self.rect.y
 
     @y.setter
-    def y(self, v: float) -> None: self.rect.y = v
+    def y(self, v: float) -> None: self.rect.y = int(v)
 
     @property
     def width(self) -> float: return self.rect.width
 
     @width.setter
-    def width(self, v: float) -> None: self.rect.width = v
+    def width(self, v: float) -> None: self.rect.width = int(v)
 
     @property
     def height(self) -> float: return self.rect.height
 
     @height.setter
-    def height(self, v: float) -> None: self.rect.height = v
+    def height(self, v: float) -> None: self.rect.height = int(v)
 
     @property
     def gid(self) -> int:
@@ -676,8 +675,8 @@ class TiledObject(TiledSubElement):
         if gid > 0:
             gid = self.map.register_raw_gid(gid)
 
-            if gid in self.map.tile_properties:
-                properties = self.map.tile_properties[gid]
+            if gid in self.map.tiles:
+                properties = self.map.tiles[gid].properties
                 if properties is not None:
                     self.properties.over = properties
                 else:
@@ -896,6 +895,25 @@ class TiledTileAnimations:
         return self.frames[-1].tileid
 
 
+class Tile(TiledElement):
+    ATTRIBUTES = TiledElement.ATTRIBUTES | {
+        "id": F(int, False),
+        "Class": F(str, True),
+        "Probability": F(float, True)
+    }
+
+    def __init__(self, id: int, tiledset: 'TiledTileset') -> None:
+        super().__init__()
+        self.id: int = 0
+        self.type: str = ""
+        self.probability: float = 1.0
+        self.objectgroup: Optional[TiledObjectGroup] = None
+        self.terrain: str = ""
+        self.animations: Optional[TiledTileAnimations] = None
+
+    def _tag_name(self) -> str: return "tile"
+
+
 class TiledTileset(TiledElement):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
         "firstgid": F(int, False), "name": F(str, True), "tilewidth": F(int, True), "tileheight": F(int, True),
@@ -917,16 +935,14 @@ class TiledTileset(TiledElement):
         self.map = cast(TiledMap, parent)
         self._parent_dir = os.path.dirname(self.map.filename) if self.map.filename is not None else None
 
-        self.dirty_data = False
         self.dirty_image = False
         self._source_filename: str = ""
         self._source_image_filename: str = ""
         self.image_surface: Optional[Surface] = None
         self.tile_ids: list[int] = []
-        self.tile_properties: dict[int, dict[str, Any]] = {}
+        self.tiles: dict[int, Tile] = {}
         self.tile_terrain: dict[int, str] = {}
-        self.tiles_by_name: dict[str: int] = {}
-        self.tile_objectgroup: dict[int , TiledObjectGroup] = {}
+        self.tiles_by_name: dict[str, int] = {}
         self.terrain: list[TiledTerrain] = []
         self.wangsets: Optional[TiledWangSets] = None
         self.tile_animations: dict[int, TiledTileAnimations] = {}
@@ -1053,9 +1069,9 @@ class TiledTileset(TiledElement):
                         if t_x < width:
                             sub_surface = self.image_surface.subsurface(
                                 Rect(
-                                t_x * (self.tilewidth + self._spacing) + self._margin,
-                                t_y * (self.tileheight + self._spacing) + self._margin,
-                                self.tilewidth, self.tileheight))
+                                    t_x * (self.tilewidth + self._spacing) + self._margin,
+                                    t_y * (self.tileheight + self._spacing) + self._margin,
+                                    self.tilewidth, self.tileheight))
 
                             image_surface.blit(
                                 sub_surface, (
@@ -1118,8 +1134,8 @@ class TiledTileset(TiledElement):
                         elif isinstance(layer, TiledTileLayer):
                             process_layer(layer)
                         elif isinstance(layer, TiledObjectGroup):
-                            for object in layer.objects:
-                                object.gid = translate_gid(object.gid)
+                            for obj in layer.objects:
+                                obj.gid = translate_gid(obj.gid)
                 tiled_map.update_tileset(self)
 
     @property
@@ -1193,7 +1209,7 @@ class TiledTileset(TiledElement):
         self._height = (height + self._spacing - self._margin) // (self.tileheight + self._spacing)
         self._tilecount = self._width * self._height
 
-    def _save_short(self, stream, indent: int) -> None:
+    def save_short(self, stream, indent: int) -> None:
         tag = self._tag_name()
         attrs = self._collect_xml_attributes(attributes_constant_name="XML_ATTRIBUTES_SHORT")
         stream.write(" " * indent)
@@ -1229,15 +1245,21 @@ class TiledTileset(TiledElement):
         stream.write(f"</terraintypes>\n")
 
         for tile_id in self.tile_ids:
+            tile = self.tiles[tile_id]
             stream.write(" " * indent)
             stream.write(f"<tile id=\"{tile_id - self.firstgid}\"")
+            if tile.type != "":
+                stream.write(f" type=\"{tile.type}\"")
+            if tile.probability != "":
+                stream.write(f" probability=\"{tile.probability}\"")
             if tile_id in self.tile_terrain:
                 stream.write(f" terrain=\"{self.tile_terrain[tile_id]}\"")
-            if tile_id in self.tile_properties:
+            if len(tile.properties) > 0:
                 stream.write(">\n")
 
-                props = self.tile_properties[tile_id]
+                props = tile.properties
                 colliders: Optional[TiledObjectGroup] = None
+                # Remove properties we have added for convenience
                 if "colliders" in props:
                     colliders = props["colliders"]
                     del props["colliders"]
@@ -1248,8 +1270,8 @@ class TiledTileset(TiledElement):
                 if colliders is not None:
                     props["colliders"] = colliders
 
-                if tile_id in self.tile_objectgroup:
-                    self.tile_objectgroup[tile_id]._save(stream, indent + 1)
+                if tile.objectgroup is not None:
+                    tile.objectgroup._save(stream, indent + 1)
 
                 stream.write(" " * indent)
                 stream.write(f"</tile>\n")
@@ -1263,11 +1285,17 @@ class TiledTileset(TiledElement):
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
+        tile = Tile(id_, self)
+
         self.tile_ids.append(id_)
+        self.tiles[id_] = tile
+
         terrain = tile_element.get("terrain")
         if terrain is not None:
-            self.tile_terrain[id_] = terrain
-        properties: dict[str, Any] = {}
+            # TODO Remove
+            # self.tile_terrain[id_] = terrain
+            tile.terrain = terrain
+        properties: dict[str, Any] = tile.properties
         properties_node = tile_element.find("properties")
         if properties_node:
             properties.update(self._parse_xml_properties(properties_node))
@@ -1276,19 +1304,21 @@ class TiledTileset(TiledElement):
             objectgroup.parent_tile_id = id_
             objectgroup._parse_xml(obj_group_node)
             properties["colliders"] = objectgroup.objects
-            self.tile_objectgroup[id_] = objectgroup
+            tile.objectgroup = objectgroup
         if len(properties) > 0:
-            self.tile_properties[id_] = properties
             if "name" in properties:
                 self.tiles_by_name[properties["name"]] = id_
         animation_node = tile_element.find("animation")
         if animation_node:
-            animations = TiledTileAnimations()
-            self.tile_animations[id_] = animations
+            tile.animations = TiledTileAnimations()
+            animations = tile.animations
             for frame_node in animation_node.findall("frame"):
                 frame_tileid = int(frame_node.get("tileid")) + self.firstgid
                 duration = int(frame_node.get("duration"))
                 animations.add_frame(TiledTileAnimation(frame_tileid, duration))
+
+            # TODO remove
+            # self.tile_animations[id_] = animations
 
     def _tileoffset(self, tileoffset_element: Element) -> None:
         self.offset = (int(tileoffset_element.get("x")), int(tileoffset_element.get("y")))
@@ -1350,7 +1380,7 @@ class TiledMap(TiledElement):
 
         self.layer_id_map: dict[int, BaseTiledLayer] = {}
         self.tilesets: list[TiledTileset] = []
-        self.tile_properties: ChainMap[int, dict[str, Any]] = ChainMap()
+        self.tiles: ChainMap[int, Tile] = ChainMap()
         self.tiles_by_name: ChainMap[str, int] = ChainMap()
         self.tile_animations: ChainMap[int, TiledTileAnimations] = ChainMap()
 
@@ -1459,7 +1489,7 @@ class TiledMap(TiledElement):
             self.maxgid = 0
         tileset.firstgid = self.maxgid + 1
         self.tilesets.append(tileset)
-        self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
+        self.tiles = ChainMap(*[ts.tiles for ts in self.tilesets])
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
         self._update_tileset_change(tileset)
@@ -1477,7 +1507,7 @@ class TiledMap(TiledElement):
                 self.maxgid = ts.firstgid + ts.tilecount
 
         self.tilesets.remove(tileset)
-        self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
+        self.tiles = ChainMap(*[ts.tiles for ts in self.tilesets])
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
 
@@ -1485,7 +1515,7 @@ class TiledMap(TiledElement):
             self._update_tileset_change(ts)
 
     def update_tileset(self, tileset: TiledTileset) -> None:
-        self.tile_properties = ChainMap(*[ts.tile_properties for ts in self.tilesets])
+        self.tiles = ChainMap(*[ts.tiles for ts in self.tilesets])
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
 
@@ -1531,7 +1561,7 @@ class TiledMap(TiledElement):
         close_tag = self._close_tag(stream, close_tag)
 
         for tiledset in self.tilesets:
-            tiledset._save_short(stream, indent)
+            tiledset.save_short(stream, indent)
 
         for layer in self.layers:
             layer._save(stream, indent)

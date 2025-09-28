@@ -164,9 +164,10 @@ class Level:
             self.layers.append(self.over_layer)
 
         self.on_collision_tiles_properties: dict[int, dict[str, Any]] = {}  # gid to tile properties where tile properties has 'on_collision' in
-        for tile_id in self.map.tile_properties:
-            if "on_collision" in self.map.tile_properties[tile_id]:
-                self.on_collision_tiles_properties[tile_id] = self.map.tile_properties[tile_id]
+        for tile_id in self.map.tiles:
+            properties = self.map.tiles[tile_id].properties
+            if "on_collision" in properties:
+                self.on_collision_tiles_properties[tile_id] = properties
 
         self.on_animate_objects: list[TiledObject] = [
             obj for obj in self.objects if "on_animate" in obj.properties
@@ -177,8 +178,8 @@ class Level:
         down: list[tuple] = []
         left: list[tuple] = []
         right: list[tuple] = []
-        for tile_id in self.map.tile_properties:
-            properties = self.map.tile_properties[tile_id]
+        for tile_id in self.map.tiles:
+            properties = self.map.tiles[tile_id].properties
             gid = tile_id
             if "player" in properties:
                 orientation_str = properties["player"]
@@ -358,8 +359,8 @@ class Level:
                     collision_result.total += 1
 
                     background_gid = background_layer.data[t_row][t_col]
-                    if background_gid in tiled_map.tile_properties and "colliders" in tiled_map.tile_properties[background_gid]:
-                        colliders: list[TiledObject] = tiled_map.tile_properties[background_gid]["colliders"]
+                    if background_gid in tiled_map.tiles and "colliders" in tiled_map.tiles[background_gid].properties:
+                        colliders: list[TiledObject] = tiled_map.tiles[background_gid].properties["colliders"]
                         collided_rect = next((r for r in map(lambda o: o.rect.move(t_x, t_y), colliders) if rect.colliderect(r)), None)
                         if collided_rect is not None:
                             collision_result.rects[collision_result.total].update(collided_rect)

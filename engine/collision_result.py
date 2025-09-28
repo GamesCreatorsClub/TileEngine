@@ -18,6 +18,6 @@ class CollisionResult:
 
     def collided_rects(self) -> Generator[tuple[int, Rect], None, None]:
         for i in range(self.total):
-            g = self.gids[i]
-            if g > 0:
-                yield g, self.rects[i]
+            gid = self.gids[i]
+            if gid > 0:
+                yield gid, self.rects[i]

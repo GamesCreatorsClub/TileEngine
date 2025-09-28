@@ -330,10 +330,10 @@ class GameContext(ABC):
             test_if_obj_is_player(object_has_moved)
             return object_has_moved
 
-        g, tile_rect = next(((g, r) for g, r in collided_result.collided_rects() if g in self.level.on_collision_tiles_properties), (0, None))
+        gid, tile_rect = next(((gid, r) for gid, r in collided_result.collided_rects() if gid in self.level.on_collision_tiles_properties), (0, None))
         if tile_rect:
             if tile_rect:
-                self.on_tile_collision(self.level.on_collision_tiles_properties[g], tile_rect, obj, next_rect)
+                self.on_tile_collision(self.level.on_collision_tiles_properties[gid], tile_rect, obj, next_rect)
 
             if obj == self.player:
                 object_has_moved = self.player.move_to(next_rect.topleft)
@@ -353,10 +353,10 @@ class GameContext(ABC):
             scriplet = obj.properties["on_animate"]
             self._execute_script(scriplet, {"elapsed_ms": elapsed_ms, "this": obj, "obj": obj})
 
-    def on_tile_collision(self, tile, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
+    def on_tile_collision(self, tile_properties, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
         try:
-            scriptlet = tile["on_collision"]
-            self._execute_script(scriptlet, {"obj": obj, "next_rect": next_rect, "tile": tile, "tile_rect": tile_rect})
+            scriptlet = tile_properties["on_collision"]
+            self._execute_script(scriptlet, {"obj": obj, "next_rect": next_rect, "tile": tile_properties, "tile_rect": tile_rect})
         finally:
             self.currently_colliding_object = None
 

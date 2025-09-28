@@ -498,14 +498,20 @@ class Editor:
     def add_current_element_property(self, key: str, value: str) -> None:
         if self._current_element is not None:
             self.actions_controller.add_element_property(self._current_element, key, value)
+            if isinstance(self._current_element, TiledTileset):
+                cast(TiledTileset, self._current_element).dirty_data = True
 
     def update_current_element_property(self, key: str, value: str) -> None:
         if self._current_element is not None:
             self.actions_controller.update_element_property(self._current_element, key, value)
+            if isinstance(self._current_element, TiledTileset):
+                cast(TiledTileset, self._current_element).dirty_data = True
 
     def delete_current_element_property(self, key: str) -> None:
         if self._current_element is not None:
             self.actions_controller.delete_element_property(self._current_element, key)
+            if isinstance(self._current_element, TiledTileset):
+                cast(TiledTileset, self._current_element).dirty_data = True
 
     @staticmethod
     def _do_nothing_action(_event=None) -> None:
