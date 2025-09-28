@@ -4,6 +4,7 @@ import pygame.draw
 from pygame import Rect, Surface
 
 from editor.actions_controller import ActionsController
+from editor.properties import Properties
 from editor.pygame_components import ScrollableCanvas
 from editor.toolbar_panel import ToolbarPanel
 from engine.tmx import TiledTileset

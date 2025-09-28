@@ -32,7 +32,7 @@ from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
 from editor import resources_prefix
 from engine.helper import backup_file
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, Tile
 
 MOUSE_DOWN_COUNTER = 1
 
@@ -341,9 +341,21 @@ class Editor:
     def _set_selected_element(self, selected_element: Optional[TiledElement]) -> None:
         self.current_element = selected_element
 
-    def _tile_selected_callback(self, _tile_id: Optional[int]) -> None:
+    def _tile_selected_callback(self, data: Optional[list[list[int]]]) -> None:
         # TODO do we want to have it exposed in properties (hierarchy)?
         self.main_window.map_controller.tile_selection_changed()
+        if len(data) == 1 and len(data[0]) == 1:
+            # 1x1 selection
+            gid = data[0][0]
+            if gid in self._tiled_map.tiles:
+                tile = self._tiled_map.tiles[gid]
+                self._current_element = tile
+
+                self.main_properties.update_properties(
+                    {k: getattr(tile, k) for k in type(tile).ATTRIBUTES.keys()},
+                    type(tile).ATTRIBUTES
+                )
+                self.custom_properties.update_properties(tile.properties, type(tile).OPTIONAL_CUSTOM_PROPERTIES)
 
     def _clean_flag_callback(self, clean_flag) -> None:
         if self._tiled_map is not None and self._tiled_map.filename is not None and self._tiled_map.filename != "":
@@ -375,7 +387,7 @@ class Editor:
 
                 tsx_filename = filedialog.asksaveasfilename(title="Save TSX file", initialfile=suggested_tsx_filename, filetypes=(("Tileset file", "*.tsx"),))
                 tileset = TiledTileset(self._tiled_map)
-                tileset.update_source_filename(tsx_filename)
+                tileset.update_source_filename(tsx_filename, os.path.dirname(self._tiled_map.filename) if self._tiled_map.filename is not None else None)
                 tileset.update_source_image_filename(image_filename)
 
                 simple_filename = os.path.split(tsx_filename)[1]
@@ -489,6 +501,11 @@ class Editor:
 
             self.actions_controller.update_element_attribute(self._current_element, key, value)
 
+            if isinstance(self._current_element, TiledTileset):
+                cast(TiledTileset, self._current_element).dirty_data = True
+            elif isinstance(self._current_element, Tile):
+                cast(Tile, self._current_element).tiledset.dirty_data = True
+
             if key == "name":
                 if isinstance(self._current_element, TiledObject):
                     self.hierarchy_view.update_object_name(cast(TiledObject, self._current_element))
@@ -500,18 +517,24 @@ class Editor:
             self.actions_controller.add_element_property(self._current_element, key, value)
             if isinstance(self._current_element, TiledTileset):
                 cast(TiledTileset, self._current_element).dirty_data = True
+            elif isinstance(self._current_element, Tile):
+                cast(Tile, self._current_element).tiledset.dirty_data = True
 
     def update_current_element_property(self, key: str, value: str) -> None:
         if self._current_element is not None:
             self.actions_controller.update_element_property(self._current_element, key, value)
             if isinstance(self._current_element, TiledTileset):
                 cast(TiledTileset, self._current_element).dirty_data = True
+            elif isinstance(self._current_element, Tile):
+                cast(Tile, self._current_element).tiledset.dirty_data = True
 
     def delete_current_element_property(self, key: str) -> None:
         if self._current_element is not None:
             self.actions_controller.delete_element_property(self._current_element, key)
             if isinstance(self._current_element, TiledTileset):
                 cast(TiledTileset, self._current_element).dirty_data = True
+            elif isinstance(self._current_element, Tile):
+                cast(Tile, self._current_element).tiledset.dirty_data = True
 
     @staticmethod
     def _do_nothing_action(_event=None) -> None:

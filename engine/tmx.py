@@ -321,7 +321,7 @@ class TiledElement(ABC):
 
             stream.write(" " * indent)
             stream.write("<properties>\n")
-            for k, v in self.properties.items():
+            for k, v in filtered_properties.items():
                 if not k.startswith("__"):
                     stream.write(" " * (indent + 1))
                     if isinstance(v, str):
@@ -898,13 +898,14 @@ class TiledTileAnimations:
 class Tile(TiledElement):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
         "id": F(int, False),
-        "Class": F(str, True),
-        "Probability": F(float, True)
+        "type": F(str, True),
+        "probability": F(float, True)
     }
 
     def __init__(self, id: int, tiledset: 'TiledTileset') -> None:
         super().__init__()
         self.id: int = 0
+        self.tiledset = tiledset
         self.type: str = ""
         self.probability: float = 1.0
         self.objectgroup: Optional[TiledObjectGroup] = None
@@ -939,7 +940,6 @@ class TiledTileset(TiledElement):
         self._source_filename: str = ""
         self._source_image_filename: str = ""
         self.image_surface: Optional[Surface] = None
-        self.tile_ids: list[int] = []
         self.tiles: dict[int, Tile] = {}
         self.tile_terrain: dict[int, str] = {}
         self.tiles_by_name: dict[str, int] = {}
@@ -1158,8 +1158,9 @@ class TiledTileset(TiledElement):
     def source(self, filename: str) -> None:
         self.load(filename)
 
-    def update_source_filename(self, filename) -> None:
+    def update_source_filename(self, filename: str, parent_dir: Optional[str]) -> None:
         self._source_filename = filename
+        self._parent_dir = parent_dir
 
     def _full_filename(self, filename: str) -> str:
         self._source_filename = filename
@@ -1175,6 +1176,17 @@ class TiledTileset(TiledElement):
 
         full_filename = self._full_filename(filename)
         self._parse_xml(ElementTree.parse(full_filename).getroot())
+
+        # Fill in all tiles for all ids and order them from one to more
+        tiles = {k: v for k, v in self.tiles.items()}
+        self.tiles.clear()
+        for id_ in range(self._tilecount):
+            if id_ not in tiles:
+                tile = Tile(id_, self)
+                self.tiles[id_] = tile
+            else:
+                self.tiles[id_] = tiles[id_]
+
         self._spacing_not_set = False
         self._margin_not_set = False
         self.dirty_image = False
@@ -1237,46 +1249,48 @@ class TiledTileset(TiledElement):
         stream.write(" " * indent)
         stream.write(f"<image source=\"{self._source_image_filename}\" width=\"{image_pixel_width}\" height=\"{image_pixel_height}\"/>\n")
 
-        stream.write(" " * indent)
-        stream.write(f"<terraintypes>\n")
-        for terrain in self.terrain:
-            terrain._save(stream, indent + 1)
-        stream.write(" " * indent)
-        stream.write(f"</terraintypes>\n")
-
-        for tile_id in self.tile_ids:
-            tile = self.tiles[tile_id]
+        if len(self.terrain) > 0:
             stream.write(" " * indent)
-            stream.write(f"<tile id=\"{tile_id - self.firstgid}\"")
-            if tile.type != "":
-                stream.write(f" type=\"{tile.type}\"")
-            if tile.probability != "":
-                stream.write(f" probability=\"{tile.probability}\"")
-            if tile_id in self.tile_terrain:
-                stream.write(f" terrain=\"{self.tile_terrain[tile_id]}\"")
-            if len(tile.properties) > 0:
-                stream.write(">\n")
+            stream.write(f"<terraintypes>\n")
+            for terrain in self.terrain:
+                terrain._save(stream, indent + 1)
+            stream.write(" " * indent)
+            stream.write(f"</terraintypes>\n")
 
-                props = tile.properties
-                colliders: Optional[TiledObjectGroup] = None
-                # Remove properties we have added for convenience
-                if "colliders" in props:
-                    colliders = props["colliders"]
-                    del props["colliders"]
-
-                if len(props) > 0:
-                    close_tag = self._write_xml_properties(stream, indent + 2, close_tag, props)
-
-                if colliders is not None:
-                    props["colliders"] = colliders
-
-                if tile.objectgroup is not None:
-                    tile.objectgroup._save(stream, indent + 1)
-
+        for tile_id in self.tiles:
+            tile = self.tiles[tile_id]
+            if float(tile.probability) != 1.0 or tile.type != "" or len(tile.properties) > 0 or tile_id in self.tile_terrain:
                 stream.write(" " * indent)
-                stream.write(f"</tile>\n")
-            else:
-                stream.write("/>\n")
+                stream.write(f"<tile id=\"{tile_id}\"")
+                if tile.type != "":
+                    stream.write(f" type=\"{tile.type}\"")
+                if float(tile.probability) != 1.0:
+                    stream.write(f" probability=\"{tile.probability}\"")
+                if tile_id in self.tile_terrain:
+                    stream.write(f" terrain=\"{self.tile_terrain[tile_id]}\"")
+                if len(tile.properties) > 0:
+                    # stream.write(">\n")
+
+                    props = tile.properties
+                    colliders: Optional[TiledObjectGroup] = None
+                    # Remove properties we have added for convenience
+                    if "colliders" in props:
+                        colliders = props["colliders"]
+                        del props["colliders"]
+
+                    if len(props) > 0:
+                        close_tag = self._write_xml_properties(stream, indent + 2, close_tag, props)
+
+                    if colliders is not None:
+                        props["colliders"] = colliders
+
+                    if tile.objectgroup is not None:
+                        tile.objectgroup._save(stream, indent + 1)
+
+                    stream.write(" " * indent)
+                    stream.write(f"</tile>\n")
+                else:
+                    stream.write("/>\n")
 
         if self.wangsets is not None:
             self.wangsets._save(stream, indent)
@@ -1285,9 +1299,8 @@ class TiledTileset(TiledElement):
 
     def _tile(self, tile_element: Element) -> None:
         id_ = int(tile_element.get("id")) + self.firstgid
-        tile = Tile(id_, self)
 
-        self.tile_ids.append(id_)
+        tile = Tile(id_, self)
         self.tiles[id_] = tile
 
         terrain = tile_element.get("terrain")
@@ -1380,7 +1393,7 @@ class TiledMap(TiledElement):
 
         self.layer_id_map: dict[int, BaseTiledLayer] = {}
         self.tilesets: list[TiledTileset] = []
-        self.tiles: ChainMap[int, Tile] = ChainMap()
+        self.tiles: dict[int, Tile] = {}
         self.tiles_by_name: ChainMap[str, int] = ChainMap()
         self.tile_animations: ChainMap[int, TiledTileAnimations] = ChainMap()
 
@@ -1427,7 +1440,7 @@ class TiledMap(TiledElement):
             else:
                 full_tileset_filename = ts.source
             relative_tileset_filename = os.path.relpath(full_tileset_filename, full_map_path)
-            ts.update_source_filename(relative_tileset_filename)
+            ts.update_source_filename(relative_tileset_filename, os.path.dirname(self.filename))
             # print(f"Updated tileset's filename '{relative_tileset_filename}' from '{full_tileset_filename}' relative to '{full_map_path}'")
 
     @property
@@ -1489,7 +1502,7 @@ class TiledMap(TiledElement):
             self.maxgid = 0
         tileset.firstgid = self.maxgid + 1
         self.tilesets.append(tileset)
-        self.tiles = ChainMap(*[ts.tiles for ts in self.tilesets])
+        self._update_tiles_property()
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
         self._update_tileset_change(tileset)
@@ -1507,7 +1520,7 @@ class TiledMap(TiledElement):
                 self.maxgid = ts.firstgid + ts.tilecount
 
         self.tilesets.remove(tileset)
-        self.tiles = ChainMap(*[ts.tiles for ts in self.tilesets])
+        self._update_tiles_property()
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
 
@@ -1515,7 +1528,7 @@ class TiledMap(TiledElement):
             self._update_tileset_change(ts)
 
     def update_tileset(self, tileset: TiledTileset) -> None:
-        self.tiles = ChainMap(*[ts.tiles for ts in self.tilesets])
+        self._update_tiles_property()
         self.tiles_by_name = ChainMap(*[ts.tiles_by_name for ts in self.tilesets])
         self.tile_animations = ChainMap(*[ts.tile_animations for ts in self.tilesets])
 
@@ -1599,6 +1612,13 @@ class TiledMap(TiledElement):
     def gid_to_original_gid_and_tile_flags(self, gid: int) -> int:
         old_gid, tile_flags = self.new_gids.get(gid, (gid, NO_TRANSFORM_TILE_FLAGS))
         return tile_flags.to_gid(old_gid)
+
+    def _update_tiles_property(self) -> None:
+        self.tiles.clear()
+        for ts in self.tilesets:
+            for i in range(ts.tilecount):
+                gid = ts.firstgid + i
+                self.tiles[gid] = ts.tiles[i]
 
 
 if __name__ == '__main__':
