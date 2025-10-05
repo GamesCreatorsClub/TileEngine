@@ -693,7 +693,7 @@ class TiledObject(TiledSubElement):
 
     @property
     def image(self) -> Optional[Surface]:
-        gid = self.gid
+        gid = self._gid
         if gid:
             if gid in self.map.tile_animations:
                 time_ms = int(time.time() * 1000)
@@ -902,9 +902,9 @@ class Tile(TiledElement):
         "probability": F(float, True)
     }
 
-    def __init__(self, id: int, tiledset: 'TiledTileset') -> None:
+    def __init__(self, id_: int, tiledset: 'TiledTileset') -> None:
         super().__init__()
-        self.id: int = 0
+        self.id: int = id_
         self.tiledset = tiledset
         self.type: str = ""
         self.probability: float = 1.0
@@ -1261,7 +1261,7 @@ class TiledTileset(TiledElement):
             tile = self.tiles[tile_id]
             if float(tile.probability) != 1.0 or tile.type != "" or len(tile.properties) > 0 or tile_id in self.tile_terrain:
                 stream.write(" " * indent)
-                stream.write(f"<tile id=\"{tile_id - 1}\"")
+                stream.write(f"<tile id=\"{tile_id}\"")
                 if tile.type != "":
                     stream.write(f" type=\"{tile.type}\"")
                 if float(tile.probability) != 1.0:
@@ -1298,7 +1298,7 @@ class TiledTileset(TiledElement):
         return close_tag
 
     def _tile(self, tile_element: Element) -> None:
-        id_ = int(tile_element.get("id")) + self.firstgid
+        id_ = int(tile_element.get("id"))
 
         tile = Tile(id_, self)
         self.tiles[id_] = tile

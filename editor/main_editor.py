@@ -85,6 +85,8 @@ class Editor:
         self._current_element: Optional[TiledElement] = None
         self._current_tileset: Optional[TiledTileset] = None
 
+        self.actions_controller = ActionsController()
+
         # Initialisation of other components
 
         # tk.Tk() and pygame.init() must be done in this order and before anything else (in tkinter world)
@@ -103,7 +105,6 @@ class Editor:
         # self.font = pygame.font.Font(os.path.join(os.path.dirname(__file__), "editor", "raleway-medium-webfont.ttf"), 17)
         self.font = pygame.font.Font(os.path.join(resources_prefix.RESOURCES_PREFIX, "editor", "test_fixed.otf"), 17)
 
-        self.actions_controller = ActionsController()
         self.actions_controller.tiled_map_callbacks.append(self._tiled_map_callback)
         self.actions_controller.current_object_callbacks.append(self._current_object_callback)
         self.actions_controller.undo_redo_callbacks.append(self._undo_redo_callback)
@@ -406,6 +407,7 @@ class Editor:
                     self.actions_controller.add_tileset(tsx_filename)
 
                 NewTilesetPopup(self.root,
+                                self.actions_controller,
                                 tsx_filename,
                                 self.macos,
                                 self.tkinter_images,
@@ -446,11 +448,14 @@ class Editor:
             pygame.display.set_caption(filename)
             self.actions_controller.mark_saved()
 
+        self._update_run_state()
+
     def _save_as_map_action(self, _event=None) -> None:
         filename = filedialog.asksaveasfilename(title="Save map", filetypes=(("Map file", "*.tmx"),))
         if filename != "":
             self._tiled_map.filename = filename
             self._save_map_action()
+        self._update_run_state()
 
     def _cut_action(self, _event=None) -> None:
         self.clipboard_controller.cut()
@@ -558,7 +563,7 @@ class Editor:
 
     def run_map(self) -> None:
         if "python_file" in self._tiled_map.properties:
-            python_file = self._tiled_map.properties["code"]
+            python_file = self._tiled_map.properties["python_file"]
             map_file = self._tiled_map.filename if self._tiled_map.filename is not None else os.getcwd()
             map_file_dir = os.path.dirname(map_file)
 
@@ -602,6 +607,14 @@ class Editor:
             return
         else:
             tk.messagebox.showerror(title="Error", message="No 'python_file' property in the map")
+
+    def _update_run_state(self) -> None:
+        map_name = self._tiled_map.name
+        if map_name is not None:
+            self.run_menu.entryconfig(0, label=f"Run '{map_name}'", state="normal")
+        else:
+            self.run_menu.entryconfig(0, label=f"Run", state="normal")
+        self.run_menu.entryconfig(1, state="normal")
 
     def create_boilerplate_map(self) -> None:
         python_file = None
@@ -708,6 +721,7 @@ class Editor:
         self.main_properties = Properties(
             left_frame, self.macos,
             self.tkinter_images,
+            self.actions_controller,
             None, self.update_current_element_attribute, None, None)
 
         pack(tk.Label(left_frame, text=""), fill=X)
@@ -716,6 +730,7 @@ class Editor:
         self.custom_properties = Properties(left_frame,
                                             self.macos,
                                             self.tkinter_images,
+                                            self.actions_controller,
                                             self.add_current_element_property,
                                             self.update_current_element_property,
                                             self.delete_current_element_property,

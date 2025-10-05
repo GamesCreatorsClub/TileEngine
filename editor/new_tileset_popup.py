@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, colorchooser, filedialog
 from typing import Callable, Optional, Any, Union
 
+from editor.actions_controller import ActionsController
 from editor.properties import Properties, pack
 from engine.tmx import F
 
@@ -9,6 +10,7 @@ from engine.tmx import F
 class NewTilesetPopup(tk.Toplevel):
     def __init__(self,
                  root: Union[tk.Widget, tk.Tk],
+                 actions_controller: ActionsController,
                  name: str,
                  macos: bool,
                  tkinter_images: dict[str, tk.PhotoImage],
@@ -18,6 +20,7 @@ class NewTilesetPopup(tk.Toplevel):
         super().__init__(root, bd=0, highlightthickness=0)
 
         self.image_width = image_width
+        self.actions_controller = actions_controller
 
         self.tilewidth = 16
         self.tileheight = 16
@@ -36,6 +39,7 @@ class NewTilesetPopup(tk.Toplevel):
         self.frame = tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5)
 
         self.properties = Properties(self, macos, self.tkinter_images,
+                                     self.actions_controller,
                                      None,
                                      self.update_current_element_attribute,
                                      None,

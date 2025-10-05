@@ -50,11 +50,20 @@ class Player(TiledObject):
         self.collisions = set()
 
     @property
+    def tile(self) -> int:
+        return self._tiled_object.tile
+
+    @tile.setter
+    def tile(self, gid: int) -> None:
+        self._tiled_object.tile = gid
+
+    @property
     def tiled_object(self) -> TiledObject:
         return self
 
     @tiled_object.setter
     def tiled_object(self, obj: TiledObject) -> None:
+        self._tiled_object = obj
         self.rect = obj.rect
         cast(NestedDict, self.properties).over = obj.properties
         self.next_rect.update(obj.next_rect)

@@ -1,8 +1,10 @@
+import os.path
 import tkinter as tk
 from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, colorchooser, filedialog
 from typing import Callable, Optional, Any, Union
 
-from engine.tmx import F
+from editor.actions_controller import ActionsController
+from engine.tmx import F, TiledMap
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -156,6 +158,7 @@ class Properties(ttk.Treeview):
                  root: tk.Widget,
                  macos: bool,
                  tk_images: dict[str, tk.PhotoImage],
+                 actions_controller: ActionsController,
                  add_callback: Optional[Callable[[str, str], None]],
                  update_callback: Callable[[str, str], None],
                  delete_callback: Optional[Callable[[str], None]],
@@ -163,6 +166,7 @@ class Properties(ttk.Treeview):
         self.root = root
         self.macos = macos
         self.tk_images = tk_images
+        self.actions_controller = actions_controller
         self.add_callback = add_callback
         self.update_callback = update_callback
         self.delete_callback = delete_callback
@@ -265,6 +269,8 @@ class Properties(ttk.Treeview):
         elif "Path" in tags:
             filename = filedialog.askopenfilename(title="Select python code", filetypes=(("Python file", "*.py"),))
             if filename:
+                if self.actions_controller.tiled_map.filename:
+                    filename = os.path.relpath(filename, os.path.dirname(self.actions_controller.tiled_map.filename))
                 self.update_value(selected_rowid, filename)
         elif "\n" not in text:
             self.entryPopup = EntryPopup(
