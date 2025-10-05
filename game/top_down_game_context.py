@@ -14,16 +14,17 @@ class TopDownGameContext(GameContext):
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         if self.player_input_allowed:
             player = self.player
+            walking_animation = player["__walking_animation"]
             player_moved_horizontally = False
             left = current_keys[pygame.K_LEFT] or current_keys[pygame.K_a]
             right = current_keys[pygame.K_RIGHT] or current_keys[pygame.K_d]
             if left and right:
                 player.vx = 0
             elif left:
-                self.player.turn_left()
+                walking_animation.turn_left()
                 player.vx = -player.speed
             elif right:
-                self.player.turn_right()
+                walking_animation.turn_right()
                 player.vx = player.speed
             else:
                 player.vx = 0
@@ -37,10 +38,10 @@ class TopDownGameContext(GameContext):
             if up and down:
                 player.vy = 0
             elif up:
-                self.player.turn_up()
+                walking_animation.turn_up()
                 player.vy = -player.speed
             elif down:
-                self.player.turn_down()
+                walking_animation.turn_down()
                 player.vy = player.speed
             else:
                 player.vy = 0
@@ -51,8 +52,8 @@ class TopDownGameContext(GameContext):
             player_moved = player_moved_horizontally or player_moved_vertically
 
             if player_moved:
-                self.player.animate_walk()
+                walking_animation.animate_walk()
                 self.level.update_map_position(self.player.rect.center)
                 self.level.invalidated = True
             else:
-                self.player.stop_walk()
+                walking_animation.stop_walk()

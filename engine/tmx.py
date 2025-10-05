@@ -602,7 +602,7 @@ class TiledObject(TiledSubElement):
         "ellipse": NodeType(None, None, None),
     }
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
-        "id": F(int, False), "name": F(str, True),
+        "id": F(int, False), "name": F(str, True), "type": F(str, True),
         "gid": F(int, True, 0, lambda self, gid: self.map.gid_to_original_gid_and_tile_flags(gid)),
         # "solid": F(bool, True), "pushable": F(bool, True),  # TODO this is not Tiled's
         "x": F(float, True),
@@ -616,6 +616,7 @@ class TiledObject(TiledSubElement):
         self.layer = cast(TiledObjectGroup, parent)
         self.id: int = 0
         self.name: str = ""
+        self.type: str = ""
 
         self.properties: dict[str, Any] = NestedDict()
         self._gid: int = 0
@@ -627,6 +628,10 @@ class TiledObject(TiledSubElement):
         self.next_rect = Rect(0, 0, 0, 0)
         self.collisions = set()
         self.collision_result: Optional[CollisionResult] = None
+
+        self.vx = 0.0
+        self.vy = 0.0
+        self.speed = 0.0
 
     @property
     def x(self) -> float: return self.rect.x

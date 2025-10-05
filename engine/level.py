@@ -1,16 +1,17 @@
 import math
 import os.path
 from itertools import chain
-from typing import Union, Optional, cast, Any
+from typing import Union, Optional, cast, Any, Tuple
 
 import pygame
 from pygame import Surface, Rect
 
 from engine.collision_result import CollisionResult
 from engine.level_context import LevelContext
-from engine.player import Player, Orientation
+from engine.player import Player
 from engine.utils import clip
 from engine.tmx import TiledMap, TiledTileLayer, TiledObjectGroup, TiledObject, TiledGroupLayer, TileFlags, BaseTiledLayer
+from engine.walking_animation import Orientation, WalkingAnimation
 
 offscreen_rendering = True
 
@@ -91,9 +92,6 @@ class Level:
         self.objects: dict[TiledObject, Rect] = {}
         self.objects_by_name = ObjectByNameWrapper(self.objects)
         self.player_object: Optional[TiledObject] = None
-        self.player_orientation = Orientation.RIGHT
-        self.player_left_animation: list[int] = []
-        self.player_right_animation: list[int] = []
 
         self.invalidated = True
         self.always = True
@@ -147,14 +145,16 @@ class Level:
 
         if self.objects_layer is not None:
             self.layers.append(self.objects_layer)
-            self.player_object = next((o for o in self.objects_layer.objects if o.name == "player"), None)
+            self.player_object = next((o for o in self.objects_layer.objects if o.name == "player" or o.type == "player"), None)
+            if self.player_object.type != "player":
+                self.player_object.type = "player"
             if self.player_object is None:
                 raise ValueError("Missing player object")
 
             self.player_object.visible = False
             self.update_map_position(self.player_object.rect.center)
 
-            self._update_player_animation()
+            self._update_object_animations()
         else:
             raise ValueError("Object layer cannot be None")
 
@@ -173,67 +173,87 @@ class Level:
             obj for obj in self.objects if "on_animate" in obj.properties
         ]
 
-    def _update_player_animation(self) -> None:
-        up: list[tuple] = []
-        down: list[tuple] = []
-        left: list[tuple] = []
-        right: list[tuple] = []
-        for tile_id in self.map.tiles:
-            properties = self.map.tiles[tile_id].properties
-            gid = tile_id
-            if "player" in properties:
-                orientation_str = properties["player"]
-                if orientation_str.startswith("left"):
-                    pos = int(orientation_str[5:]) if orientation_str.startswith("left,") else 0
-
-                    left.append((pos, gid))
-
-                elif orientation_str.startswith("right"):
-                    pos = int(orientation_str[6:]) if orientation_str.startswith("right,") else 0
-
-                    right.append((pos, gid))
-                elif orientation_str.startswith("up,"):
-                    up.append((int(orientation_str[3:]), gid))
-                elif orientation_str == "up":
-                    up.append((0, gid))
-                elif orientation_str.startswith("down,"):
-                    down.append((int(orientation_str[5:]), gid))
-                elif orientation_str == "down":
-                    down.append((0, gid))
-
+    def _update_object_animations(self) -> None:
         def sorter(t1: tuple) -> int:
             return t1[0]
 
-        left.sort(key=sorter)
-        left: list[int] = [t[1] for t in left]
-        right.sort(key=sorter)
-        right: list[int] = [t[1] for t in right]
-        up.sort(key=sorter)
-        up: list[int] = [t[1] for t in up]
-        down.sort(key=sorter)
-        down: list[int] = [t[1] for t in down]
+        object_gids: dict[int, dict[Orientation, list[Tuple[int, int]]]] = {}
+        for tile_id in self.map.tiles:
 
-        if len(left) > len(right):
-            right += [self.map.register_gid(left[i], TileFlags(True, False, False)) for i in range(len(left) - len(right))]
+            properties = self.map.tiles[tile_id].properties
+            if len(properties) > 0:
+                gid = tile_id
+                for obj in self.objects_layer.objects:
+                    if obj.type in properties:
+                        if obj.id not in object_gids:
+                            object_gids[obj.id] = {
+                                Orientation.LEFT: [],
+                                Orientation.RIGHT: [],
+                                Orientation.UP: [],
+                                Orientation.DOWN: []
+                            }
 
-        if len(right) > len(left):
-            left += [self.map.register_gid(right[i], TileFlags(True, False, False)) for i in range(len(right) - len(left))]
+                        orientation_str = properties[obj.type]
+                        if orientation_str.startswith("left"):
+                            pos = int(orientation_str[5:]) if orientation_str.startswith("left,") else 0
+                            object_gids[obj.id][Orientation.LEFT].append((pos, gid))
+                        elif orientation_str == "left":
+                            object_gids[obj.id][Orientation.LEFT].append((0, gid))
+                        elif orientation_str.startswith("right"):
+                            pos = int(orientation_str[6:]) if orientation_str.startswith("right,") else 0
+                            object_gids[obj.id][Orientation.RIGHT].append((pos, gid))
+                        elif orientation_str == "right":
+                            object_gids[obj.id][Orientation.RIGHT].append((0, gid))
+                        elif orientation_str.startswith("up,"):
+                            object_gids[obj.id][Orientation.UP].append((int(orientation_str[3:]), gid))
+                        elif orientation_str == "up":
+                            object_gids[obj.id][Orientation.UP].append((0, gid))
+                        elif orientation_str.startswith("down,"):
+                            object_gids[obj.id][Orientation.DOWN].append((int(orientation_str[5:]), gid))
+                        elif orientation_str == "down":
+                            object_gids[obj.id][Orientation.DOWN].append((0, gid))
 
-        original_tiled_gid = self.player_object.gid
+        for obj_id in object_gids:
+            obj = self.objects_layer.objects_id_map[obj_id]
 
-        if original_tiled_gid in up:
-            self.player_orientation = Orientation.UP
-        elif original_tiled_gid in down:
-            self.player_orientation = Orientation.DOWN
-        elif original_tiled_gid in right:
-            self.player_orientation = Orientation.RIGHT
-        else:
-            self.player_orientation = Orientation.LEFT
+            object_gids[obj_id][Orientation.LEFT].sort(key=sorter)
+            left: list[int] = [t[1] for t in object_gids[obj_id][Orientation.LEFT]]
+            object_gids[obj_id][Orientation.RIGHT].sort(key=sorter)
+            right: list[int] = [t[1] for t in object_gids[obj_id][Orientation.RIGHT]]
+            object_gids[obj_id][Orientation.UP].sort(key=sorter)
+            up: list[int] = [t[1] for t in object_gids[obj_id][Orientation.UP]]
+            object_gids[obj_id][Orientation.DOWN].sort(key=sorter)
+            down: list[int] = [t[1] for t in object_gids[obj_id][Orientation.DOWN]]
 
-        self.player_left_animation = left
-        self.player_right_animation = right
-        self.player_up_animation = up
-        self.player_down_animation = down
+            if len(left) > len(right):
+                right += [self.map.register_gid(left[i], TileFlags(True, False, False)) for i in range(len(left) - len(right))]
+
+            if len(right) > len(left):
+                left += [self.map.register_gid(right[i], TileFlags(True, False, False)) for i in range(len(right) - len(left))]
+
+            original_tiled_gid = obj.gid
+
+            walking_animation = WalkingAnimation(obj)
+            walking_animation.left_animation[:] = left
+            walking_animation.right_animation[:] = right
+            walking_animation.up_animation[:] = up
+            walking_animation.down_animation[:] = down
+
+            if original_tiled_gid in up:
+                walking_animation.orientation = Orientation.UP
+            elif original_tiled_gid in down:
+                walking_animation.orientation = Orientation.DOWN
+            elif original_tiled_gid in right:
+                walking_animation.orientation = Orientation.RIGHT
+            else:
+                walking_animation.orientation = Orientation.LEFT
+
+            if len(walking_animation.left_animation) == 0: walking_animation.left_animation.append(obj.tile)
+            if len(walking_animation.right_animation) == 0: walking_animation.right_animation.append(obj.tile)
+            if len(walking_animation.up_animation) == 0: walking_animation.up_animation.append(obj.tile)
+            if len(walking_animation.down_animation) == 0: walking_animation.down_animation.append(obj.tile)
+
+            obj["__walking_animation"] = walking_animation
 
     def __eq__(self, other) -> bool:
         return self.map.filename == other.map.filename and self.part_no == other.part_no
@@ -243,17 +263,7 @@ class Level:
 
     def start(self, player: Player) -> None:
         player.tiled_object = self.player_object
-        player.orientation = self.player_orientation
 
-        if len(self.player_left_animation) == 0: self.player_left_animation.append(player.tile)
-        if len(self.player_right_animation) == 0: self.player_right_animation.append(player.tile)
-        if len(self.player_up_animation) == 0: self.player_up_animation.append(player.tile)
-        if len(self.player_down_animation) == 0: self.player_down_animation.append(player.tile)
-
-        player.left_animation[:] = self.player_left_animation
-        player.right_animation[:] = self.player_right_animation
-        player.up_animation[:] = self.player_up_animation
-        player.down_animation[:] = self.player_down_animation
         player.restricted_rect.update(0, 0, self.map.pixel_width, self.map.pixel_height)
         self.player_object.visible = True
 
