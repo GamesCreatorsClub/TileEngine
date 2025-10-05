@@ -21,10 +21,10 @@ class TopDownGameContext(GameContext):
                 player.vx = 0
             elif left:
                 self.player.turn_left()
-                player.vx = -player.player_speed
+                player.vx = -player.speed
             elif right:
                 self.player.turn_right()
-                player.vx = player.player_speed
+                player.vx = player.speed
             else:
                 player.vx = 0
 
@@ -38,10 +38,10 @@ class TopDownGameContext(GameContext):
                 player.vy = 0
             elif up:
                 self.player.turn_up()
-                player.vy = -player.player_speed
+                player.vy = -player.speed
             elif down:
                 self.player.turn_down()
-                player.vy = player.player_speed
+                player.vy = player.speed
             else:
                 player.vy = 0
 

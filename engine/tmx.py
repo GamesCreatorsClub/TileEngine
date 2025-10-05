@@ -611,7 +611,7 @@ class TiledObject(TiledSubElement):
         "visible": F(bool, True, True),
     }
 
-    def __init__(self, parent: Optional[TiledElement]) -> None:
+    def __init__(self, parent: Optional[TiledElement] = None) -> None:
         super().__init__(parent)
         self.layer = cast(TiledObjectGroup, parent)
         self.id: int = 0

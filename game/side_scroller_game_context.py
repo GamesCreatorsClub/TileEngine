@@ -18,11 +18,11 @@ class SideScrollerGameContext(GameContext):
             player.vx = 0
         elif current_keys[pygame.K_LEFT]:
             self.player.turn_left()
-            player.vx = -player.player_speed
-            # player_moved = self.move_player(-player.player_speed, 0)
+            player.vx = -player.speed
+            # player_moved = self.move_player(-player.speed, 0)
         elif current_keys[pygame.K_RIGHT]:
             self.player.turn_right()
-            player.vx = player.player_speed
+            player.vx = player.speed
         else:
             player.vx = 0
 

@@ -39,7 +39,7 @@ class Player(TiledObject):
         self.hit_velocity = 0
         self.jump_treshold = 10
         self.jump = 0
-        self.player_speed = 2
+        self.speed = 2
         self.on_the_ground = True
 
         self.restricted_rect = pygame.Rect(0, 0, 0, 0)
