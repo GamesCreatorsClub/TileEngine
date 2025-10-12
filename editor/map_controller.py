@@ -666,12 +666,19 @@ class MapController(ScrollableCanvas):
 
         self.scrollbars_moved_callbacks: list[Callable[[int, int], None]] = []
 
+    def _update_map_rects(self) -> None:
+        self._map_outer_rect.update(
+            self.rect.x + self.h_scrollbar.offset - 1,
+            self.rect.y + self.v_scrollbar.offset - 1,
+            self._tiled_map.width * self._tiled_map.tilewidth + 2,
+            self._tiled_map.height * self._tiled_map.tileheight + 2)
+
     def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
         if tiled_map is None:
             self.v_scrollbar.visible = False
             self.h_scrollbar.visible = False
-            self._map_outer_rect = Rect(0, 0, 0, 0)
+            self._map_outer_rect.update(0, 0, 0, 0)
         else:
             self.v_scrollbar.visible = True
             self.h_scrollbar.visible = True
@@ -682,11 +689,7 @@ class MapController(ScrollableCanvas):
             self._selection_overlay = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
             self._selection_overlay.fill((255, 255, 0, 32))
             self.scrollbars_moved(0, 0)
-            self._map_outer_rect.update(
-                self.rect.x + self.h_scrollbar.offset - 1,
-                self.rect.y + self.v_scrollbar.offset - 1,
-                self._tiled_map.width * self._tiled_map.tilewidth + 2,
-                self._tiled_map.height * self._tiled_map.tileheight + 2)
+            self._update_map_rects()
 
     def _current_layer_callback(self, current_layer: BaseTiledLayer) -> None:
         self._current_layer = current_layer
@@ -718,12 +721,7 @@ class MapController(ScrollableCanvas):
             self._selection_overlay = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
             self._selection_overlay.fill((255, 255, 0, 32))
             self.scrollbars_moved(0, 0)
-
-            self._map_outer_rect.update(
-                self.rect.x + self.h_scrollbar.offset - 1,
-                self.rect.y + self.v_scrollbar.offset - 1,
-                self._tiled_map.width * self._tiled_map.tilewidth + 2,
-                self._tiled_map.height * self._tiled_map.tileheight + 2)
+            self._update_map_rects()
 
     def _action_changed(self, action: MapAction) -> None:
         self._action = action
@@ -967,9 +965,11 @@ class MapController(ScrollableCanvas):
         if self._tiled_map is not None:
             tiled_map = self._tiled_map
 
-            colour = tiled_map.backgroundcolor if tiled_map.backgroundcolor else (0, 0, 0)
-            pygame.draw.rect(surface, colour, self.rect)
-            pygame.draw.rect(surface,(128, 128, 128), self._map_outer_rect, width=1)
+            background_colour = tiled_map.backgroundcolor if tiled_map.backgroundcolor else (0, 0, 0)
+            # pygame.draw.rect(surface, (128, 128, 128), self.rect)
+
+            pygame.draw.rect(surface, background_colour, self._map_outer_rect)
+            pygame.draw.rect(surface,(160, 160, 160), self._map_outer_rect, width=1)
 
             for layer in tiled_map.layers:
                 if layer.visible:

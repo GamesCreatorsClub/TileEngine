@@ -308,7 +308,8 @@ class Properties(ttk.Treeview):
 
         if "Color" in tags:
             def extract_color(v: str) -> str:
-                return "#" + "".join(f"{int(s.strip()):02x}" for s in v[1:-1].split(","))
+                s = v[1:].replace(',', '')
+                return "#" + "".join(f"{int(s[i:i+1], 16):02x}" for i in range(0, 6, 2))
 
             initial_color = extract_color(text) if text != "" and text is not None else None
             color = colorchooser.askcolor(color=initial_color)

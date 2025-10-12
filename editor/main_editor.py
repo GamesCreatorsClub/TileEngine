@@ -175,7 +175,7 @@ class Editor:
             self._object_selected_callback,
             self._selection_changed_callback
         )
-        self.main_window.mini_map = MiniMap(Rect(0, 0, 0, 0), self.main_window.map_controller)
+        self.main_window.mini_map = MiniMap(Rect(0, 0, 0, 0), self.actions_controller, self.main_window.map_controller)
         self.main_window.info_panel = InfoPanel(Rect(0, 0, 0, 0), self.font, self.actions_controller)
         self.main_window.finish_initialisation()
 

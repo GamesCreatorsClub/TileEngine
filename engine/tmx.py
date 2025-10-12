@@ -429,13 +429,39 @@ class TiledTileLayer(BaseTiledLayer):
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
-        self.width: int = int(self.map.width) if self.map is not None else 0
-        self.height: int = int(self.map.height) if self.map is not None else 0
+        self._width: int = int(self.map.width) if self.map is not None else 0
+        self._height: int = int(self.map.height) if self.map is not None else 0
 
         self.data: list[list[int]] = [[0] * self.width for _ in range(self.height)]
         self.animate_layer: bool = False
         self.original_encoding: Optional[str] = None
         self.original_compression: Optional[str] = None
+
+    def _reshape(self, w: int, h: int) -> None:
+        data = [[0] * w for _ in range(h)]
+        for y in range(h):
+            if y < self._height:
+                l = min(w, self._width)
+                data[y][:l] = self.data[y][:l]
+        self.data = data
+
+    @property
+    def width(self) -> int:
+        return self._width
+
+    @width.setter
+    def width(self, w: int) -> None:
+        if self._width != w: self._reshape(w, self._height)
+        self._width = w
+
+    @property
+    def height(self) -> int:
+        return self._height
+
+    @height.setter
+    def height(self, h: int) -> None:
+        if self._height != h: self._reshape(self._width, h)
+        self._height = h
 
     def _parse_xml_data(self, data_node: Element) -> None:
         encoding = data_node.get("encoding", None)
@@ -1414,8 +1440,8 @@ class TiledMap(TiledElement):
         self.tiledversion: str = ""
         self.orientation: str = "orthogonal"
         self.renderorder: str = "right-down"
-        self.width: int = 0  # width of map in tiles
-        self.height: int = 0  # height of map in tiles
+        self._width: int = 0  # width of map in tiles
+        self._height: int = 0  # height of map in tiles
         self.tilewidth: int = 0  # width of a tile in pixels
         self.tileheight: int = 0  # height of a tile in pixels
         self.hexsidelength: int = 0
@@ -1432,6 +1458,29 @@ class TiledMap(TiledElement):
         self.prevent_drawing = False
         self.new_gids: dict[int, tuple[int, TileFlags]] = {}
         self._map_rect: Optional[Rect] = None
+
+    def _update_shape(self, w: int, h: int) -> None:
+        for layer in self.layers:
+            layer.width = w
+            layer.height = h
+
+    @property
+    def width(self) -> int:
+        return self._width
+
+    @width.setter
+    def width(self, w: int) -> None:
+        if self._width != w: self._update_shape(w, self._height)
+        self._width = w
+
+    @property
+    def height(self) -> int:
+        return self._height
+
+    @height.setter
+    def height(self, h: int) -> None:
+        if self._height != h: self._update_shape(self._width, h)
+        self._height = h
 
     @property
     def filename(self) -> str:
