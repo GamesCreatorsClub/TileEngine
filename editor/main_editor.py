@@ -1,5 +1,5 @@
 from pathlib import Path
-from zipfile import ZipFile, ZIP_DEFLATED
+from zipfile import ZipFile
 
 import functools
 
@@ -11,7 +11,7 @@ import pygame
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from tkinter import X, filedialog, LEFT, BOTH, TOP
+from tkinter import X, filedialog, LEFT, BOTH, TOP, BOTTOM
 
 from typing import Optional, cast, Any, Callable
 from sys import exit
@@ -31,7 +31,6 @@ from editor.python_boilerplate import PythonBoilerplateDialog
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
 from editor import resources_prefix
-from engine.helper import backup_file
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, Tile
 
 MOUSE_DOWN_COUNTER = 1
@@ -279,7 +278,6 @@ class Editor:
 
     @current_element.setter
     def current_element(self, current_element: Optional[TiledElement]) -> None:
-        old_selected_element = self._current_element
         self._current_element = current_element
         self.clipboard_controller.focused_element = current_element
 
@@ -619,7 +617,6 @@ class Editor:
         self.run_menu.entryconfig(1, state="normal")
 
     def create_boilerplate_map(self) -> None:
-        python_file = None
         if self._tiled_map is not None and self._tiled_map.filename is not None:
             PythonBoilerplateDialog(self.root, self._tiled_map, os.path.dirname(os.path.dirname(__file__)) if resources_prefix.STARTED_FROM_ZIP else None)
         else:
@@ -637,11 +634,10 @@ class Editor:
         root.protocol("WM_DELETE_WINDOW", self._quit_action)
         root.title("Edit object")
 
-        left_frame = tk.Frame(root)
-        left_frame.pack(side=LEFT, fill=BOTH, expand=True)
-        right_frame = left_frame
+        tk_window = tk.Frame(root)
+        tk_window.pack(side=LEFT, fill=BOTH, expand=True)
 
-        self.menu_panel = tk.Canvas(left_frame)
+        self.menu_panel = tk.Canvas(tk_window)
         self.menu_panel.columnconfigure(1, weight=1)
         # self.hamburger_menu_image = tk.PhotoImage(file=os.path.join(os.path.dirname(__file__), "editor", "hamburger-menu.png"))
 
@@ -714,22 +710,22 @@ class Editor:
         root.bind_all(f"<{control_modifier}-z>", self._undo_action)
         root.bind_all(f"<{control_modifier}-y>", self._redo_action)
 
-        pack(tk.Label(right_frame, text="Hierarchy"), fill=X)
-        self.hierarchy_view = Hierarchy(right_frame, self._set_selected_element)
-        self.hierarchy_view.pack(side=TOP, fill=X, expand=True)
+        pack(tk.Label(tk_window, text="Hierarchy"), fill=X)
+        self.hierarchy_view = Hierarchy(tk_window, self._set_selected_element)
+        self.hierarchy_view.pack(side=TOP, fill=BOTH, expand=True)
 
-        pack(tk.Label(left_frame, text="Properties"), fill=X)
+        pack(tk.Label(tk_window, text="Properties"), fill=X)
 
         self.main_properties = Properties(
-            left_frame, self.macos,
+            tk_window, self.macos,
             self.tkinter_images,
             self.actions_controller,
             None, self.update_current_element_attribute, None, None)
 
-        pack(tk.Label(left_frame, text=""), fill=X)
-        pack(tk.Label(left_frame, text="Custom Properties"), fill=X)
+        pack(tk.Label(tk_window, text=""), fill=X)
+        pack(tk.Label(tk_window, text="Custom Properties"), fill=X)
 
-        self.custom_properties = Properties(left_frame,
+        self.custom_properties = Properties(tk_window,
                                             self.macos,
                                             self.tkinter_images,
                                             self.actions_controller,
@@ -738,7 +734,7 @@ class Editor:
                                             self.delete_current_element_property,
                                             self._property_selection_callback)
 
-        self.button_panel = tk.Canvas(left_frame)
+        self.button_panel = tk.Canvas(tk_window)
         self.button_panel.columnconfigure(1, weight=1)
 
         add_image = self._add_tk_image("add-icon")
@@ -782,7 +778,7 @@ class Editor:
             b.grid(row=0, column=2 + i, pady=3, padx=1, sticky=tk.W)
         self.edit_property.grid(row=0, column=len(self.property_buttons) + 2, pady=1, padx=3, sticky=tk.W)
 
-        pack(self.button_panel, fill=X)
+        pack(self.button_panel, side=BOTTOM, fill=X)
 
         self.hierarchy_view.init_properties_widgets(self.main_properties, self.custom_properties)
         self.custom_properties.update_buttons(
@@ -980,7 +976,6 @@ def prepare_resources() -> None:
 
 def prepare_game_resources(game_path: str) -> None:
     this_zip_file = os.path.dirname(os.path.dirname(__file__))
-    current_path = os.path.dirname(this_zip_file)
     print(f"Game path is {game_path}")
     engine_dir = os.path.join(game_path, "engine")
     game_dir = os.path.join(game_path, "game")

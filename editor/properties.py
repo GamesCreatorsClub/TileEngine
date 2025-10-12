@@ -234,8 +234,8 @@ class Properties(ttk.Treeview):
         self.column("value", minwidth=50, width=130)
 
         self.bind("<Button-1>", self.on_left_click)
-        self.pack(side=TOP, fill=X, expand=True)
-        self.treeview_frame.pack(side=TOP, fill=X)
+        self.pack(side=TOP, fill=BOTH, expand=True)
+        self.treeview_frame.pack(side=TOP, fill=BOTH, expand=True)
         self.entryPopup: Optional[EntryPopup] = None
         self.editorPopup: Optional[EditText] = None
         self.addNewPropertyPopup: Optional[AddNewPropertyText] = None

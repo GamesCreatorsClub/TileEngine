@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, RIGHT, X, Y, TOP
+from tkinter import ttk, RIGHT, X, Y, TOP, BOTH
 from typing import Optional, cast, Callable
 
 from editor.properties import Properties
@@ -26,8 +26,8 @@ class Hierarchy(ttk.Treeview):
         self.column("visible", minwidth=20, width=40)
 
         self.bind("<Button-1>", self.on_left_click)
-        self.pack(side=TOP, fill=X, expand=True)
-        self.treeview_frame.pack(side=TOP, fill=X)
+        self.pack(side=TOP, fill=BOTH, expand=True)
+        self.treeview_frame.pack(side=TOP, fill=BOTH, expand=True)
         self.tiled_map: Optional[TiledMap] = None
         self.main_properties: Optional[Properties] = None
         self.custom_properties: Optional[Properties] = None
