@@ -345,6 +345,7 @@ class Editor:
     def _tile_selected_callback(self, data: Optional[list[list[int]]]) -> None:
         # TODO do we want to have it exposed in properties (hierarchy)?
         self.main_window.map_controller.tile_selection_changed()
+        self.main_window.info_panel.tile_selection_changed(self.main_window.tileset_controller.selection)
         if len(data) == 1 and len(data[0]) == 1:
             # 1x1 selection
             gid = data[0][0]

@@ -1,6 +1,6 @@
 import os.path
 import tkinter as tk
-from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, colorchooser, filedialog
+from tkinter import ttk, INSERT, BOTH, END, RIGHT, LEFT, X, Y, BOTTOM, TOP, colorchooser, filedialog
 from typing import Callable, Optional, Any, Union
 
 from editor.actions_controller import ActionsController
@@ -92,6 +92,54 @@ class EditText(tk.Toplevel):
         self.destroy()
 
 
+class BooleanPopup(tk.Frame):
+    def __init__(self,
+                 window: tk.Widget,
+                 parent: tk.Widget,
+                 x: int, y: int, width: int, height: int,
+                 rowid: str, text: str,
+                 update_value_callback: Callable[[str, str], None]):
+
+        super().__init__(parent, bd=0, highlightthickness=0)
+
+        self.pack()
+        self.window = window
+        self.rowid = rowid
+        self.update_value_callback = update_value_callback
+
+        self.value = text
+
+        self.button = tk.Label(self, text="True" if text.lower() == "true" else "False")
+        self.button.pack(side=LEFT)
+        self.button.bind("<Button-1>", self.toggle_value)
+
+        self.destroyed = False
+
+        self.button.focus_force()
+        self.button.bind("<Return>", self.update_value)
+
+        self.button.bind("<Escape>", self.abandon_edit)
+        self.button.bind("<FocusOut>", self.update_value)
+
+        self.place(x=x, y=y, width=width, height=height, anchor=tk.NW, relwidth=0.5)
+
+    def abandon_edit(self, _event) -> None:
+        if not self.destroyed:
+            self.destroyed = True
+            self.destroy()
+
+    def update_value(self, _event) -> None:
+        if not self.destroyed:
+            self.update_value_callback(self.rowid, self.value)
+            self.destroyed = True
+            self.destroy()
+
+    def toggle_value(self, _event) -> None:
+        self.value = "False" if self.value.lower() == "true" else "True"
+        self.button["text"] = self.value
+        self.update_value_callback(self.rowid, self.value)
+
+
 class EntryPopup(tk.Frame):
     def __init__(self,
                  window: tk.Widget,
@@ -129,12 +177,12 @@ class EntryPopup(tk.Frame):
 
         self.place(x=x, y=y, width=width, height=height, anchor=tk.NW, relwidth=0.5)
 
-    def abandon_edit(self, _event):
+    def abandon_edit(self, _event) -> None:
         if not self.destroyed:
             self.destroyed = True
             self.destroy()
 
-    def update_value(self, _event):
+    def update_value(self, _event) -> None:
         if not self.destroyed:
             new_value = self.entry.get()
             if new_value.rstrip().endswith("/n"):
@@ -143,10 +191,10 @@ class EntryPopup(tk.Frame):
             self.destroyed = True
             self.destroy()
 
-    def select_all(self, _event):
+    def select_all(self, _event) -> None:
         if not self.destroyed:
             self.entry.selection_range(0, tk.END)
-            return "break"
+        return "break"
 
     def stop_and_open_text_editor(self, _even) -> None:
         self.abandon_edit(None)
@@ -272,6 +320,14 @@ class Properties(ttk.Treeview):
                 if self.actions_controller.tiled_map.filename:
                     filename = os.path.relpath(filename, os.path.dirname(self.actions_controller.tiled_map.filename))
                 self.update_value(selected_rowid, filename)
+        elif "bool" in tags:
+            self.entryPopup = BooleanPopup(
+                self.root, self,
+                x=x, y=y,
+                width=5,  # width - self.scrollbar.winfo_width(),
+                height=height,
+                rowid=selected_rowid, text=text,
+                update_value_callback=self.update_value)
         elif "\n" not in text:
             self.entryPopup = EntryPopup(
                 self.root, self,

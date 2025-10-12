@@ -2,20 +2,20 @@ import enum
 import os
 from abc import ABC
 from random import Random
-from typing import Optional, Callable, cast
+from typing import Optional, Callable, cast, Any
 
 import pygame.draw
 from pygame import Rect, Surface
 from pygame.font import Font
 
-from editor.actions_controller import ActionsController
+from editor.actions_controller import ActionsController, ChangeKind
 from editor.clipboard_controller import ClipboardController
 from editor.pygame_components import ScrollableCanvas
 from editor.resize_component import ResizeButton, ResizePosition
 from editor.tileset_controller import TilesetController
 from editor.toolbar_panel import ToolbarPanel
 from editor import resources_prefix
-from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup, TiledObject
+from engine.tmx import TiledMap, BaseTiledLayer, TiledTileLayer, TiledObjectGroup, TiledObject, TiledElement
 from engine.utils import clip
 
 
@@ -320,7 +320,7 @@ class AddAreaObjectMouseAdapter(MouseAdapter):
                     y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
                 )
                 self.action_controller.add_object(obj)
-                self.map_controller.object_added_callback(layer, obj)
+                # self.map_controller.object_added_callback(layer, obj)
         return True
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
@@ -585,6 +585,7 @@ class MapController(ScrollableCanvas):
         actions_controller.tiled_layer_callbacks.append(self._tiled_layer_callback)
         actions_controller.object_layer_callbacks.append(self._object_layer_callback)
         actions_controller.current_object_callbacks.append(self._current_object_callback)
+        actions_controller.element_attr_change_callbacks.append(self._element_attr_change_callback)
 
         self.clipboard_controller = clipboard_controller
         self.arrows_surface = pygame.image.load(os.path.join(resources_prefix.RESOURCES_PREFIX, "editor", "arrows-small.png"))
@@ -657,6 +658,7 @@ class MapController(ScrollableCanvas):
         self.overlay_surface: Optional[Surface] = None
         # self.selection: list[Rect] = []
         self.selection_viewport_rects: list[Rect] = []
+        self._map_outer_rect = Rect(0, 0, 0, 0)
         self._selection_overlay: Optional[Surface] = None
 
         self.v_scrollbar.visible = False
@@ -669,6 +671,7 @@ class MapController(ScrollableCanvas):
         if tiled_map is None:
             self.v_scrollbar.visible = False
             self.h_scrollbar.visible = False
+            self._map_outer_rect = Rect(0, 0, 0, 0)
         else:
             self.v_scrollbar.visible = True
             self.h_scrollbar.visible = True
@@ -679,6 +682,11 @@ class MapController(ScrollableCanvas):
             self._selection_overlay = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
             self._selection_overlay.fill((255, 255, 0, 32))
             self.scrollbars_moved(0, 0)
+            self._map_outer_rect.update(
+                self.rect.x + self.h_scrollbar.offset - 1,
+                self.rect.y + self.v_scrollbar.offset - 1,
+                self._tiled_map.width * self._tiled_map.tilewidth + 2,
+                self._tiled_map.height * self._tiled_map.tileheight + 2)
 
     def _current_layer_callback(self, current_layer: BaseTiledLayer) -> None:
         self._current_layer = current_layer
@@ -697,6 +705,25 @@ class MapController(ScrollableCanvas):
 
     def _current_object_callback(self, current_object: Optional[TiledObject]) -> None:
         self.select_object(current_object)
+
+    def _element_attr_change_callback(self, element: TiledElement, _kind: ChangeKind, key: str, _value: Any) -> None:
+        if element == self.tiled_map and key in ["width", "height", "tilewidth", "tileheight"]:
+            tiled_map = self.tiled_map
+            self.v_scrollbar.visible = True
+            self.h_scrollbar.visible = True
+            self.h_scrollbar.width = tiled_map.width * tiled_map.tilewidth
+            self.v_scrollbar.width = tiled_map.height * tiled_map.tileheight
+            self.overlay_surface = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
+            self.overlay_surface.fill((255, 255, 0, 64))
+            self._selection_overlay = Surface((tiled_map.tilewidth, tiled_map.tileheight), pygame.SRCALPHA, 32)
+            self._selection_overlay.fill((255, 255, 0, 32))
+            self.scrollbars_moved(0, 0)
+
+            self._map_outer_rect.update(
+                self.rect.x + self.h_scrollbar.offset - 1,
+                self.rect.y + self.v_scrollbar.offset - 1,
+                self._tiled_map.width * self._tiled_map.tilewidth + 2,
+                self._tiled_map.height * self._tiled_map.tileheight + 2)
 
     def _action_changed(self, action: MapAction) -> None:
         self._action = action
@@ -757,6 +784,7 @@ class MapController(ScrollableCanvas):
         if isinstance(self._mouse_adapter, SelectObjectMouseAdapter):
             cast(SelectObjectMouseAdapter, self._mouse_adapter).update_buttons()
         self.calc_mouse_over_rect(self.mouse_x, self.mouse_y)
+        self._map_outer_rect.move_ip(dx, dy)
         for r in self.selection_viewport_rects:
             r.move_ip(dx, dy)
 
@@ -938,8 +966,11 @@ class MapController(ScrollableCanvas):
     def _local_draw(self, surface: Surface) -> None:
         if self._tiled_map is not None:
             tiled_map = self._tiled_map
+
             colour = tiled_map.backgroundcolor if tiled_map.backgroundcolor else (0, 0, 0)
             pygame.draw.rect(surface, colour, self.rect)
+            pygame.draw.rect(surface,(128, 128, 128), self._map_outer_rect, width=1)
+
             for layer in tiled_map.layers:
                 if layer.visible:
                     if isinstance(layer, TiledObjectGroup):

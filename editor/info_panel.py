@@ -18,8 +18,10 @@ class InfoPanel(Component):
         self.font = font
         self.layer_text: Optional[Surface] = None
         self.tileset_text: Optional[Surface] = None
+        self.tilegid_text: Optional[Surface] = None
         self.actions_controller.current_tileset_callbacks.append(self._current_tileset_callback)
         self.actions_controller.object_layer_callbacks.append(self._object_layer_callback)
+        self.actions_controller.tiled_layer_callbacks.append(self._tiled_layer_callback)
         self.actions_controller.tiled_layer_callbacks.append(self._tiled_layer_callback)
         self._object_layer: Optional[TiledObjectGroup] = None
         self._tiled_layer: Optional[TiledTileLayer] = None
@@ -49,8 +51,14 @@ class InfoPanel(Component):
         self._tiled_layer = tiled_layer
         self._update_layer_name()
 
+    def tile_selection_changed(self, selection: Optional[list[list[int]]]) -> None:
+        text = str(selection[0][0]) if selection is not None and len(selection) == 1 and len(selection[0]) == 1 else ""
+        self.tilegid_text = self.font.render(text, True, (0, 0, 0))
+
     def draw(self, surface: Surface) -> None:
         if self.layer_text is not None:
             surface.blit(self.layer_text, (self.rect.x, self.rect.y))
         if self.tileset_text is not None:
             surface.blit(self.tileset_text, (self.rect.x, self.rect.y + self.font.get_height()))
+        if self.tilegid_text is not None:
+            surface.blit(self.tilegid_text, (self.rect.right - self.tilegid_text.get_width(), self.rect.y + self.font.get_height()))

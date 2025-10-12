@@ -100,7 +100,8 @@ class Hierarchy(ttk.Treeview):
             self.move(f"l_{layer.id}", "layers", i)
             if isinstance(layer, TiledObjectGroup):
                 for j, obj in enumerate(layer.objects):
-                    self.insert('', tk.END, iid=f"o_{layer.id}_{obj.id}", text=f"{obj.name}", values=(self._obj_visibility(obj), ), open=True)
+                    rowid = f"o_{layer.id}_{obj.id}"
+                    self.insert('', tk.END, iid=rowid, text=f"{obj.name}", values=(self._obj_visibility(obj), ), open=True)
                     self.move(f"o_{layer.id}_{obj.id}", f"l_{layer.id}", j)
 
         if self._selected_layer is not None:

@@ -628,7 +628,7 @@ class ActionsController:
         attrs = type(element).ATTRIBUTES
         typ = attrs[key].type if key in attrs else type(getattr(element, key))
         if typ is bool:
-            value = bool(value)
+            value = value.lower() == "true"
         elif typ is int:
             value = int(value)
         elif typ is float:
