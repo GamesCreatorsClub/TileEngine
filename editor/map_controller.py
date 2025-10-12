@@ -409,8 +409,10 @@ class BrushTileMouseAdapter(MouseAdapter):
             for ix in range(height):
                 if mc.is_in_selection(ix + x, iy + y):
                     gid = data[iy][ix]
-                    if gid != 0:
-                        ac.plot(ix + x, iy + y, gid)
+                    map_x = ix + x
+                    map_y = iy + y
+                    if gid != 0 and 0 <= map_x < mc.tiled_map.width and 0 <= map_y < mc.tiled_map.height:
+                        ac.plot(map_x, map_y, gid)
 
     def mouse_up(self, x: int, y: int, button: int, modifier: int) -> bool:
         if button == 1:

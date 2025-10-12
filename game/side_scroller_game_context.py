@@ -10,6 +10,12 @@ from engine.level import Level
 class SideScrollerGameContext(GameContext):
     def __init__(self, levels: dict[Union[str, int], Level]) -> None:
         super().__init__(levels)
+        self.gravity = 2
+
+    def set_level(self, level: Level) -> None:
+        super().set_level(level)
+        if "gravity" in level.map.properties:
+            self.gravity = float(level.map.properties["gravity"])
 
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         player = self.player
@@ -33,15 +39,15 @@ class SideScrollerGameContext(GameContext):
         if current_keys[pygame.K_UP] and current_keys[pygame.K_DOWN]:
             player.jump = 0
         elif current_keys[pygame.K_UP]:
-            if (player.jump == 0 and player.on_the_ground) or 0 < player.jump <= player.jump_treshold:
+            if (player.jump == 0 and player.on_the_ground) or 0 < player.jump <= player.jump_threshold:
                 player.jump += 1
-                player.vy += -5 + 4 * player.jump / player.jump_treshold
+                player.vy += -player.jump_strength + 4 * player.jump / player.jump_threshold
         elif current_keys[pygame.K_DOWN]:
             player.jump = 0
         else:
             player.jump = 0
 
-        player.vy = player.vy + 2  # 2 is gravity
+        player.vy = player.vy + self.gravity
 
         player_moved_vertically = self.move_object(player, 0, player.vy, test_collisions=True)
         if player_moved_vertically:

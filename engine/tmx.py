@@ -1352,11 +1352,17 @@ class TiledTileset(TiledElement):
         gid = gid - self.firstgid
         y = gid // self._columns
         x = gid - y * self._columns
-        return self.image_surface.subsurface(
-            Rect(
-                x * (self.tilewidth + self._spacing) + self._margin,
-                y * (self.tileheight + self._spacing) + self._margin,
-                self.tilewidth, self.tileheight))
+        try:
+            return self.image_surface.subsurface(
+                Rect(
+                    x * (self.tilewidth + self._spacing) + self._margin,
+                    y * (self.tileheight + self._spacing) + self._margin,
+                    self.tilewidth, self.tileheight))
+        except ValueError:
+            raise ValueError(f"Subsurface rectangle outside surface area;"
+                             f" x,y={x * (self.tilewidth + self._spacing) + self._margin}, {y * (self.tileheight + self._spacing) + self._margin}"
+                             f" w, h={self.tilewidth}, {self.tileheight}"
+                             f" image_size={self.image_surface.get_size()}")
 
     def _tag_name(self) -> str: return "tileset"
 

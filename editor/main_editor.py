@@ -387,32 +387,33 @@ class Editor:
                 suggested_tsx_filename = suggested_tsx_filename[:i] + ".tsx" if i > 0 else suggested_tsx_filename
 
                 tsx_filename = filedialog.asksaveasfilename(title="Save TSX file", initialfile=suggested_tsx_filename, filetypes=(("Tileset file", "*.tsx"),))
-                tileset = TiledTileset(self._tiled_map)
-                tileset.update_source_filename(tsx_filename, os.path.dirname(self._tiled_map.filename) if self._tiled_map.filename is not None else None)
-                tileset.update_source_image_filename(image_filename)
+                if tsx_filename != "":
+                    tileset = TiledTileset(self._tiled_map)
+                    tileset.update_source_filename(tsx_filename, os.path.dirname(self._tiled_map.filename) if self._tiled_map.filename is not None else None)
+                    tileset.update_source_image_filename(image_filename)
 
-                simple_filename = os.path.split(tsx_filename)[1]
-                i = simple_filename.rfind(".")
-                tileset.name = simple_filename[:i] if i > 0 else simple_filename
+                    simple_filename = os.path.split(tsx_filename)[1]
+                    i = simple_filename.rfind(".")
+                    tileset.name = simple_filename[:i] if i > 0 else simple_filename
 
-                tileset.image_surface = pygame.image.load(image_filename)
+                    tileset.image_surface = pygame.image.load(image_filename)
 
-                def completed_callback(tilewidth: int, tileheight: int, columns: int, spacing: int, margin: int) -> None:
-                    print(f"Create new TSX with")
-                    print(f"tilewidth, tileheight {tileheight}, {tileheight}")
-                    print(f"columns {columns}")
-                    print(f"spacing, margin {spacing}, {margin}")
-                    tileset.update_shape(tilewidth, tileheight, columns, spacing, margin)
-                    tileset.save()
-                    self.actions_controller.add_tileset(tsx_filename)
+                    def completed_callback(tilewidth: int, tileheight: int, columns: int, spacing: int, margin: int) -> None:
+                        print(f"Create new TSX with")
+                        print(f"tilewidth, tileheight {tileheight}, {tileheight}")
+                        print(f"columns {columns}")
+                        print(f"spacing, margin {spacing}, {margin}")
+                        tileset.update_shape(tilewidth, tileheight, columns, spacing, margin)
+                        tileset.save()
+                        self.actions_controller.add_tileset(tsx_filename)
 
-                NewTilesetPopup(self.root,
-                                self.actions_controller,
-                                tsx_filename,
-                                self.macos,
-                                self.tkinter_images,
-                                tileset.image_surface.get_width(),
-                                completed_callback)
+                    NewTilesetPopup(self.root,
+                                    self.actions_controller,
+                                    tsx_filename,
+                                    self.macos,
+                                    self.tkinter_images,
+                                    tileset.image_surface.get_width(),
+                                    completed_callback)
 
     def _remove_tileset_action(self) -> None:
         tileset_controller = self.main_window.tileset_controller

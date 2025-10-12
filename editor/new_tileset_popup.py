@@ -89,11 +89,13 @@ class NewTilesetPopup(tk.Toplevel):
 
         print(f"Edited property {key} to {value}")
         self.values[key] = value
-        if key == "tilewidth":
-            columns = self.image_width // int(value)
+        if key == "tilewidth" or key == "margin" or key == "spacing":
+            available_pixels = (self.image_width - int(self.values["margin"])) + int(self.values["spacing"])  # Add artificial last spacing that does not exist
+            columns = available_pixels // int(int(self.values["tilewidth"]) + int(self.values["spacing"]))
             self.values["columns"] = columns
             self.properties.update_value("columns", str(columns), True)
         if key == "columns":
+            # TODO implement this properly using margin and spacing in consideration
             tilewidth = self.image_width // int(value)
             self.values["tilewidth"] = tilewidth
             self.properties.update_value("tilewidth", str(tilewidth), True)

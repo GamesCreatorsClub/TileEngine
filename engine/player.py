@@ -15,9 +15,10 @@ class Player(TiledObject):
         self.coins = 0
 
         self.hit_velocity = 0
-        self.jump_treshold = 10
         self.jump = 0
+        self.jump_threshold = 10
         self.speed = 2
+        self.jump_strength = 5
         self.on_the_ground = True
 
         self.restricted_rect = pygame.Rect(0, 0, 0, 0)
@@ -54,6 +55,10 @@ class Player(TiledObject):
         for key in self.properties:
             if hasattr(self, key):
                 setattr(self, key, self.properties[key])
+
+        if "jump_threshold" in obj: self.jump_threshold = float(obj["jump_threshold"])
+        if "jump_strength" in obj: self.jump_strength = float(obj["jump_strength"])
+        if "speed" in obj: self.speed = float(obj["speed"])
 
     def move_to(self, pos: tuple[Union[int, float], Union[int, float]]) -> bool:
         rect = self.rect
