@@ -1,8 +1,7 @@
 import os
-import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest import TestCase
+from unittest import TestCase, skip
 
 from engine.tmx import TiledMap
 
@@ -31,7 +30,7 @@ class TestLoadAndSave(TestCase):
             tiled_map.save(f"{t}/level2.tmx".replace("/", os.sep))
             pass
 
-    @unittest.skip
+    @skip
     def test_load_and_save_simple_case3(self) -> None:
         with TemporaryDirectory() as t:
             tiled_map = TiledMap()
