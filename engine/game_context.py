@@ -492,17 +492,23 @@ class GameContext(ABC):
 
     @in_context
     def push_object(self, this: TiledObject, obj: TiledObject, test_collisions: bool = True) -> None:
+        walking_object = obj["walking_animation"] if "walking_animation" in obj else None
+
         dx = 0
         dy = 0
         if obj.rect.x < this.next_rect.x < obj.rect.right:
             dx = this.next_rect.x - obj.rect.right
+            if walking_object is not None: walking_object.turn_left()
         elif obj.rect.right > this.next_rect.right > obj.rect.x:
             dx = this.next_rect.right - obj.rect.x
+            if walking_object is not None: walking_object.turn_right()
 
         if obj.rect.y < this.next_rect.y < obj.rect.bottom:
             dy = this.next_rect.y - obj.rect.bottom
+            if walking_object is not None: walking_object.turn_up()
         elif obj.rect.bottom > this.next_rect.bottom > obj.rect.y:
             dy = this.next_rect.bottom - obj.rect.y
+            if walking_object is not None: walking_object.turn_down()
 
         if abs(dx) > 0 and abs(dy) > 0:
             if abs(dx) < abs(dy):
@@ -511,6 +517,7 @@ class GameContext(ABC):
                 dx = 0
 
         self.move_object(obj, dx, dy, test_collisions)
+        if walking_object is not None: walking_object.animate_walk()
         self.prevent_moving()
 
     @in_context

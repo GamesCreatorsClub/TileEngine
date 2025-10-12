@@ -14,7 +14,7 @@ class TopDownGameContext(GameContext):
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         if self.player_input_allowed:
             player = self.player
-            walking_animation = player["__walking_animation"]
+            walking_animation = player["walking_animation"]
             player_moved_horizontally = False
             left = current_keys[pygame.K_LEFT] or current_keys[pygame.K_a]
             right = current_keys[pygame.K_RIGHT] or current_keys[pygame.K_d]

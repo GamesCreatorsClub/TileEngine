@@ -253,7 +253,7 @@ class Level:
             if len(walking_animation.up_animation) == 0: walking_animation.up_animation.append(obj.tile)
             if len(walking_animation.down_animation) == 0: walking_animation.down_animation.append(obj.tile)
 
-            obj["__walking_animation"] = walking_animation
+            obj["walking_animation"] = walking_animation
 
     def __eq__(self, other) -> bool:
         return self.map.filename == other.map.filename and self.part_no == other.part_no

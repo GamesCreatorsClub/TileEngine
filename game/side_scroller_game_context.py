@@ -13,7 +13,7 @@ class SideScrollerGameContext(GameContext):
 
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         player = self.player
-        walking_animation = self.player["__walking_animation"]
+        walking_animation = self.player["walking_animation"]
         player_moved_horizotanlly = False
         if current_keys[pygame.K_LEFT] and current_keys[pygame.K_RIGHT]:
             player.vx = 0
