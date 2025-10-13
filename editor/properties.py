@@ -251,6 +251,15 @@ class Properties(ttk.Treeview):
 
         self.bind("<<TreeviewSelect>>", self.select_element)
 
+    def _clear_editors(self) -> None:
+        if self.editorPopup is not None:
+            self.editorPopup.destroy()
+            self.editorPopup = None
+        if self.entryPopup is not None:
+            self.entryPopup.destroy()
+            self.entryPopup = None
+
+
     def select_element(self, _event) -> None:
         selection = self.selection()
         if selection is not None and len(selection) > 0:
@@ -359,12 +368,12 @@ class Properties(ttk.Treeview):
 
     def update_value(self, rowid: str, new_value: str, no_callback: bool = False) -> None:
         self.item(rowid, values=(new_value,))
-        self.editorPopup = None
-        self.entryPopup = None
+        self._clear_editors()
         if not no_callback:
             self.update_callback(rowid, new_value)
 
     def update_properties(self, properties: dict[str, Any], types_and_visibility: Optional[dict[str, F]] = None) -> None:
+        self._clear_editors()
         for c in self.get_children():
             self.delete(c)
 
