@@ -247,7 +247,10 @@ class TiledElement(ABC):
     def _parse_xml(self, node: Element) -> None:
         for key, value in node.items():
             if key in self.ATTRIBUTES:
-                casted_value = self.ATTRIBUTES[key].type(value)
+                typ = self.ATTRIBUTES[key].type
+                if typ is bool:
+                    typ = convert_to_bool
+                casted_value = typ(value)
             else:
                 casted_value = TYPES[key](value)
             if hasattr(self, key):
@@ -662,6 +665,8 @@ class TiledObject(TiledSubElement):
         self.vy = 0.0
         self.speed = 0.0
 
+        self._image: Optional[Surface] = None
+
     @property
     def x(self) -> float: return self.rect.x
 
@@ -704,6 +709,8 @@ class TiledObject(TiledSubElement):
         if gid > 0:
             gid = self.map.register_raw_gid(gid)
         self._gid = gid
+        self._image = None
+        _ = self.image  # update image
 
     def set_gid(self, gid: int) -> None:
         if gid > 0:
@@ -716,6 +723,8 @@ class TiledObject(TiledSubElement):
                 else:
                     self.properties.over = {}
         self._gid = gid
+        self._image = None
+        _ = self.image  # update image
 
     def _parse_xml(self, node: Element) -> None:
         super()._parse_xml(node)
@@ -727,13 +736,15 @@ class TiledObject(TiledSubElement):
 
     @property
     def image(self) -> Optional[Surface]:
-        gid = self._gid
-        if gid:
+        if self._image is None:
+            gid = self._gid
+            if not gid:
+                return None
             if gid in self.map.tile_animations:
                 time_ms = int(time.time() * 1000)
                 gid = self.map.tile_animations[gid].get_gid(time_ms)
-            return self.map.images[gid]
-        return None
+            self._image = self.map.images[gid]
+        return self._image
 
     def copy(self) -> 'TiledObject':
         obj = TiledObject(self.parent)
@@ -769,6 +780,7 @@ class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):
     def objects(self) -> Iterable[TiledObject]:
         return self.objects_id_map.values()
 
+    @property
     def object_by_name(self) -> Mapping[str, TiledObject]:
         return self
 
