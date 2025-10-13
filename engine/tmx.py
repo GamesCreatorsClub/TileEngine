@@ -746,6 +746,22 @@ class TiledObject(TiledSubElement):
             self._image = self.map.images[gid]
         return self._image
 
+    def create_image(self, data: list[list[int]]) -> None:
+        pixel_width = max(len(row) for row in data) * self.map.tilewidth
+        pixel_height = len(data) * self.map.tileheight
+        image = Surface((pixel_width, pixel_height), pygame.SRCALPHA, 32)
+        x = 0
+        y = 0
+        for row in data:
+            for g in row:
+                image.blit(self.map.images[g], (x, y))
+                x += self.map.tilewidth
+            x = 0
+            y += self.map.tileheight
+        self._image = image
+        self.width = pixel_width
+        self.height = pixel_height
+
     def copy(self) -> 'TiledObject':
         obj = TiledObject(self.parent)
         obj.name = self.name
