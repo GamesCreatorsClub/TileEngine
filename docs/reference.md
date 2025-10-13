@@ -79,6 +79,12 @@ scriplet properties handled:
   - 'obj' - object that has been clicked on.
   - 'pos' - x, y coordinates (on the screen) where click happened.
 
+Object itself has one important method to be used:
+
+- "create_image" which accepts list of list of gids to create rectangular
+  image of existing tiles to be used as image of the object. Also, size of that
+  image is going to be set as a size of the object.
+
 
 ### TileSet
 
