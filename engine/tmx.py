@@ -246,7 +246,10 @@ class TiledElement(ABC):
 
     def _parse_xml(self, node: Element) -> None:
         for key, value in node.items():
-            casted_value = TYPES[key](value)
+            if key in self.ATTRIBUTES:
+                casted_value = self.ATTRIBUTES[key].type(value)
+            else:
+                casted_value = TYPES[key](value)
             if hasattr(self, key):
                 try:
                     setattr(self, key, casted_value)
