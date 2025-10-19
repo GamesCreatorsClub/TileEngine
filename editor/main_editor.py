@@ -378,24 +378,23 @@ class Editor:
             if filename.endswith(".tsx"):
                 self.actions_controller.add_tileset(filename)
             else:
-                image_filename = filename
+                image_filename = Path(filename)
+                suggested_tsx_filename = image_filename.name
+                suffix = image_filename.suffix
 
-                suggested_tsx_filename = os.path.split(filename)[1]
-
-                i = suggested_tsx_filename.rfind(".")
-                suggested_tsx_filename = suggested_tsx_filename[:i] + ".tsx" if i > 0 else suggested_tsx_filename
+                suggested_tsx_filename = (suggested_tsx_filename[:-len(suffix)] if len(suffix) > 0 else suggested_tsx_filename) + ".tsx"
 
                 tsx_filename = filedialog.asksaveasfilename(title="Save TSX file", initialfile=suggested_tsx_filename, filetypes=(("Tileset file", "*.tsx"),))
                 if tsx_filename != "":
                     tileset = TiledTileset(self._tiled_map)
-                    tileset.update_source_filename(tsx_filename, os.path.dirname(self._tiled_map.filename) if self._tiled_map.filename is not None else None)
-                    tileset.update_source_image_filename(image_filename)
+                    tileset.update_source_filename(tsx_filename, str(Path(self._tiled_map.filename).parent) if self._tiled_map.filename is not None else None)
+                    tileset.update_source_image_filename(str(image_filename))
 
                     simple_filename = os.path.split(tsx_filename)[1]
                     i = simple_filename.rfind(".")
                     tileset.name = simple_filename[:i] if i > 0 else simple_filename
 
-                    tileset.image_surface = pygame.image.load(image_filename)
+                    tileset.image_surface = pygame.image.load(str(image_filename))
 
                     def completed_callback(tilewidth: int, tileheight: int, columns: int, spacing: int, margin: int) -> None:
                         print(f"Create new TSX with")
@@ -589,6 +588,13 @@ class Editor:
                         full_python_path = os.path.join(p, "python3")
                         if os.path.exists(full_python_path):
                             return full_python_path
+                        full_python_path = os.path.join(p, "python")
+                        if os.path.exists(full_python_path):
+                            return full_python_path
+                        full_python_path = os.path.join(p, "python.exe")
+                        if os.path.exists(full_python_path):
+                            return full_python_path
+
                     return None
 
                 python_exec = find_python()

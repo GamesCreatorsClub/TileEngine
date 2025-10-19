@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from tkinter.messagebox import askyesno
 from zipfile import ZipFile
 
@@ -13,6 +15,14 @@ from typing import Callable, Union, Optional, cast
 
 from editor.properties import pack
 from engine.tmx import TiledMap
+
+
+def process_context_file(content: str, class_name: str, top_down: bool) -> str:
+    content = (content
+               .replace("SideScrollerExampleGameContext", class_name)
+               .replace("TopDownExampleGameContext", class_name)
+               )
+    return content
 
 
 class PythonBoilerplateDialog(tk.Toplevel):
@@ -78,11 +88,11 @@ class PythonBoilerplateDialog(tk.Toplevel):
             level_name = os.path.split(map_filename)[1]
             level_name = level_name[:-4] if level_name.endswith(".tmx") else level_name
 
-            engine_path = os.path.join(game_path, "engine")
-            if not os.path.exists(engine_path):
-                self.prepare_game_resources(game_path)
-            else:
-                print(f"Path {engine_path} already exists - skipping copying files.")
+            # engine_path = os.path.join(game_path, "engine")
+            # if not os.path.exists(engine_path):
+            self.prepare_game_resources(game_path)
+            # else:
+            #     print(f"Path {engine_path} already exists - skipping copying files.")
 
             read_prefix = self.top_down_var.get()
 
@@ -94,11 +104,28 @@ class PythonBoilerplateDialog(tk.Toplevel):
 
             print(f"Creating {main_class_name} in {main_full_filename}")
             main_content = self.read_content(f"examples/{read_prefix}_example_game_main.py")
+
+            print(f"Creating {context_class_name} in {context_full_filename}")
+            context_content = self.read_content(f"examples/{read_prefix}_example_game_context.py")
+
             proceed = True
-            if os.path.exists(main_full_filename):
-                print(f"File {main_full_filename} already exists")
+            if os.path.exists(main_full_filename) or os.path.exists(context_full_filename):
+                message = ""
+                title = ""
+                if os.path.exists(main_full_filename):
+                    title = f"File {main_full_filename}"
+                    message = f"File {main_full_filename} already exists"
+                if os.path.exists(context_full_filename):
+                    if len(message) > 0:
+                        message += " and "
+                        title += " and "
+                    title += f"File {context_full_filename}"
+                    message += f"File {context_full_filename} already exists"
+
+                message += " Do you want to overwrite it?"
+
                 proceed = askyesno(title=f"File {main_full_filename}",
-                                   message=f"File {main_full_filename} already exists. Do you want to overwrite it?")
+                                   message=message)
 
             if proceed:
                 self.write_content(main_full_filename, self.process_main_file(
@@ -108,23 +135,14 @@ class PythonBoilerplateDialog(tk.Toplevel):
                     level_name,
                     read_prefix == "top_down"))
 
-            print(f"Creating {context_class_name} in {context_full_filename}")
-            main_content = self.read_content(f"examples/{read_prefix}_example_game_context.py")
-            proceed = True
-            if os.path.exists(context_full_filename):
-                print(f"File {context_full_filename} already exists")
-                proceed = askyesno(title=f"File {context_full_filename}",
-                                   message=f"File {context_full_filename} already exists. Do you want to overwrite it?")
-
-            if proceed:
                 self.write_content(
                     context_full_filename,
-                    self.process_context_file(
-                        main_content,
+                    process_context_file(
+                        context_content,
                         context_class_name,
                         read_prefix == "top_down"))
 
-            self.tiled_map["python_file"] = main_full_filename
+            self.tiled_map["python_file"] = self.relative_python_file(Path(self.tiled_map.filename).parent if self.tiled_map.filename is not None else None, main_full_filename)
 
         self.destroy()
 
@@ -139,7 +157,7 @@ class PythonBoilerplateDialog(tk.Toplevel):
         return reduce(
             lambda a, b: a + b,
             ([m.group(0).lower() for m in finditer('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)', k)] for k in s.split("_")),
-        [])
+            [])
 
     def to_python_class_name(self, s: str) -> str:
         return "".join((s[0].upper() + ("" if len(s) < 2 else s[1:])) for s in self.underscore_camel_case_split(s))
@@ -191,8 +209,8 @@ class PythonBoilerplateDialog(tk.Toplevel):
             for name in collect_names(source_dir, ""):
                 process_file(name, file_copier)
 
-    def process_main_file(self,
-                          content: str,
+    @staticmethod
+    def process_main_file(content: str,
                           context_filename: str, context_class_name: str,
                           map_filename: str,
                           level_name: str,
@@ -217,13 +235,6 @@ sys.path.append(os.getcwd())
                    )
         return content
 
-    def process_context_file(self, content: str, class_name: str, top_down: bool) -> str:
-        content = (content
-                   .replace("SideScrollerExampleGameContext", class_name)
-                   .replace("TopDownExampleGameContext", class_name)
-                   )
-        return content
-
     @staticmethod
     def write_content(filename: str, content: str) -> None:
         with open(filename, "w") as f:
@@ -238,3 +249,17 @@ sys.path.append(os.getcwd())
             source_dir = os.path.dirname(os.path.dirname(__file__))
             with open(os.path.join(source_dir, path), "r") as f:
                 return f.read()
+
+    @staticmethod
+    def relative_python_file(parent_dir: Optional[str], filename: str) -> str:
+        if parent_dir is None:
+            return filename
+        try:
+            relative_path = str(Path(filename).relative_to(Path(parent_dir)))
+            return relative_path
+        except ValueError:
+            try:
+                relative_path = Path(parent_dir).relative_to(Path(filename).parent)
+                return str(Path(os.path.pathsep.join(".." for _ in range(len(relative_path.parts)))) / Path(filename).name)
+            except ValueError:
+                return filename

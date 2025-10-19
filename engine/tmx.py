@@ -1211,6 +1211,12 @@ class TiledTileset(TiledElement):
 
     def update_source_image_filename(self, filename: str) -> None:
         self._source_image_filename = filename
+        if self._source_filename is not None and len(self._source_filename) > 0:
+            tileset_dir = Path(self._source_filename).parent
+            try:
+                self._source_image_filename = str(Path(filename).relative_to(tileset_dir))
+            except ValueError:
+                pass
 
     @property
     def source(self) -> str:
