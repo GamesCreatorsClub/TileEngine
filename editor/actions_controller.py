@@ -12,6 +12,7 @@ from engine.tmx import TiledMap, TiledObjectGroup, BaseTiledLayer, TiledTileLaye
 
 
 MAX_UNDO = 5
+CREATE_IMAGE = "create_image"
 
 
 class ChangeKind(Enum):
@@ -597,6 +598,13 @@ class ActionsController:
 
         self.last_change_timestamp = time.time()
         self.notify_element_property_change(element, ChangeKind.ADD_PROPERTY, key, value)
+
+        if key == CREATE_IMAGE and isinstance(element, TiledObject):
+            obj = cast(TiledObject, element)
+            try:
+                obj.create_image_from_property_value()
+            except ValueError as e:
+                print(f"Got error {e}")
 
     def update_element_property(self, element: TiledElement, key: str, value: Any) -> None:
         self._add_change(UpdateElementPropertyChange(self, element, key, value))

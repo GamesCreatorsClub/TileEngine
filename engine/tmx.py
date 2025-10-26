@@ -241,7 +241,7 @@ class TiledElement(ABC):
         properties = self._parse_xml_properties(node)
         self.properties.update(properties)
         for key in properties:
-            if hasattr(self, key):
+            if hasattr(self, key) and not isinstance(getattr(self, key), Callable):
                 setattr(self, key, properties[key])
 
     def _parse_xml(self, node: Element) -> None:
@@ -253,7 +253,7 @@ class TiledElement(ABC):
                 casted_value = typ(value)
             else:
                 casted_value = TYPES[key](value)
-            if hasattr(self, key):
+            if hasattr(self, key) and not isinstance(getattr(self, key), Callable):
                 try:
                     setattr(self, key, casted_value)
                 except AttributeError:
@@ -283,7 +283,8 @@ class TiledElement(ABC):
                             elif isinstance(destination, Callable):
                                 destination(obj)
                             else:
-                                setattr(self, node_type.destination, obj)
+                                if not isinstance(getattr(self, node_type.destination), Callable):
+                                    setattr(self, node_type.destination, obj)
                         else:
                             raise KeyError(f"Cannot set {child_node.tag} on {self}")
                 else:
@@ -777,6 +778,26 @@ class TiledObject(TiledSubElement):
 
         self.collision_result = None
         return obj
+
+    def has_create_image(self) -> bool:
+        return "create_image" in self.properties
+
+    def create_image_from_property_value(self) -> None:
+        if "create_image" in self.properties:
+            value = self.properties["create_image"]
+            try:
+                value = eval(value)
+                print(f"*** value={value}")
+                if isinstance(value, list) and len(value) > 0:
+                    if isinstance(value[0], list):
+                        self.create_image(value)
+                    else:
+                        raise ValueError("List doesn't have lists of elements")
+                else:
+                    raise ValueError("Value is not a list")
+            except Exception as e:
+                import traceback
+                raise ValueError(f"Got exception {e}; ex={traceback.print_tb(e.__traceback__)}")
 
 
 class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):

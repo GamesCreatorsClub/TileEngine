@@ -558,6 +558,15 @@ class Editor:
         filename = os.path.split(self._tiled_map.filename)[1]
         pygame.display.set_caption(filename)
         self.actions_controller.mark_saved()
+        for layer in tiled_map.layers:
+            if isinstance(layer, TiledObjectGroup):
+                object_layer = cast(TiledObjectGroup, layer)
+                for obj in object_layer.objects:
+                    if obj.has_create_image():
+                        try:
+                            obj.create_image_from_property_value()
+                        except ValueError as e:
+                            print(f"Failed to create images for {obj.name}; error {e}")
 
     def run_map(self) -> None:
         if PYTHON_FILE_PROPERTY in self._tiled_map.properties:

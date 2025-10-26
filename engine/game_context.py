@@ -175,6 +175,8 @@ class GameContext(ABC):
         for obj in self.level.objects:
             if "on_create" in obj.properties:
                 self._execute_script(obj.properties["on_create"], {"obj": obj, "level": level})
+            if obj.has_create_image():
+                obj.create_image_from_property_value()
 
     def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None, activate: bool = False) -> None:
         if level not in self.visible_levels:
