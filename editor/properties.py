@@ -4,7 +4,7 @@ from tkinter import ttk, INSERT, BOTH, END, RIGHT, LEFT, X, Y, BOTTOM, TOP, colo
 from typing import Callable, Optional, Any, Union
 
 from editor.actions_controller import ActionsController
-from engine.tmx import F, TiledMap
+from engine.tmx import F
 
 
 def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
@@ -258,7 +258,6 @@ class Properties(ttk.Treeview):
         if self.entryPopup is not None:
             self.entryPopup.destroy()
             self.entryPopup = None
-
 
     def select_element(self, _event) -> None:
         selection = self.selection()

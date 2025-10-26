@@ -202,9 +202,9 @@ class SelectObjectMouseAdapter(MouseAdapter):
 
     def mouse_down(self, x: int, y: int, button: int, modifier: int) -> bool:
         if button == 1:
-            def find_object(layer: TiledObjectGroup, x: int, y: int) -> Optional[TiledObject]:
+            def find_object(layer: TiledObjectGroup, x: int, y: int, visible: bool) -> Optional[TiledObject]:
                 for o in layer.objects_id_map.values():
-                    if o.visible and o.rect.collidepoint(x, y):
+                    if o.visible == visible and o.rect.collidepoint(x, y):
                         return o
                 return None
 
@@ -213,7 +213,9 @@ class SelectObjectMouseAdapter(MouseAdapter):
                 corrected_x = x - self.map_controller.rect.x - self.map_controller.h_scrollbar.offset
                 corrected_y = y - self.map_controller.rect.y - self.map_controller.v_scrollbar.offset
 
-                obj = find_object(layer, corrected_x, corrected_y)
+                obj = find_object(layer, corrected_x, corrected_y, visible=True)
+                if obj is None:
+                    obj = find_object(layer, corrected_x, corrected_y, visible=False)
                 if obj is not None:
                     self.mouse_is_down = True
                     self.selected_object = obj
@@ -940,26 +942,40 @@ class MapController(ScrollableCanvas):
 
     def _draw_object_layer(self, layer: TiledObjectGroup, surface: Surface, rect: Rect, x_offset: int, y_offset: int) -> None:
         for obj in layer.objects:
-            if obj.visible:
-                if ("__old_rect" not in obj.properties
-                        or obj.properties["__old_rect"] != obj.rect
-                        or obj.properties["__old_name"] != obj.name):
-                    self._calc_new_obj_text(obj, rect.x + x_offset, rect.y + y_offset)
-                if obj.properties["__old_x_offset"] != x_offset or obj.properties["__old_y_offset"] != y_offset:
-                    dx = x_offset - obj.properties["__old_x_offset"]
-                    dy = y_offset - obj.properties["__old_y_offset"]
-                    obj.properties["__old_x_offset"] = x_offset
-                    obj.properties["__old_y_offset"] = y_offset
-                    obj.properties["__text_position"].move_ip(dx, dy)
+            # if obj.visible:
+            if ("__old_rect" not in obj.properties
+                    or obj.properties["__old_rect"] != obj.rect
+                    or obj.properties["__old_name"] != obj.name):
+                self._calc_new_obj_text(obj, rect.x + x_offset, rect.y + y_offset)
+            if obj.properties["__old_x_offset"] != x_offset or obj.properties["__old_y_offset"] != y_offset:
+                dx = x_offset - obj.properties["__old_x_offset"]
+                dy = y_offset - obj.properties["__old_y_offset"]
+                obj.properties["__old_x_offset"] = x_offset
+                obj.properties["__old_y_offset"] = y_offset
+                obj.properties["__text_position"].move_ip(dx, dy)
 
-                surface.blit(obj.properties["__text_surface"], obj.properties["__text_position"])
-                if obj.image is not None:
-                    surface.blit(obj.image, (self.rect.x + obj.x + x_offset, self.rect.y + obj.y + y_offset))
-                else:
+            surface.blit(obj.properties["__text_surface"], obj.properties["__text_position"])
+            if obj.image is not None:
+                surface.blit(obj.image, (self.rect.x + obj.x + x_offset, self.rect.y + obj.y + y_offset))
+                if not obj.visible:
+                    if "__dark_overlay_image" not in obj.properties or obj.properties["__dark_overlay_image"].get_size() != obj.image.get_size():
+                        s = Surface(obj.image.get_size())
+                        s.fill((0, 0, 0))
+                        s.set_alpha(128)
+                        obj.properties["__dark_overlay_image"] = s
+
+                    surface.blit(obj.properties["__dark_overlay_image"], (self.rect.x + obj.x + x_offset, self.rect.y + obj.y + y_offset))
                     r = obj.rect.move(rect.x + x_offset + 1, rect.y + y_offset + 1)
-                    pygame.draw.rect(surface, (0, 0, 0), r, width=1)
-                    r.move_ip(-1, -1)
                     pygame.draw.rect(surface, (128, 255, 255), r, width=1)
+                else:
+                    if obj.rect.size != obj.image.get_size():
+                        r = obj.rect.move(rect.x + x_offset + 1, rect.y + y_offset + 1)
+                        pygame.draw.rect(surface, (128, 255, 255), r, width=1)
+            else:
+                r = obj.rect.move(rect.x + x_offset + 1, rect.y + y_offset + 1)
+                pygame.draw.rect(surface, (0, 0, 0), r, width=1)
+                r.move_ip(-1, -1)
+                pygame.draw.rect(surface, (128, 255, 255), r, width=1)
 
     def _local_draw(self, surface: Surface) -> None:
         if self._tiled_map is not None:

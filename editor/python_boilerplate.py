@@ -16,6 +16,8 @@ from typing import Callable, Union, Optional, cast
 from editor.properties import pack
 from engine.tmx import TiledMap
 
+PYTHON_FILE_PROPERTY = "python_file"
+
 
 def process_context_file(content: str, class_name: str, top_down: bool) -> str:
     content = (content
@@ -53,8 +55,8 @@ class PythonBoilerplateDialog(tk.Toplevel):
         # self.button.bind("<Button-1>", self.stop_and_open_text_editor)
 
         python_name = ""
-        if "python_file" in self.tiled_map:
-            python_name = os.path.split(self.tiled_map["python_file"])[1]
+        if PYTHON_FILE_PROPERTY in self.tiled_map:
+            python_name = os.path.split(self.tiled_map[PYTHON_FILE_PROPERTY])[1]
             python_name = python_name[:-3] if python_name.endswith(".py") else python_name
             python_name = self.to_python_class_name(python_name)
 
@@ -80,8 +82,8 @@ class PythonBoilerplateDialog(tk.Toplevel):
             name = name.replace(" ", "_")
 
             game_path: Optional[Path] = None
-            if "python_file" in self.tiled_map:
-                game_file = Path(self.tiled_map["python_file"])
+            if PYTHON_FILE_PROPERTY in self.tiled_map:
+                game_file = Path(self.tiled_map[PYTHON_FILE_PROPERTY])
                 game_path = game_file.parent
                 if str(game_path) == ".":
                     game_path = None
@@ -148,7 +150,7 @@ class PythonBoilerplateDialog(tk.Toplevel):
                         context_class_name,
                         read_prefix == "top_down"))
 
-            self.tiled_map["python_file"] = self.relative_python_file(Path(self.tiled_map.filename).parent if self.tiled_map.filename is not None else None, main_full_filename)
+            self.tiled_map[PYTHON_FILE_PROPERTY] = self.relative_python_file(Path(self.tiled_map.filename).parent if self.tiled_map.filename is not None else None, main_full_filename)
 
         self.destroy()
 

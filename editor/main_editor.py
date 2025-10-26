@@ -27,23 +27,23 @@ from editor.mini_map_controller import MiniMap
 from editor.new_tileset_popup import NewTilesetPopup
 from editor.properties import Properties
 from editor.map_controller import MapController
-from editor.python_boilerplate import PythonBoilerplateDialog
+from editor.python_boilerplate import PythonBoilerplateDialog, PYTHON_FILE_PROPERTY
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
 from editor import resources_prefix
+from editor.tk_utils import pack, bindtag
+
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, Tile
 
+
 MOUSE_DOWN_COUNTER = 1
-
-
-def pack(tk: tk.Widget, **kwargs) -> tk.Widget:
-    tk.pack(**kwargs)
-    return tk
 
 
 class Editor:
     def __init__(self) -> None:
         self.macos = sys.platform == 'darwin'
+        self.tk_control_modifier = "Command" if self.macos else "Control"
+
         self.running = True
         self.speed = 10
         self.screen: Optional[Surface] = None
@@ -73,11 +73,14 @@ class Editor:
 
         self._selected_object: Optional[TiledElement] = None
 
+        self.tk_window: Optional[tk.Frame] = None
         self.file_menu: Optional[tk.Menu] = None
         self.edit_menu: Optional[tk.Menu] = None
         self.map_menu: Optional[tk.Menu] = None
         self.run_menu: Optional[tk.Menu] = None
         self.help_menu: Optional[tk.Menu] = None
+
+        self.run_button: Optional[tk.Button] = None
 
         self._tiled_map: Optional[TiledMap] = None
 
@@ -93,6 +96,7 @@ class Editor:
         self.root.title("Editor")
 
         pygame.init()
+        self.pygame_control_modifier = pygame.KMOD_META if self.macos else pygame.KMOD_CTRL
 
         self.open_tk_window(self.root)
         self.previous_keys = pygame.key.get_pressed()
@@ -311,6 +315,7 @@ class Editor:
         self.hierarchy_view.selected_object = obj
         self._update_property_buttons()
         self.root.update()
+        self.main_properties.start_editing("name")
 
     def _object_deleted_callback(self, layer: TiledObjectGroup, obj: TiledObject) -> None:
         self.hierarchy_view.delete_object(layer, obj)
@@ -548,21 +553,15 @@ class Editor:
         tiled_map = TiledMap()
         tiled_map.load(filename)
         self.actions_controller.tiled_map = tiled_map
-        map_name = self._tiled_map.name
-        if map_name is not None:
-            self.run_menu.entryconfig(0, label=f"Run '{map_name}'", state="normal")
-        else:
-            self.run_menu.entryconfig(0, label=f"Run", state="normal")
-
-        self.run_menu.entryconfig(1, state="normal")
+        self._update_run_state()
 
         filename = os.path.split(self._tiled_map.filename)[1]
         pygame.display.set_caption(filename)
         self.actions_controller.mark_saved()
 
     def run_map(self) -> None:
-        if "python_file" in self._tiled_map.properties:
-            python_file = self._tiled_map.properties["python_file"]
+        if PYTHON_FILE_PROPERTY in self._tiled_map.properties:
+            python_file = self._tiled_map.properties[PYTHON_FILE_PROPERTY]
             map_file = self._tiled_map.filename if self._tiled_map.filename is not None else os.getcwd()
             map_file_dir = os.path.dirname(map_file)
 
@@ -616,11 +615,17 @@ class Editor:
 
     def _update_run_state(self) -> None:
         map_name = self._tiled_map.name
+
+        has_python_file = PYTHON_FILE_PROPERTY in self._tiled_map.properties
+        state = "normal" if has_python_file else "disabled"
+
         if map_name is not None:
-            self.run_menu.entryconfig(0, label=f"Run '{map_name}'", state="normal")
+            self.run_menu.entryconfig(0, label=f"Run '{map_name}'", state=state)
         else:
-            self.run_menu.entryconfig(0, label=f"Run", state="normal")
-        self.run_menu.entryconfig(1, state="normal")
+            self.run_menu.entryconfig(0, label=f"Run", state=state)
+
+        self.run_button["state"] = state
+        self.run_menu.entryconfig(1, state=state)
 
     def create_boilerplate_map(self) -> None:
         if self._tiled_map is not None and self._tiled_map.filename is not None:
@@ -634,54 +639,62 @@ class Editor:
         return image
 
     def open_tk_window(self, root: tk.Tk) -> tk.Tk:
-        control_modifier = "Command" if self.macos else "Control"
+        self.tk_control_modifier = "Command" if self.macos else "Control"
 
         root.geometry("300x900+10+30")
         root.protocol("WM_DELETE_WINDOW", self._quit_action)
         root.title("Edit object")
 
-        tk_window = tk.Frame(root)
-        tk_window.pack(side=LEFT, fill=BOTH, expand=True)
+        self.tk_window = tk.Frame(root)
+        self.tk_window.pack(side=LEFT, fill=BOTH, expand=True)
 
-        self.menu_panel = tk.Canvas(tk_window)
-        self.menu_panel.columnconfigure(1, weight=1)
+        self.menu_panel = tk.Canvas(self.tk_window)
+        self.menu_panel.columnconfigure(2, weight=2)
+        bindtag(self.tk_window, self.menu_panel)
         # self.hamburger_menu_image = tk.PhotoImage(file=os.path.join(os.path.dirname(__file__), "editor", "hamburger-menu.png"))
 
-        # menu = tk.Menu(root)
-        menu_button = pack(
-            ttk.Menubutton(
-                self.menu_panel,
-                style="TButton",
-                text="Menu",
-                # image=self.hamburger_menu_image
-            ), fill=X)
+        menu_button = pack(ttk.Menubutton(
+            self.menu_panel,
+            style="TButton",
+            text="Menu",
+            # image=self.hamburger_menu_image
+        ), fill=X)
+
         menu = tk.Menu(menu_button)
         menu_button.menu = menu
         menu_button["menu"] = menu
         menu_button.grid(row=0, column=0, ipady=3, padx=3, pady=3, sticky=tk.W)
 
+        self.run_button = ttk.Button(
+            self.menu_panel,
+            text="Run",
+            state="disabled",
+            command=self._run_map_action
+        )
+        self.run_button.grid(row=0, column=1, ipady=3, padx=3, pady=3, sticky=tk.W)
+
         pack(self.menu_panel, fill=X)
 
         self.file_menu = tk.Menu(menu, tearoff=0)
-        self.file_menu.add_command(label="New", command=self._create_new_map_action, accelerator=f"{control_modifier}+N")
+        self.file_menu.add_command(label="New", command=self._create_new_map_action, accelerator=f"{self.tk_control_modifier}+N")
         self.file_menu.add_command(label="Open", command=self._load_file_action)
-        self.file_menu.add_command(label="Save", command=self._save_map_action, state="disabled", accelerator=f"{control_modifier}+S")
-        self.file_menu.add_command(label="Save as...", command=self._save_as_map_action, state="disabled", accelerator=f"Shift+{control_modifier}+X")
+        self.file_menu.add_command(label="Save", command=self._save_map_action, state="disabled", accelerator=f"{self.tk_control_modifier}+S")
+        self.file_menu.add_command(label="Save as...", command=self._save_as_map_action, state="disabled", accelerator=f"Shift+{self.tk_control_modifier}+X")
         self.file_menu.add_separator()
-        self.file_menu.add_command(label="Quit", command=self._quit_action, accelerator=f"{control_modifier}+Q")
+        self.file_menu.add_command(label="Quit", command=self._quit_action, accelerator=f"{self.tk_control_modifier}+Q")
         menu.add_cascade(label="File", menu=self.file_menu)
 
         self.edit_menu = tk.Menu(menu, tearoff=0)
-        self.edit_menu.add_command(label="Redo", command=self._redo_action, state="disabled", accelerator=f"{control_modifier}+Y")
-        self.edit_menu.add_command(label="Undo", command=self._undo_action, state="disabled", accelerator=f"{control_modifier}+Z")
+        self.edit_menu.add_command(label="Redo", command=self._redo_action, state="disabled", accelerator=f"{self.tk_control_modifier}+Y")
+        self.edit_menu.add_command(label="Undo", command=self._undo_action, state="disabled", accelerator=f"{self.tk_control_modifier}+Z")
         self.edit_menu.add_separator()
-        self.edit_menu.add_command(label="Cut", command=self._cut_action, state="disabled", accelerator=f"{control_modifier}+X")
-        self.edit_menu.add_command(label="Copy", command=self._copy_action, state="disabled", accelerator=f"{control_modifier}+C")
-        self.edit_menu.add_command(label="Paste", command=self._paste_action, state="disabled", accelerator=f"{control_modifier}+V")
+        self.edit_menu.add_command(label="Cut", command=self._cut_action, state="disabled", accelerator=f"{self.tk_control_modifier}+X")
+        self.edit_menu.add_command(label="Copy", command=self._copy_action, state="disabled", accelerator=f"{self.tk_control_modifier}+C")
+        self.edit_menu.add_command(label="Paste", command=self._paste_action, state="disabled", accelerator=f"{self.tk_control_modifier}+V")
         self.edit_menu.add_command(label="Delete", command=self._delete_action, state="disabled", accelerator="Delete")
         self.edit_menu.add_separator()
-        self.edit_menu.add_command(label="Select All", command=self._select_all_action, state="disabled", accelerator=f"{control_modifier}+A")
-        self.edit_menu.add_command(label="Select None", command=self._select_none_action, state="disabled", accelerator=f"Shift+{control_modifier}+A")
+        self.edit_menu.add_command(label="Select All", command=self._select_all_action, state="disabled", accelerator=f"{self.tk_control_modifier}+A")
+        self.edit_menu.add_command(label="Select None", command=self._select_none_action, state="disabled", accelerator=f"Shift+{self.tk_control_modifier}+A")
 
         menu.add_cascade(label="Edit", menu=self.edit_menu)
 
@@ -691,7 +704,7 @@ class Editor:
         menu.add_cascade(label="Map", menu=self.map_menu)
 
         self.run_menu = tk.Menu(menu, tearoff=0)
-        self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{control_modifier}+R")
+        self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{self.control_modifier}+R")
         self.run_menu.add_command(label="Create", command=self._create_boilerplate_map_action, state="disabled")
 
         menu.add_cascade(label="Run", menu=self.run_menu)
@@ -702,36 +715,28 @@ class Editor:
         menu.add_cascade(label="Help", menu=self.help_menu)
         # root.config(menu=menu)
 
-        root.bind_all("<Delete>", self._delete_action)
-        root.bind_all(f"<{control_modifier}-q>", self._quit_action)
-        root.bind_all(f"<{control_modifier}-n>", self._create_new_map_action)
-        root.bind_all(f"<{control_modifier}-s>", self._save_map_action)
-        root.bind_all(f"<Shift-{control_modifier}-s>", self._save_as_map_action)
-        root.bind_all(f"<{control_modifier}-x>", self._cut_action)
-        root.bind_all(f"<{control_modifier}-c>", self._copy_action)
-        root.bind_all(f"<{control_modifier}-v>", self._paste_action)
-        root.bind_all(f"<{control_modifier}-a>", self._select_all_action)
-        root.bind_all(f"<Shift-{control_modifier}-c>", self._select_none_action)
-        root.bind_all(f"<{control_modifier}-r>", self._run_map_action)
-        root.bind_all(f"<{control_modifier}-z>", self._undo_action)
-        root.bind_all(f"<{control_modifier}-y>", self._redo_action)
+        root.bind_all(f"<{self.tk_control_modifier}-q>", self._quit_action)
 
-        pack(tk.Label(tk_window, text="Hierarchy"), fill=X)
-        self.hierarchy_view = Hierarchy(tk_window, self._set_selected_element)
+        root.bind_all(f"<{self.tk_control_modifier}-n>", self._create_new_map_action)
+        root.bind_all(f"<{self.tk_control_modifier}-s>", self._save_map_action)
+        root.bind_all(f"<Shift-{self.tk_control_modifier}-s>", self._save_as_map_action)
+
+        pack(tk.Label(self.tk_window, text="Hierarchy"), fill=X)
+        self.hierarchy_view = Hierarchy(self.tk_window, self._set_selected_element)
         self.hierarchy_view.pack(side=TOP, fill=BOTH, expand=True)
 
-        pack(tk.Label(tk_window, text="Properties"), fill=X)
+        pack(tk.Label(self.tk_window, text="Properties"), fill=X)
 
         self.main_properties = Properties(
-            tk_window, self.macos,
+            self.tk_window, self.macos,
             self.tkinter_images,
             self.actions_controller,
             None, self.update_current_element_attribute, None, None)
 
-        pack(tk.Label(tk_window, text=""), fill=X)
-        pack(tk.Label(tk_window, text="Custom Properties"), fill=X)
+        pack(tk.Label(self.tk_window, text=""), fill=X)
+        pack(tk.Label(self.tk_window, text="Custom Properties"), fill=X)
 
-        self.custom_properties = Properties(tk_window,
+        self.custom_properties = Properties(self.tk_window,
                                             self.macos,
                                             self.tkinter_images,
                                             self.actions_controller,
@@ -740,7 +745,7 @@ class Editor:
                                             self.delete_current_element_property,
                                             self._property_selection_callback)
 
-        self.button_panel = tk.Canvas(tk_window)
+        self.button_panel = tk.Canvas(self.tk_window)
         self.button_panel.columnconfigure(1, weight=1)
 
         add_image = self._add_tk_image("add-icon")
@@ -792,7 +797,23 @@ class Editor:
             self.remove_property,
             self.edit_property
         )
+
+        self._bind_keys(self.tk_window)
+        self._bind_keys(self.hierarchy_view)
+
         return root
+
+    def _bind_keys(self, component) -> None:
+        component.bind("<Delete>", self._delete_action)
+        component.bind(f"<{self.tk_control_modifier}-x>", self._cut_action)
+        component.bind(f"<{self.tk_control_modifier}-c>", self._copy_action)
+        component.bind(f"<{self.tk_control_modifier}-v>", self._paste_action)
+        component.bind(f"<{self.tk_control_modifier}-a>", self._select_all_action)
+        component.bind(f"<Shift-{self.tk_control_modifier}-a>", self._select_none_action)
+        component.bind(f"<{self.tk_control_modifier}-r>", self._run_map_action)
+        component.bind(f"<{self.tk_control_modifier}-z>", self._undo_action)
+        component.bind(f"<{self.tk_control_modifier}-y>", self._redo_action)
+
 
     def setup_pygame(self) -> None:
         if self.macos:
@@ -805,7 +826,6 @@ class Editor:
         pygame.display.set_caption("Editor")
 
     def pygame_loop(self) -> None:
-        control_modifier = pygame.KMOD_META if self.macos else pygame.KMOD_CTRL
         self.key_modifier = 0
         self.root.update()
 
@@ -864,43 +884,43 @@ class Editor:
                         self._delete_action()
                         self.root.update()
                     elif key == pygame.K_c:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._copy_action()
                     elif key == pygame.K_x:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._cut_action()
                     elif key == pygame.K_v:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._paste_action()
                     elif key == pygame.K_a:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             if event.mod & pygame.KMOD_SHIFT:
                                 self._select_none_action()
                             else:
                                 self._select_all_action()
                     elif key == pygame.K_q:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._quit_action()
                     elif key == pygame.K_r:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._run_map_action()
                     elif key == pygame.K_n:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._create_new_map_action()
                     elif key == pygame.K_o:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._load_file_action()
                     elif key == pygame.K_s:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             if event.mod & pygame.KMOD_SHIFT:
                                 self._save_as_map_action()
                             else:
                                 self._save_map_action()
                     elif key == pygame.K_z:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._undo_action()
                     elif key == pygame.K_y:
-                        if event.mod & control_modifier != 0:
+                        if event.mod & self.pygame_control_modifier != 0:
                             self._redo_action()
 
                     if dx != 0 or dy != 0:
