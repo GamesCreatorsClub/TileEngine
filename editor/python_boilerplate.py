@@ -72,27 +72,33 @@ class PythonBoilerplateDialog(tk.Toplevel):
     def ok(self, _event=None) -> None:
         name = cast(tk.Entry, self.entry).get()
 
+        full_map_filename = Path(self.tiled_map.filename)
+
         if name == "":
             tk.messagebox.showerror(title="Error", message=f"You must enter game name")
         else:
             name = name.replace(" ", "_")
 
+            game_path: Optional[Path] = None
             if "python_file" in self.tiled_map:
-                game_path = os.path.dirname(self.tiled_map["python_file"])
-            else:
-                map_dir = os.path.dirname(self.tiled_map.filename)
-                game_path = os.path.dirname(map_dir) if map_dir.endswith("assets") else map_dir
+                game_file = Path(self.tiled_map["python_file"])
+                game_path = game_file.parent
+                if str(game_path) == ".":
+                    game_path = None
 
-            map_filename = self.tiled_map.filename[len(game_path) + 1:]
+            if game_path is None:
+                map_path = full_map_filename.parent
+                game_path = map_path.parent if map_path.name.endswith("assets") else map_path
 
-            level_name = os.path.split(map_filename)[1]
+            try:
+                map_filename = full_map_filename.relative_to(game_path)
+            except ValueError:
+                map_filename = full_map_filename
+
+            level_name = map_filename.name
             level_name = level_name[:-4] if level_name.endswith(".tmx") else level_name
 
-            # engine_path = os.path.join(game_path, "engine")
-            # if not os.path.exists(engine_path):
             self.prepare_game_resources(game_path)
-            # else:
-            #     print(f"Path {engine_path} already exists - skipping copying files.")
 
             read_prefix = self.top_down_var.get()
 
@@ -220,8 +226,8 @@ class PythonBoilerplateDialog(tk.Toplevel):
         content = (content
                    .replace(context_import, context_filename[:-3])
                    .replace(context_class, context_class_name)
-                   .replace("assets/side_scroller/level1.tmx", map_filename)
-                   .replace("assets/top_down/test-level.tmx", map_filename)
+                   .replace("assets/side_scroller/level1.tmx", str(map_filename))
+                   .replace("assets/top_down/test-level.tmx", str(map_filename))
                    .replace(",\n    \"assets/side_scroller/level2.tmx\"", "")
                    .replace("game_context.set_level(levels[\"test-level\"])", f"game_context.set_level(levels[\"{level_name}\"])")
                    .replace("game_context.set_level(levels[\"level1\"])", f"game_context.set_level(levels[\"{level_name}\"])")

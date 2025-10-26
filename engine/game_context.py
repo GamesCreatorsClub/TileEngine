@@ -241,7 +241,7 @@ class GameContext(ABC):
     def test_collisions_with_objects(self, next_rect: Rect, obj: PlayerOrObject, with_objects: dict[TiledObject, Rect]) -> bool:
         object_has_moved = True
 
-        collisions = next_rect.collidedictall(with_objects)
+        collisions = next_rect.collidedictall(with_objects, 1)
 
         obj_collisions = set(obj.collisions)
         for collision in collisions:
