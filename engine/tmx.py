@@ -74,6 +74,16 @@ def convert_to_bool(value: str) -> bool:
     raise ValueError(f"cannot parse {value} as bool")
 
 
+def convert_to_int(value: str) -> int:
+    try:
+        return int(value)
+    except ValueError as e:
+        try:
+            return int(float(value))
+        except ValueError as _:
+            raise e
+
+
 def resolve_to_class(value: str, custom_types: dict) -> TiledClassType:
     return deepcopy(custom_types[value])
 
@@ -84,26 +94,26 @@ TYPES.update(
         "backgroundcolor": str,
         "bold": convert_to_bool,
         "color": str,
-        "columns": int,
+        "columns": convert_to_int,
         "compression": str,
         "draworder": str,
-        "duration": int,
-        "encoding": str,
-        "firstgid": int,
+        "duration": convert_to_int,
+        "encoding": convert_to_int,
+        "firstgid": convert_to_int,
         "fontfamily": str,
         "format": str,
-        "gid": int,
+        "gid": convert_to_int,
         "halign": str,
         "height": float,
         "hexsidelength": float,
-        "id": int,
+        "id": convert_to_int,
         "italic": convert_to_bool,
         "kerning": convert_to_bool,
-        "margin": int,
+        "margin": convert_to_int,
         "name": str,
-        "nextobjectid": int,
-        "offsetx": int,
-        "offsety": int,
+        "nextobjectid": convert_to_int,
+        "offsetx": convert_to_int,
+        "offsety": convert_to_int,
         "opacity": float,
         "orientation": str,
         "pixelsize": float,
@@ -112,17 +122,17 @@ TYPES.update(
         "renderorder": str,
         "rotation": float,
         "source": str,
-        "spacing": int,
+        "spacing": convert_to_int,
         "staggeraxis": str,
         "staggerindex": str,
         "strikeout": convert_to_bool,
         "terrain": str,
-        "tile": int,
-        "tilecount": int,
+        "tile": convert_to_int,
+        "tilecount": convert_to_int,
         "tiledversion": str,
-        "tileheight": int,
-        "tileid": int,
-        "tilewidth": int,
+        "tileheight": convert_to_int,
+        "tileid": convert_to_int,
+        "tilewidth": convert_to_int,
         "trans": str,
         "type": str,
         "underline": convert_to_bool,
@@ -135,7 +145,7 @@ TYPES.update(
         "x": float,
         "y": float,
         "infinite": convert_to_bool,
-        "nextlayerid": int,
+        "nextlayerid": convert_to_int,
     }
 )
 
@@ -246,13 +256,16 @@ class TiledElement(ABC):
 
     def _parse_xml(self, node: Element) -> None:
         for key, value in node.items():
-            if key in self.ATTRIBUTES:
-                typ = self.ATTRIBUTES[key].type
-                if typ is bool:
-                    typ = convert_to_bool
-                casted_value = typ(value)
-            else:
-                casted_value = TYPES[key](value)
+            try:
+                if key in self.ATTRIBUTES:
+                    typ = self.ATTRIBUTES[key].type
+                    if typ is bool:
+                        typ = convert_to_bool
+                    casted_value = typ(value)
+                else:
+                    casted_value = TYPES[key](value)
+            except ValueError as e:
+                raise ValueError(f"Failed to convert {key} to type {typ}", e)
             if hasattr(self, key) and not isinstance(getattr(self, key), Callable):
                 try:
                     setattr(self, key, casted_value)
@@ -413,7 +426,7 @@ class TiledSubElement(TiledElement, ABC):
 
 class BaseTiledLayer(TiledSubElement, ABC):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
-        "id": F(int, False), "name": F(str, True),
+        "id": F(convert_to_int, False), "name": F(str, True),
     }
 
     def __init__(self, parent: TiledElement) -> None:
@@ -429,8 +442,8 @@ class BaseTiledLayer(TiledSubElement, ABC):
 
 class TiledTileLayer(BaseTiledLayer):
     ATTRIBUTES = BaseTiledLayer.ATTRIBUTES | {
-        "id": F(int, False), "name": F(str, True),
-        "width": F(int, True), "height": F(int, True),
+        "id": F(convert_to_int, False), "name": F(str, True),
+        "width": F(convert_to_int, True), "height": F(convert_to_int, True),
         "visible": F(bool, True, True)
     }
 
@@ -635,12 +648,12 @@ class TiledObject(TiledSubElement):
         "ellipse": NodeType(None, None, None),
     }
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
-        "id": F(int, False), "name": F(str, True), "type": F(str, True),
-        "gid": F(int, True, 0, lambda self, gid: self.map.gid_to_original_gid_and_tile_flags(gid)),
+        "id": F(convert_to_int, False), "name": F(str, True), "type": F(str, True),
+        "gid": F(convert_to_int, True, 0, lambda self, gid: self.map.gid_to_original_gid_and_tile_flags(gid)),
         # "solid": F(bool, True), "pushable": F(bool, True),  # TODO this is not Tiled's
         "x": F(float, True),
         "y": F(float, True, OUTPUT_ALWAYS, lambda self, y: y + self.height if self.gid > 0 and self.map.invert_y else y),
-        "width": F(int, True), "height": F(int, True),
+        "width": F(convert_to_int, True), "height": F(convert_to_int, True),
         "visible": F(bool, True, True),
     }
 
@@ -802,7 +815,7 @@ class TiledObject(TiledSubElement):
 
 class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
-        "id": F(int, False), "name": F(str, True), "draworder": F(str, False)
+        "id": F(convert_to_int, False), "name": F(str, True), "draworder": F(str, False)
     }
 
     def __init__(self, parent: TiledElement, draworder: Optional[str] = None) -> None:
@@ -864,7 +877,7 @@ class TiledObjectGroup(BaseTiledLayer, Mapping[str, TiledObject]):
 
 
 class TiledTerrain(TiledElement):
-    ATTRIBUTES = {"name": F(str, True), "tile": F(int, True)}
+    ATTRIBUTES = {"name": F(str, True), "tile": F(convert_to_int, True)}
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
@@ -896,7 +909,7 @@ class TiledWangTile(TiledElement):
 
 
 class TiledWangColor(TiledElement):
-    ATTRIBUTES = {"name": F(str, True), "color": F(Color, True), "tile": F(int, True), "probability": F(float, True)}
+    ATTRIBUTES = {"name": F(str, True), "color": F(Color, True), "tile": F(convert_to_int, True), "probability": F(float, True)}
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
@@ -909,7 +922,7 @@ class TiledWangColor(TiledElement):
 
 
 class TiledWangSet(TiledElement):
-    ATTRIBUTES = {"name": F(str, True), "type": F(str, True), "tile": F(int, True)}
+    ATTRIBUTES = {"name": F(str, True), "type": F(str, True), "tile": F(convert_to_int, True)}
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
@@ -980,7 +993,7 @@ class TiledTileAnimations:
 
 class Tile(TiledElement):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
-        "id": F(int, False),
+        "id": F(convert_to_int, False),
         "type": F(str, True),
         "probability": F(float, True)
     }
@@ -1000,19 +1013,19 @@ class Tile(TiledElement):
 
 class TiledTileset(TiledElement):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
-        "firstgid": F(int, False), "name": F(str, True), "tilewidth": F(int, True), "tileheight": F(int, True),
-        "spacing": F(int, True), "margin": F(int, True), "tilecount": F(int, False), "columns": F(int, False),
-        "width": F(int, True), "height": F(int, True)
+        "firstgid": F(convert_to_int, False), "name": F(str, True), "tilewidth": F(convert_to_int, True), "tileheight": F(convert_to_int, True),
+        "spacing": F(convert_to_int, True), "margin": F(convert_to_int, True), "tilecount": F(convert_to_int, False), "columns": F(convert_to_int, False),
+        "width": F(convert_to_int, True), "height": F(convert_to_int, True)
     }
 
     XML_ATTRIBUTES = {
         "name": F(str, True),
-        "tilewidth": F(int, True), "tileheight": F(int, True),
-        "tilecount": F(int, False), "columns": F(int, False),
-        "margin": F(int, False, 0), "spacing": F(int, False, 0)
+        "tilewidth": F(convert_to_int, True), "tileheight": F(convert_to_int, True),
+        "tilecount": F(convert_to_int, False), "columns": F(convert_to_int, False),
+        "margin": F(convert_to_int, False, 0), "spacing": F(convert_to_int, False, 0)
     }
 
-    XML_ATTRIBUTES_SHORT = {"firstgid": F(int, False), "source": F(str, False)}
+    XML_ATTRIBUTES_SHORT = {"firstgid": F(convert_to_int, False), "source": F(str, False)}
 
     def __init__(self, parent: TiledElement) -> None:
         super().__init__(parent)
@@ -1469,11 +1482,11 @@ class TiledMap(TiledElement):
     ATTRIBUTES = TiledElement.ATTRIBUTES | {
         "version": F(str, False), "tiledversion": F(str, False),
         "orientation": F(str, False), "renderorder": F(str, False),
-        "width": F(int, True), "height": F(int, True), "tilewidth": F(int, True), "tileheight": F(int, True),
-        # "hexsidelength": F(int, False), "staggeraxis": F(str, False, "Y"), "staggerindex": F(int, False),
+        "width": F(convert_to_int, True), "height": F(convert_to_int, True), "tilewidth": F(convert_to_int, True), "tileheight": F(int, True),
+        # "hexsidelength": F(convert_to_int, False), "staggeraxis": F(str, False, "Y"), "staggerindex": F(convert_to_int, False),
         "backgroundcolor": F(Color, True, None),
         "infinite": F(bool, False),
-        "nextlayerid": F(int, False), "nextobjectid": F(int, False),
+        "nextlayerid": F(convert_to_int, False), "nextobjectid": F(convert_to_int, False),
     }
 
     OPTIONAL_CUSTOM_PROPERTIES = TiledElement.OPTIONAL_CUSTOM_PROPERTIES | {
