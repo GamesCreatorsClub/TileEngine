@@ -85,6 +85,17 @@ Object itself has one important method to be used:
   image of existing tiles to be used as image of the object. Also, size of that
   image is going to be set as a size of the object.
 
+  For example:
+  ```python
+  [[49, 50, 50, 50, 51]]
+  ```
+  will create a platform of 1 tile high and 5 tiles wide with distinct left and right end.
+  Also,
+  ```python
+  [[12, 13], [22, 23]]
+  ```
+  will create 2x2 tiles big ball.
+
 
 ### TileSet
 
