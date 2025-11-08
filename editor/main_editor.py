@@ -33,8 +33,7 @@ from editor.tooltip import ToolTip
 from editor import resources_prefix
 from editor.tk_utils import pack, bindtag
 
-from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, Tile
-
+from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, Tile, TiledTileLayer
 
 MOUSE_DOWN_COUNTER = 1
 
@@ -223,6 +222,7 @@ class Editor:
             self.file_menu.entryconfig("Save as...", state="normal")
 
             self.map_menu.entryconfig("Add Tileset", state="normal")
+            self.map_menu.entryconfig("Update Animations", state="normal")
 
             self.main_window.map_controller.set_action_panel_visibility(True)
             self.hierarchy_view.set_map(tiled_map)
@@ -260,7 +260,7 @@ class Editor:
                 self.custom_properties.update_properties(element.properties, type(element).OPTIONAL_CUSTOM_PROPERTIES)
             elif kind == ChangeKind.UPDATE_PROPERTY:
                 if self.current_element.properties[key] != value:
-                    self.custom_properties.update_value(key, value)
+                    self.custom_properties.update_value(key, value, True)
             elif kind == ChangeKind.DELETE_PROPERTY:
                 self.custom_properties.update_properties(element.properties)
             self._update_property_buttons()
@@ -493,6 +493,13 @@ class Editor:
     def _create_boilerplate_map_action(self, _event=None) -> None:
         self.create_boilerplate_map()
 
+    def _update_animations(self, _event=None) -> None:
+        for tiled_tileset in self._tiled_map.tilesets:
+            tiled_tileset.update_animations()
+        for tiled_layer in self._tiled_map.layers:
+            if isinstance(tiled_layer, TiledTileLayer):
+                tiled_layer.check_if_animated_gids()
+
     def _delete_action(self, _event=None) -> None:
         if self.actions_controller.current_object is not None and self.actions_controller.object_layer is not None:
             obj = self.actions_controller.current_object
@@ -709,6 +716,8 @@ class Editor:
 
         self.map_menu = tk.Menu(menu, tearoff=0)
         self.map_menu.add_command(label="Add Tileset", command=self._add_tileset_action, state="disabled")
+        self.map_menu.add_separator()
+        self.map_menu.add_command(label="Update Animations", command=self._update_animations, state="disabled")
 
         menu.add_cascade(label="Map", menu=self.map_menu)
 
@@ -822,7 +831,6 @@ class Editor:
         component.bind(f"<{self.tk_control_modifier}-r>", self._run_map_action)
         component.bind(f"<{self.tk_control_modifier}-z>", self._undo_action)
         component.bind(f"<{self.tk_control_modifier}-y>", self._redo_action)
-
 
     def setup_pygame(self) -> None:
         if self.macos:

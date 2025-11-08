@@ -507,7 +507,15 @@ class TiledTileLayer(BaseTiledLayer):
                 data[i] = self.map.register_raw_gid(data[i])
 
         self.data = [data[i: i + columns] for i in range(0, len(data), columns)]
-        self.animate_layer = self._check_if_animated_gids()
+        self.check_if_animated_gids()
+
+    def check_if_animated_gids(self) -> None:
+        for row in self.data:
+            for gid in row:
+                if gid in self.map.tile_animations:
+                    self.animate_layer = True
+                    return
+        self.animate_layer = False
 
     def _sub_xml(self, stream, indent: int, close_tag: bool) -> bool:
         close_tag = self._close_tag(stream, close_tag)
@@ -541,13 +549,6 @@ class TiledTileLayer(BaseTiledLayer):
         return close_tag
 
     def _tag_name(self) -> str: return "layer"
-
-    def _check_if_animated_gids(self) -> bool:
-        for row in self.data:
-            for gid in row:
-                if gid in self.map.tile_animations:
-                    return True
-        return False
 
     def iter_data(self) -> Iterable[tuple[int, int, int]]:
         """Yields X, Y, GID tuples for each tile in the layer.
@@ -1287,12 +1288,48 @@ class TiledTileset(TiledElement):
                 tile = Tile(id_, self)
                 self.tiles[id_] = tile
             else:
-                self.tiles[id_] = tiles[id_]
+                tile = tiles[id_]
+                self.tiles[id_] = tile
+
+        self.update_animations()
 
         self._spacing_not_set = False
         self._margin_not_set = False
         self.dirty_image = False
         self.dirty_data = False
+
+    def update_animations(self) -> None:
+
+        def has_tiled_animation_id(tile_id: int, tiled_tile_animations: TiledTileAnimations) -> bool:
+            for frame in tiled_tile_animations.frames:
+                if frame.tileid == tile_id:
+                    return True
+            return False
+
+        def collect_animations(tile: Tile, tiled_tile_animations: TiledTileAnimations) -> None:
+            tile.animations = tiled_tile_animations
+            animated_id = str(tile.properties["animated_id"])
+            if "," in animated_id:
+                next_tile_id, duration_ms = animated_id.split(",")
+                next_tile_id = convert_to_int(next_tile_id)
+                duration_ms = convert_to_int(duration_ms)
+            else:
+                next_tile_id = convert_to_int(animated_id)
+                duration_ms = 300
+            if not has_tiled_animation_id(next_tile_id + self.firstgid, tiled_tile_animations):
+                tile.animations.add_frame(TiledTileAnimation(next_tile_id + self.firstgid, duration_ms))
+
+                new_tile = self.tiles[next_tile_id]
+                if "animated_id" in new_tile:
+                    collect_animations(new_tile, tiled_tile_animations)
+
+        for id_ in range(self._tilecount):
+            tile = self.tiles[id_]
+
+            if "animated_id" in tile and tile.animations is None:
+                animations = TiledTileAnimations()
+                collect_animations(tile, animations)
+                self.tile_animations[id_ + self.firstgid] = animations
 
     def _image_full_filename(self, path: str) -> str:
         if self._parent_dir is not None:
@@ -1432,8 +1469,8 @@ class TiledTileset(TiledElement):
                 duration = int(frame_node.get("duration"))
                 animations.add_frame(TiledTileAnimation(frame_tileid, duration))
 
-            # TODO remove
-            # self.tile_animations[id_] = animations
+            # TODO remove try to change it to use tile.animations
+            self.tile_animations[id_] = animations
 
     def _tileoffset(self, tileoffset_element: Element) -> None:
         self.offset = (int(tileoffset_element.get("x")), int(tileoffset_element.get("y")))
@@ -1690,10 +1727,6 @@ class TiledMap(TiledElement):
         with open(filename, "w", buffering=128 * 1024) as f:
             f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
             self._save(f, 0)
-
-        # with open(filename, "r") as f:
-        #     r = f.read()
-        #     print(r)
 
         for tileset in self.tilesets:
             if tileset.dirty_data:

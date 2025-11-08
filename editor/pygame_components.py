@@ -469,6 +469,7 @@ class Scrollbar(Component):
 
     def mouse_move(self, x: int, y: int, modifier) -> bool:
         if self.mouse_pressed:
+            screen_range = self.bar_screen_range if self.bar_screen_range != 0 else 1
             if self.horizontal:
                 dx = self.mouse_pressed_x - x
                 self.offset += dx * self._width / self.bar_screen_range
@@ -516,7 +517,6 @@ class ScrollableCanvas(ComponentCollection, ABC):
             -self.v_scrollbar.offset,
             self.rect.width - self.v_scrollbar.rect.width,
             self.rect.height - self.h_scrollbar.rect.height)
-
 
     def _scrollbar_h_moved(self, diff: int) -> None:
         self.scrollbars_moved(diff, 0)

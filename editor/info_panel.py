@@ -52,13 +52,23 @@ class InfoPanel(Component):
         self._update_layer_name()
 
     def tile_selection_changed(self, selection: Optional[list[list[int]]]) -> None:
-        text = str(selection[0][0]) if selection is not None and len(selection) == 1 and len(selection[0]) == 1 else ""
+        def original_gid(gid: int) -> int:
+            for tileset in self.actions_controller.tiled_map.tilesets:
+                if gid < tileset.firstgid + tileset.tilecount:
+                    return gid - tileset.firstgid
+            return -1
+
+        selected_gid = selection[0][0] if selection is not None and len(selection) == 1 and len(selection[0]) == 1 else None
+        if selected_gid is not None:
+            text = f"gid: {selected_gid}/{original_gid(selected_gid)}"
+        else:
+            text = ""
         self.tilegid_text = self.font.render(text, True, (0, 0, 0))
 
     def draw(self, surface: Surface) -> None:
         if self.layer_text is not None:
             surface.blit(self.layer_text, (self.rect.x, self.rect.y))
+        if self.tilegid_text is not None:
+            surface.blit(self.tilegid_text, (self.rect.right - self.tilegid_text.get_width(), self.rect.y))
         if self.tileset_text is not None:
             surface.blit(self.tileset_text, (self.rect.x, self.rect.y + self.font.get_height()))
-        if self.tilegid_text is not None:
-            surface.blit(self.tilegid_text, (self.rect.right - self.tilegid_text.get_width(), self.rect.y + self.font.get_height()))

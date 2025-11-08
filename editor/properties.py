@@ -54,13 +54,14 @@ class EditText(tk.Toplevel):
         self.root = root
         self.rowid = rowid
         self.callback = callback
+        self.geometry(f"200x200")
         self.title(f"Edit {name}")
         self.protocol("WM_DELETE_WINDOW", self.close)
         self.transient(root)
         self.wait_visibility()
         self.grab_set()
         self.frame = tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5)
-        self.entry = tk.Text(self.frame, width=40, height=5, state="normal")
+        self.entry = tk.Text(self.frame, width=60, height=20, state="normal")
         self.entry.insert(INSERT, text)
         self.ys = ttk.Scrollbar(self.frame, orient="vertical", command=self.entry.yview)
         self.xs = ttk.Scrollbar(self.frame, orient="horizontal", command=self.entry.xview)
