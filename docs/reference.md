@@ -103,7 +103,34 @@ TODO
 
 ### Tile in TileSet
 
-TODO
+Tiles in tileset have following properties:
+
+- "animated_id" - this points to next tile in animation. Id of tile is tileset centric - starting from 0.
+  Also, for animation to be a loop it needs to 'close the loop'. For instance:
+  - tile with gid 53 having `animated_id` with value `73` and
+  - tile with git 73 having `animated_id` with value `53`
+
+  will animate those two tiles with 300ms delay. If you want to specify different delay between tiles just use
+  comma and integer value of milliseconds. For instance:
+  - tile with gid 53 having `animated_id` with value `73,500` and
+  - tile with git 73 having `animated_id` with value `93,500` and
+  - tile with git 93 having `animated_id` with value `53,250` and
+
+  it will display tile 53 first waiting 500ms to display tile 73, then wait another 500ms to display tile 93.
+  For tile 53 to be displayed again it'll be only 250ms.
+
+  **Limitation**: only first tile in this loop will have animation. All other tiles won't.
+
+- "on_collision" - it will be executed if tile is in the main layer and player collides with the tile.
+  Context variable `obj` will contain which object collided with the tile. For instance if you want to guide
+  player down the 'hole' you can add following
+```python
+if obj == player:
+    player.vy = 2
+    next_rect.y += player.vy
+    next_rect.x += (tile_rect.midtop[0] - next_rect.midtop[0])
+```
+
 
 ## <a name="game-context"></a>Game Context
 
