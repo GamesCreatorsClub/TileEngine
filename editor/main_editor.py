@@ -217,20 +217,16 @@ class Editor:
 
     def _tiled_map_callback(self, tiled_map: TiledMap) -> None:
         self._tiled_map = tiled_map
-        if tiled_map is not None:
-            self.file_menu.entryconfig("Save", state="normal")
-            self.file_menu.entryconfig("Save as...", state="normal")
+        self.file_menu.entryconfig("Save", state="normal")
+        self.file_menu.entryconfig("Save as...", state="normal")
 
-            self.map_menu.entryconfig("Add Tileset", state="normal")
-            self.map_menu.entryconfig("Update Animations", state="normal")
+        self.map_menu.entryconfig("Add Tileset", state="normal")
+        self.map_menu.entryconfig("Update Animations", state="normal")
+        self.run_menu.entryconfig("Create Game", state="normal")
 
-            self.main_window.map_controller.set_action_panel_visibility(True)
-            self.hierarchy_view.set_map(tiled_map)
-            self._update_property_buttons()
-
-        else:
-            self.file_menu.entryconfig("Save", state="disabled")
-            self.file_menu.entryconfig("Save as...", state="disabled")
+        self.main_window.map_controller.set_action_panel_visibility(True)
+        self.hierarchy_view.set_map(tiled_map)
+        self._update_property_buttons()
 
     def _current_object_callback(self, current_object: Optional[TiledObject]) -> None:
         self.edit_menu.entryconfig("Delete", state="normal" if current_object is not None else "disabled")
@@ -363,8 +359,8 @@ class Editor:
                 self.custom_properties.update_properties(tile.properties, type(tile).OPTIONAL_CUSTOM_PROPERTIES)
 
     def _clean_flag_callback(self, clean_flag) -> None:
-        if self._tiled_map is not None and self._tiled_map.filename is not None and self._tiled_map.filename != "":
-            filename = os.path.split(self._tiled_map.filename)[1]
+        if self._tiled_map.filename is not None and self._tiled_map.filename != "":
+            filename = Path(self._tiled_map.filename).name
             pygame.display.set_caption(f"{'' if clean_flag else '* '} {filename}")
         else:
             pygame.display.set_caption("Editor")
@@ -392,7 +388,7 @@ class Editor:
                 tsx_filename = filedialog.asksaveasfilename(title="Save TSX file", initialfile=suggested_tsx_filename, filetypes=(("Tileset file", "*.tsx"),))
                 if tsx_filename != "":
                     tileset = TiledTileset(self._tiled_map)
-                    tileset.update_source_filename(tsx_filename, str(Path(self._tiled_map.filename).parent) if self._tiled_map.filename is not None else None)
+                    tileset.update_source_filename(tsx_filename, str(Path(self._tiled_map.filename).parent) if self._tiled_map.filename is not None and self._tiled_map.filename != "" else None)
                     tileset.update_source_image_filename(str(image_filename))
 
                     simple_filename = os.path.split(tsx_filename)[1]
@@ -444,11 +440,11 @@ class Editor:
             self.load_file(filename)
 
     def _save_map_action(self, _event=None) -> None:
-        if self._tiled_map.filename is None:
+        if self._tiled_map.filename is None or self._tiled_map.filename == "":
             self._save_as_map_action()
         else:
             self._tiled_map.save(self._tiled_map.filename)
-            filename = os.path.split(self._tiled_map.filename)[1]
+            filename = Path(self._tiled_map.filename).name
             pygame.display.set_caption(filename)
             self.actions_controller.mark_saved()
 
@@ -457,6 +453,8 @@ class Editor:
     def _save_as_map_action(self, _event=None) -> None:
         filename = filedialog.asksaveasfilename(title="Save map", filetypes=(("Map file", "*.tmx"),))
         if filename != "":
+            if not filename.endswith(".tmx"):
+                filename = filename + ".tmx"
             self._tiled_map.filename = filename
             self._save_map_action()
         self._update_run_state()
@@ -562,7 +560,7 @@ class Editor:
         self.actions_controller.tiled_map = tiled_map
         self._update_run_state()
 
-        filename = os.path.split(self._tiled_map.filename)[1]
+        filename = Path(self._tiled_map.filename).name
         pygame.display.set_caption(filename)
         self.actions_controller.mark_saved()
         for layer in tiled_map.layers:
@@ -578,7 +576,7 @@ class Editor:
     def run_map(self) -> None:
         if PYTHON_FILE_PROPERTY in self._tiled_map.properties:
             python_file = self._tiled_map.properties[PYTHON_FILE_PROPERTY]
-            map_file = self._tiled_map.filename if self._tiled_map.filename is not None else os.getcwd()
+            map_file = self._tiled_map.filename if self._tiled_map.filename is not None and self._tiled_map.filename != "" else os.getcwd()
             map_file_dir = os.path.dirname(map_file)
 
             full_python_file = python_file if os.path.isabs(python_file) else os.path.join(map_file_dir, python_file)
@@ -641,10 +639,9 @@ class Editor:
             self.run_menu.entryconfig(0, label=f"Run", state=state)
 
         self.run_button["state"] = state
-        self.run_menu.entryconfig(1, state=state)
 
     def create_boilerplate_map(self) -> None:
-        if self._tiled_map is not None and self._tiled_map.filename is not None:
+        if self._tiled_map.filename is not None and self._tiled_map.filename != "":
             PythonBoilerplateDialog(self.root, self._tiled_map, os.path.dirname(os.path.dirname(__file__)) if resources_prefix.STARTED_FROM_ZIP else None)
         else:
             tk.messagebox.showerror(title="Error", message=f"You must save the map first")
@@ -723,7 +720,7 @@ class Editor:
 
         self.run_menu = tk.Menu(menu, tearoff=0)
         self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{self.control_modifier}+R")
-        self.run_menu.add_command(label="Create", command=self._create_boilerplate_map_action, state="disabled")
+        self.run_menu.add_command(label="Create Game", command=self._create_boilerplate_map_action, state="disabled")
 
         menu.add_cascade(label="Run", menu=self.run_menu)
 

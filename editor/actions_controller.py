@@ -364,22 +364,19 @@ class ActionsController:
         return self._tiled_map
 
     @tiled_map.setter
-    def tiled_map(self, tiled_map: Optional[TiledMap]) -> None:
+    def tiled_map(self, tiled_map: TiledMap) -> None:
+        if tiled_map is None:
+            raise ValueError("Tiled map cannot be cleared!")
+
         new_tiled_map = self._tiled_map != tiled_map
-        self._tiled_map = tiled_map
-        if tiled_map is not None:
-            if new_tiled_map:
-                self.current_object = None
-        else:
-            self.current_tileset = None
+        if new_tiled_map:
+            self._tiled_map = tiled_map
             self.current_object = None
 
-        for callback in self.tiled_map_callbacks:
-            callback(tiled_map)
+            for callback in self.tiled_map_callbacks:
+                callback(tiled_map)
 
-        if tiled_map is not None:
-            if new_tiled_map:
-                self.current_tileset = tiled_map.tilesets[0] if len(tiled_map.tilesets) > 0 else None
+            self.current_tileset = tiled_map.tilesets[0] if len(tiled_map.tilesets) > 0 else None
 
     @property
     def current_layer(self) -> BaseTiledLayer:
