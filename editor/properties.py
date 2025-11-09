@@ -54,7 +54,7 @@ class EditText(tk.Toplevel):
         self.root = root
         self.rowid = rowid
         self.callback = callback
-        self.geometry(f"200x200")
+        self.geometry("600x400+100+500")
         self.title(f"Edit {name}")
         self.protocol("WM_DELETE_WINDOW", self.close)
         self.transient(root)
