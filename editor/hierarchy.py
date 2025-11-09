@@ -1,8 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, RIGHT, X, Y, TOP, BOTH
+from tkinter import ttk, RIGHT, Y, TOP, BOTH
 from typing import Optional, cast, Callable
 
 from editor.properties import Properties
+from editor.tk_utils import handle_exception_tk
 from engine.tmx import TiledMap, TiledObjectGroup, TiledObject, BaseTiledLayer, TiledElement
 
 
@@ -132,6 +133,7 @@ class Hierarchy(ttk.Treeview):
         if self.selected_object == obj:
             self.selected_object = None
 
+    @handle_exception_tk
     def on_tree_select(self, _event):
         for rowid in self.selection():
             selected_object = None
@@ -154,6 +156,7 @@ class Hierarchy(ttk.Treeview):
 
             self.selected_object = selected_object
 
+    @handle_exception_tk
     def on_left_click(self, event) -> None:
         rowid = self.identify_row(event.y)
         column = self.identify_column(event.x)

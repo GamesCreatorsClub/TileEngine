@@ -1,3 +1,5 @@
+import traceback
+
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -31,7 +33,7 @@ from editor.python_boilerplate import PythonBoilerplateDialog, PYTHON_FILE_PROPE
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
 from editor import resources_prefix
-from editor.tk_utils import pack, bindtag
+from editor.tk_utils import pack, bindtag, handle_exception_tk
 
 from engine.tmx import TiledMap, TiledElement, TiledTileset, BaseTiledLayer, TiledObject, TiledObjectGroup, Tile, TiledTileLayer
 
@@ -373,6 +375,7 @@ class Editor:
         self.root.destroy()  # destroy root window
         exit(0)
 
+    @handle_exception_tk
     def _add_tileset_action(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Tileset file", "*.tsx"), ("PNG Image", "*.png"), ("JPeg Image", "*.jpg"), ("JPeg Image", "*.jpeg")))
         if filename != "":
@@ -434,11 +437,13 @@ class Editor:
         x, y = tileset_controller.selection_origin
         self.actions_controller.erase_tile(tileset_controller.tileset, x, y)
 
+    @handle_exception_tk
     def _load_file_action(self) -> None:
         filename = filedialog.askopenfilename(title="Open file", filetypes=(("Map file", "*.tmx"), ("Tileset file", "*.tsx")))
         if filename != "":
             self.load_file(filename)
 
+    @handle_exception_tk
     def _save_map_action(self, _event=None) -> None:
         if self._tiled_map.filename is None or self._tiled_map.filename == "":
             self._save_as_map_action()
@@ -450,6 +455,7 @@ class Editor:
 
         self._update_run_state()
 
+    @handle_exception_tk
     def _save_as_map_action(self, _event=None) -> None:
         filename = filedialog.asksaveasfilename(title="Save map", filetypes=(("Map file", "*.tmx"),))
         if filename != "":
@@ -459,38 +465,49 @@ class Editor:
             self._save_map_action()
         self._update_run_state()
 
+    @handle_exception_tk
     def _cut_action(self, _event=None) -> None:
         self.clipboard_controller.cut()
 
+    @handle_exception_tk
     def _copy_action(self, _event=None) -> None:
         self.clipboard_controller.copy()
 
+    @handle_exception_tk
     def _paste_action(self, _event=None) -> None:
         self.clipboard_controller.paste()
 
+    @handle_exception_tk
     def _redo_action(self, _event=None) -> None:
         self.main_window.map_controller.deselect_object()
         self.actions_controller.redo()
 
+    @handle_exception_tk
     def _undo_action(self, _event=None) -> None:
         self.main_window.map_controller.deselect_object()
         self.actions_controller.undo()
 
+    @handle_exception_tk
     def _select_all_action(self, _event=None) -> None:
         self.main_window.map_controller.select_all()
 
+    @handle_exception_tk
     def _select_none_action(self, _event=None) -> None:
         self.main_window.map_controller.select_none()
 
+    @handle_exception_tk
     def _create_new_map_action(self, _event=None) -> None:
         self.actions_controller.create_new_map()
 
+    @handle_exception_tk
     def _run_map_action(self, _event=None) -> None:
         self.run_map()
 
+    @handle_exception_tk
     def _create_boilerplate_map_action(self, _event=None) -> None:
         self.create_boilerplate_map()
 
+    @handle_exception_tk
     def _update_animations(self, _event=None) -> None:
         for tiled_tileset in self._tiled_map.tilesets:
             tiled_tileset.update_animations()
@@ -498,6 +515,7 @@ class Editor:
             if isinstance(tiled_layer, TiledTileLayer):
                 tiled_layer.check_if_animated_gids()
 
+    @handle_exception_tk
     def _delete_action(self, _event=None) -> None:
         if self.actions_controller.current_object is not None and self.actions_controller.object_layer is not None:
             obj = self.actions_controller.current_object
@@ -843,150 +861,165 @@ class Editor:
         self.key_modifier = 0
         self.root.update()
 
+        last_exception: Optional[BaseException] = None
+        exception_count = 0
+
         has_focus = False
         mouse_down_counter = 0
         while self.running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self._quit_action()
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_down_counter = MOUSE_DOWN_COUNTER
-                    self.main_window.mouse_down(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
-                    self.root.update()
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    mouse_down_counter = 0
-                    self.main_window.mouse_up(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
-                    self.root.update()
-                elif event.type == pygame.MOUSEMOTION:
-                    self.mouse_x = event.pos[0]
-                    self.mouse_y = event.pos[1]
-                    self.main_window.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
-                    mouse_down_counter = MOUSE_DOWN_COUNTER
-                    self.root.update()
-                elif event.type == pygame.VIDEORESIZE:
-                    pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-                    rect = Rect(0, 0, event.w, event.h)
-                    self.main_window.redefine_rect(rect)
-                elif event.type == pygame.WINDOWLEAVE:
-                    self.main_window.mouse_out(0, 0)
-                    self.root.update()
-                elif event.type == pygame.MOUSEWHEEL:
-                    self.main_window.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
-                    self.root.update()
-                elif event.type == pygame.KEYDOWN:
-                    key = event.key
-                    dx = 0
-                    dy = 0
-                    # print(f"key={key} + mod={event.mod}")
-                    if key == pygame.K_RSHIFT or key == pygame.K_LSHIFT:
-                        self.key_modifier |= pygame.KMOD_SHIFT
-                    elif key == pygame.K_RCTRL or key == pygame.K_LCTRL:
-                        self.key_modifier |= pygame.KMOD_CTRL
-                    elif key == pygame.K_RMETA or key == pygame.K_LMETA:
-                        self.key_modifier |= pygame.KMOD_META
-                    elif key == pygame.K_RALT or key == pygame.K_LALT:
-                        self.key_modifier |= pygame.KMOD_ALT
-                    elif key == pygame.K_RIGHT:
-                        dx = 16
-                    elif key == pygame.K_LEFT:
-                        dx = -16
-                    elif key == pygame.K_UP:
-                        dy = 16
-                    elif key == pygame.K_DOWN:
-                        dy = -16
-                    elif key == pygame.K_DELETE or key == K_BACKSPACE:
-                        self._delete_action()
+            try:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self._quit_action()
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        mouse_down_counter = MOUSE_DOWN_COUNTER
+                        self.main_window.mouse_down(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
                         self.root.update()
-                    elif key == pygame.K_c:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._copy_action()
-                    elif key == pygame.K_x:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._cut_action()
-                    elif key == pygame.K_v:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._paste_action()
-                    elif key == pygame.K_a:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            if event.mod & pygame.KMOD_SHIFT:
-                                self._select_none_action()
-                            else:
-                                self._select_all_action()
-                    elif key == pygame.K_q:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._quit_action()
-                    elif key == pygame.K_r:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._run_map_action()
-                    elif key == pygame.K_n:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._create_new_map_action()
-                    elif key == pygame.K_o:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._load_file_action()
-                    elif key == pygame.K_s:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            if event.mod & pygame.KMOD_SHIFT:
-                                self._save_as_map_action()
-                            else:
-                                self._save_map_action()
-                    elif key == pygame.K_z:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._undo_action()
-                    elif key == pygame.K_y:
-                        if event.mod & self.pygame_control_modifier != 0:
-                            self._redo_action()
+                    elif event.type == pygame.MOUSEBUTTONUP:
+                        mouse_down_counter = 0
+                        self.main_window.mouse_up(self.mouse_x, self.mouse_y, event.button, self.key_modifier)
+                        self.root.update()
+                    elif event.type == pygame.MOUSEMOTION:
+                        self.mouse_x = event.pos[0]
+                        self.mouse_y = event.pos[1]
+                        self.main_window.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
+                        mouse_down_counter = MOUSE_DOWN_COUNTER
+                        self.root.update()
+                    elif event.type == pygame.VIDEORESIZE:
+                        pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                        rect = Rect(0, 0, event.w, event.h)
+                        self.main_window.redefine_rect(rect)
+                    elif event.type == pygame.WINDOWLEAVE:
+                        self.main_window.mouse_out(0, 0)
+                        self.root.update()
+                    elif event.type == pygame.MOUSEWHEEL:
+                        self.main_window.mouse_wheel(self.mouse_x, self.mouse_y, event.x, event.y, self.key_modifier)
+                        self.root.update()
+                    elif event.type == pygame.KEYDOWN:
+                        key = event.key
+                        dx = 0
+                        dy = 0
+                        # print(f"key={key} + mod={event.mod}")
+                        if key == pygame.K_RSHIFT or key == pygame.K_LSHIFT:
+                            self.key_modifier |= pygame.KMOD_SHIFT
+                        elif key == pygame.K_RCTRL or key == pygame.K_LCTRL:
+                            self.key_modifier |= pygame.KMOD_CTRL
+                        elif key == pygame.K_RMETA or key == pygame.K_LMETA:
+                            self.key_modifier |= pygame.KMOD_META
+                        elif key == pygame.K_RALT or key == pygame.K_LALT:
+                            self.key_modifier |= pygame.KMOD_ALT
+                        elif key == pygame.K_RIGHT:
+                            dx = 16
+                        elif key == pygame.K_LEFT:
+                            dx = -16
+                        elif key == pygame.K_UP:
+                            dy = 16
+                        elif key == pygame.K_DOWN:
+                            dy = -16
+                        elif key == pygame.K_DELETE or key == K_BACKSPACE:
+                            self._delete_action()
+                            self.root.update()
+                        elif key == pygame.K_c:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._copy_action()
+                        elif key == pygame.K_x:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._cut_action()
+                        elif key == pygame.K_v:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._paste_action()
+                        elif key == pygame.K_a:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                if event.mod & pygame.KMOD_SHIFT:
+                                    self._select_none_action()
+                                else:
+                                    self._select_all_action()
+                        elif key == pygame.K_q:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._quit_action()
+                        elif key == pygame.K_r:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._run_map_action()
+                        elif key == pygame.K_n:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._create_new_map_action()
+                        elif key == pygame.K_o:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._load_file_action()
+                        elif key == pygame.K_s:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                if event.mod & pygame.KMOD_SHIFT:
+                                    self._save_as_map_action()
+                                else:
+                                    self._save_map_action()
+                        elif key == pygame.K_z:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._undo_action()
+                        elif key == pygame.K_y:
+                            if event.mod & self.pygame_control_modifier != 0:
+                                self._redo_action()
 
-                    if dx != 0 or dy != 0:
-                        self.main_window.mouse_wheel(self.mouse_x, self.mouse_y, dx, dy, self.key_modifier)
+                        if dx != 0 or dy != 0:
+                            self.main_window.mouse_wheel(self.mouse_x, self.mouse_y, dx, dy, self.key_modifier)
 
-                elif event.type == pygame.KEYUP:
-                    key = event.key
-                    if key == pygame.K_RSHIFT or key == pygame.K_LSHIFT:
-                        self.key_modifier -= pygame.KMOD_SHIFT
-                    elif key == pygame.K_RCTRL or key == pygame.K_LCTRL:
-                        self.key_modifier -= pygame.KMOD_CTRL
-                    elif key == pygame.K_RMETA or key == pygame.K_LMETA:
-                        self.key_modifier -= pygame.KMOD_META
-                    elif key == pygame.K_RALT or key == pygame.K_LALT:
-                        self.key_modifier -= pygame.KMOD_ALT
-                elif event.type == pygame.ACTIVEEVENT:
-                    # print(f"Active Event")
-                    pass
-                elif event.type == pygame.WINDOWENTER:
-                    # print(f"Window Enter")
-                    pass
-                elif event.type == pygame.WINDOWLEAVE:
-                    # print(f"Window Leave")
-                    pass
-                elif event.type == pygame.WINDOWFOCUSGAINED:
-                    has_focus = True
-                elif event.type == pygame.WINDOWFOCUSLOST:
-                    has_focus = False
+                    elif event.type == pygame.KEYUP:
+                        key = event.key
+                        if key == pygame.K_RSHIFT or key == pygame.K_LSHIFT:
+                            self.key_modifier -= pygame.KMOD_SHIFT
+                        elif key == pygame.K_RCTRL or key == pygame.K_LCTRL:
+                            self.key_modifier -= pygame.KMOD_CTRL
+                        elif key == pygame.K_RMETA or key == pygame.K_LMETA:
+                            self.key_modifier -= pygame.KMOD_META
+                        elif key == pygame.K_RALT or key == pygame.K_LALT:
+                            self.key_modifier -= pygame.KMOD_ALT
+                    elif event.type == pygame.ACTIVEEVENT:
+                        # print(f"Active Event")
+                        pass
+                    elif event.type == pygame.WINDOWENTER:
+                        # print(f"Window Enter")
+                        pass
+                    elif event.type == pygame.WINDOWLEAVE:
+                        # print(f"Window Leave")
+                        pass
+                    elif event.type == pygame.WINDOWFOCUSGAINED:
+                        has_focus = True
+                    elif event.type == pygame.WINDOWFOCUSLOST:
+                        has_focus = False
+                    else:
+                        # print(f"event.type == {event.type}")
+                        pass
+
+                if mouse_down_counter > 0:
+                    mouse_down_counter -= 1
+                    if mouse_down_counter == 0:
+                        mouse_down_counter = MOUSE_DOWN_COUNTER
+                        self.main_window.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
+
+                self.previous_keys = self.current_keys
+                self.current_keys = pygame.key.get_pressed()
+                # if self.previous_keys != self.current_keys:
+                #     print(f"keys={self.current_keys}")
+
+                self.actions_controller.action_tick()
+
+                self.clock.tick(30)
+                self.screen.fill((200, 200, 200))
+                self.main_window.draw(self.screen)
+
+                pygame.display.flip()
+                if not has_focus:
+                    self.root.update()
+                last_exception = None
+            except BaseException as e:
+                display_exception = True
+                if str(e) == str(last_exception):
+                    exception_count += 1
+                    display_exception = exception_count % 100 == 0
                 else:
-                    # print(f"event.type == {event.type}")
-                    pass
-
-            if mouse_down_counter > 0:
-                mouse_down_counter -= 1
-                if mouse_down_counter == 0:
-                    mouse_down_counter = MOUSE_DOWN_COUNTER
-                    self.main_window.mouse_move(self.mouse_x, self.mouse_y, self.key_modifier)
-
-            self.previous_keys = self.current_keys
-            self.current_keys = pygame.key.get_pressed()
-            # if self.previous_keys != self.current_keys:
-            #     print(f"keys={self.current_keys}")
-
-            self.actions_controller.action_tick()
-
-            self.clock.tick(30)
-            self.screen.fill((200, 200, 200))
-            self.main_window.draw(self.screen)
-
-            pygame.display.flip()
-            if not has_focus:
-                self.root.update()
+                    exception_count = 0
+                last_exception = e
+                if display_exception:
+                    print(f"*** Caught exception {e} {('(' + str(exception_count) + ')') if exception_count > 0 else ''};\n stacktrace: {traceback.format_tb(e.__traceback__)}")
 
 
 def prepare_resources() -> None:

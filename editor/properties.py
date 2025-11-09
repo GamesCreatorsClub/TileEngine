@@ -4,6 +4,7 @@ from tkinter import ttk, INSERT, BOTH, END, RIGHT, LEFT, X, Y, BOTTOM, TOP, colo
 from typing import Callable, Optional, Any, Union
 
 from editor.actions_controller import ActionsController
+from editor.tk_utils import handle_exception_tk
 from engine.tmx import F
 
 
@@ -37,6 +38,7 @@ class AddNewPropertyText(tk.Toplevel):
         self.bind("<Escape>", self.close)
         self.entry.focus()
 
+    @handle_exception_tk
     def ok(self, _event=None) -> None:
         new_value = self.entry.get()
         if new_value.rstrip(" ").endswith("\n"):
@@ -44,6 +46,7 @@ class AddNewPropertyText(tk.Toplevel):
         self.callback(new_value)
         self.destroy()
 
+    @handle_exception_tk
     def close(self, _event=None) -> None:
         self.destroy()
 
@@ -82,6 +85,7 @@ class EditText(tk.Toplevel):
         self.entry.bind("<Escape>", self.close)
         self.entry.focus()
 
+    @handle_exception_tk
     def ok(self, _event=None) -> None:
         new_value = self.entry.get("1.0", END)
         if new_value.rstrip(" ").endswith("\n"):
@@ -89,6 +93,7 @@ class EditText(tk.Toplevel):
         self.callback(self.rowid, new_value)
         self.destroy()
 
+    @handle_exception_tk
     def close(self, _event=None) -> None:
         self.destroy()
 
@@ -124,17 +129,20 @@ class BooleanPopup(tk.Frame):
 
         self.place(x=x, y=y, width=width, height=height, anchor=tk.NW, relwidth=0.5)
 
+    @handle_exception_tk
     def abandon_edit(self, _event) -> None:
         if not self.destroyed:
             self.destroyed = True
             self.destroy()
 
+    @handle_exception_tk
     def update_value(self, _event) -> None:
         if not self.destroyed:
             self.update_value_callback(self.rowid, self.value)
             self.destroyed = True
             self.destroy()
 
+    @handle_exception_tk
     def toggle_value(self, _event) -> None:
         self.value = "False" if self.value.lower() == "true" else "True"
         self.button["text"] = self.value
@@ -178,25 +186,29 @@ class EntryPopup(tk.Frame):
 
         self.place(x=x, y=y, width=width, height=height, anchor=tk.NW, relwidth=0.5)
 
+    @handle_exception_tk
     def abandon_edit(self, _event) -> None:
         if not self.destroyed:
             self.destroyed = True
             self.destroy()
 
+    @handle_exception_tk
     def update_value(self, _event) -> None:
         if not self.destroyed:
-            new_value = self.entry.get()
+            new_value: str = self.entry.get()
             if new_value.rstrip().endswith("/n"):
                 new_value = new_value.rstrip()[:-1]
             self.update_value_callback(self.rowid, new_value)
             self.destroyed = True
             self.destroy()
 
+    @handle_exception_tk
     def select_all(self, _event) -> None:
         if not self.destroyed:
             self.entry.selection_range(0, tk.END)
         return "break"
 
+    @handle_exception_tk
     def stop_and_open_text_editor(self, _even) -> None:
         self.abandon_edit(None)
         self.open_text_editor_callback(self.rowid)
@@ -260,6 +272,7 @@ class Properties(ttk.Treeview):
             self.entryPopup.destroy()
             self.entryPopup = None
 
+    @handle_exception_tk
     def select_element(self, _event) -> None:
         selection = self.selection()
         if selection is not None and len(selection) > 0:
@@ -286,6 +299,7 @@ class Properties(ttk.Treeview):
         self.remove_button = remove_button
         self.edit_button = edit_button
 
+    @handle_exception_tk
     def on_left_click(self, event) -> None:
         self.selected_rowid = self.identify_row(event.y)
         column = self.identify_column(event.x)
@@ -296,6 +310,7 @@ class Properties(ttk.Treeview):
                 if column == "#1":
                     self.start_editing(self.selected_rowid)
 
+    @handle_exception_tk
     def on_double_left_click(self, event) -> None:
         self.selected_rowid = self.identify_row(event.y)
         column = self.identify_column(event.x)

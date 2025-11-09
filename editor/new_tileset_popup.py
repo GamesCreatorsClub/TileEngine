@@ -1,9 +1,10 @@
 import tkinter as tk
-from tkinter import ttk, INSERT, BOTH, END, RIGHT, X, Y, BOTTOM, TOP, colorchooser, filedialog
-from typing import Callable, Optional, Any, Union
+from tkinter import BOTH, RIGHT, X, BOTTOM, TOP
+from typing import Callable, Any, Union
 
 from editor.actions_controller import ActionsController
 from editor.properties import Properties, pack
+from editor.tk_utils import handle_exception_tk
 from engine.tmx import F
 
 
@@ -72,30 +73,32 @@ class NewTilesetPopup(tk.Toplevel):
             "imagewidth": F(int, False)
         })
 
+    @handle_exception_tk
     def ok(self, _event=None) -> None:
         self.callback(int(self.values["tilewidth"]), int(self.values["tileheight"]),
                       int(self.values["columns"]), int(self.values["spacing"]), int(self.values["margin"]))
         self.destroy()
 
+    @handle_exception_tk
     def close(self, _event=None) -> None:
         self.destroy()
 
     def update_current_element_attribute(self, key: str, value: Any) -> None:
-        def from_int(s: str) -> int:
+        def from_int(s: Union[str, int]) -> int:
             try:
                 return int(s)
-            except:
+            except Exception:
                 return -1
 
         print(f"Edited property {key} to {value}")
         self.values[key] = value
         if key == "tilewidth" or key == "margin" or key == "spacing":
-            available_pixels = (self.image_width - int(self.values["margin"])) + int(self.values["spacing"])  # Add artificial last spacing that does not exist
-            columns = available_pixels // int(int(self.values["tilewidth"]) + int(self.values["spacing"]))
+            available_pixels = (self.image_width - from_int(self.values["margin"])) + from_int(self.values["spacing"])  # Add artificial last spacing that does not exist
+            columns = available_pixels // (from_int(self.values["tilewidth"]) + from_int(self.values["spacing"]))
             self.values["columns"] = columns
             self.properties.update_value("columns", str(columns), True)
         if key == "columns":
             # TODO implement this properly using margin and spacing in consideration
-            tilewidth = self.image_width // int(value)
+            tilewidth = self.image_width // from_int(value)
             self.values["tilewidth"] = tilewidth
             self.properties.update_value("tilewidth", str(tilewidth), True)

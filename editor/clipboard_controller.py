@@ -5,7 +5,7 @@ from typing import Optional, Any, Callable, cast
 
 from abc import ABC
 
-from editor.actions_controller import ActionsController, ChangeKind
+from editor.actions_controller import ActionsController
 from engine.tmx import TiledElement, TiledTileLayer, TiledObject, TiledObjectGroup
 
 
@@ -61,7 +61,7 @@ class ObjectContent(ClipboardContent):
 
     def can_apply(self) -> bool:
         return (isinstance(self.clipboard_controller.action_controller.current_object, TiledObject)
-            or isinstance(self.clipboard_controller.action_controller.current_object, TiledObjectGroup))
+                or isinstance(self.clipboard_controller.action_controller.current_object, TiledObjectGroup))
 
     def apply(self) -> None:
         target = self.clipboard_controller.action_controller.current_object
@@ -77,7 +77,7 @@ class ObjectContent(ClipboardContent):
         i = 0 if match is None else int(match.group()[1:])
         if i > 0:
             name = name[:-len(match.group())]
-        while name + ("" if i == 0 else f"_{i}") in layer.object_by_name() is not None:
+        while name + ("" if i == 0 else f"_{i}") in layer.object_by_name is not None:
             i += 1
 
         if i > 0:
@@ -86,26 +86,26 @@ class ObjectContent(ClipboardContent):
         self.clipboard_controller.action_controller.add_object(self.tiled_object, layer)
 
 
-class TileAreaContent(ClipboardContent):
-    def __init__(self, clipboard_controller: 'ClipboardController', area: list[list[int]]) -> None:
-        super().__init__(clipboard_controller)
-        self.area = area
-
-    def apply(self) -> None:
-        target = self.clipboard_controller.action_controller.current_object
-        existing_element = self.key in target.properties
-        target.properties[self.key] = self.value
-
-        if existing_element:
-            self.clipboard_controller.action_controller.update_element_property(
-                target, self.key, self.value
-            )
-        else:
-            self.clipboard_controller.action_controller.add_element_property(
-                target, self.key, self.value
-            )
-
-
+# class TileAreaContent(ClipboardContent):
+#     def __init__(self, clipboard_controller: 'ClipboardController', area: list[list[int]]) -> None:
+#         super().__init__(clipboard_controller)
+#         self.area = area
+#
+#     def apply(self) -> None:
+#         target = self.clipboard_controller.action_controller.current_object
+#         existing_element = self.key in target.properties
+#         target.properties[self.key] = self.value
+#
+#         if existing_element:
+#             self.clipboard_controller.action_controller.update_element_property(
+#                 target, self.key, self.value
+#             )
+#         else:
+#             self.clipboard_controller.action_controller.add_element_property(
+#                 target, self.key, self.value
+#             )
+#
+#
 class ClipboardController:
     def __init__(self, action_controller: ActionsController) -> None:
         self.action_controller = action_controller
