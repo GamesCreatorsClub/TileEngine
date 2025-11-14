@@ -1274,12 +1274,18 @@ class TiledTileset(TiledElement):
         full_filename = os.path.join(self._parent_dir, filename) if self._parent_dir is not None else filename
         return full_filename
 
+    def _parse_xml(self, node: Element) -> None:
+        super()._parse_xml(node)
+        self._fill_in_tiles()
+
     def load(self, filename: str) -> None:
         self._source_filename = filename
 
         full_filename = self._full_filename(filename)
         self._parse_xml(ElementTree.parse(full_filename).getroot())
+        self._fill_in_tiles()
 
+    def _fill_in_tiles(self) -> None:
         # Fill in all tiles for all ids and order them from one to more
         tiles = {k: v for k, v in self.tiles.items()}
         self.tiles.clear()
@@ -1782,7 +1788,10 @@ class TiledMap(TiledElement):
         for ts in self.tilesets:
             for i in range(ts.tilecount):
                 gid = ts.firstgid + i
-                self.tiles[gid] = ts.tiles[i]
+                try:
+                    self.tiles[gid] = ts.tiles[i]
+                except KeyError as e:
+                    print(f"{e}")
 
 
 if __name__ == '__main__':
