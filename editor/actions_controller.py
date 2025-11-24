@@ -8,8 +8,7 @@ from typing import Optional, cast, Callable, Any
 
 from pygame import Color, Surface, Rect
 
-from engine.tmx import TiledMap, TiledObjectGroup, BaseTiledLayer, TiledTileLayer, TiledObject, TiledTileset, TiledElement
-
+from engine.tmx import TiledMap, TiledObjectGroup, BaseTiledLayer, TiledTileLayer, TiledObject, TiledTileset, TiledElement, confirm_attr_type
 
 MAX_UNDO = 5
 CREATE_IMAGE = "create_image"
@@ -631,7 +630,7 @@ class ActionsController:
     def update_element_attribute(self, element: TiledElement, key: str, value: str) -> None:
 
         attrs = type(element).ATTRIBUTES
-        typ = attrs[key].type if key in attrs else type(getattr(element, key))
+        typ = confirm_attr_type(attrs[key].type) if key in attrs else type(getattr(element, key))
         if typ is bool:
             value = value.lower() == "true"
         elif typ is int:

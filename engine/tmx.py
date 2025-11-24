@@ -88,6 +88,15 @@ def resolve_to_class(value: str, custom_types: dict) -> TiledClassType:
     return deepcopy(custom_types[value])
 
 
+def confirm_attr_type(typ: Any) -> Any:
+    if typ == convert_to_int:
+        return int
+    elif typ == convert_to_bool:
+        return bool
+
+    return typ
+
+
 TYPES = defaultdict(lambda: str)
 TYPES.update(
     {
