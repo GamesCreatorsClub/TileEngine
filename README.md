@@ -35,6 +35,8 @@ or
 python examples/top_down_main.py
 ```
 
+Also, see our [Getting Started](docs/getting_started/getting-started.md) guide.
+
 ## Documentation
 
 For more documentation check following:
