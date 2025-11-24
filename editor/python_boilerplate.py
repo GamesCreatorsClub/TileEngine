@@ -30,9 +30,11 @@ def process_context_file(content: str, class_name: str, top_down: bool) -> str:
 class PythonBoilerplateDialog(tk.Toplevel):
     def __init__(self, root: Union[tk.Widget, tk.Tk],
                  tiled_map: TiledMap,
-                 this_zip_file: Optional[str]) -> None:
+                 this_zip_file: Optional[str],
+                 boilerplate_created_callback: Optional[Callable[[], None]]) -> None:
         super().__init__(root)
         self.root = root
+        self.boilerplate_created_callback = boilerplate_created_callback
         self.tiled_map = tiled_map
         self.this_zip_file = this_zip_file
 
@@ -151,6 +153,8 @@ class PythonBoilerplateDialog(tk.Toplevel):
                         read_prefix == "top_down"))
 
             self.tiled_map[PYTHON_FILE_PROPERTY] = self.relative_python_file(Path(self.tiled_map.filename).parent if self.tiled_map.filename is not None else None, main_full_filename)
+            if self.boilerplate_created_callback is not None:
+                self.boilerplate_created_callback()
 
         self.destroy()
 

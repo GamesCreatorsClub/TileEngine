@@ -660,7 +660,7 @@ class Editor:
 
     def create_boilerplate_map(self) -> None:
         if self._tiled_map.filename is not None and self._tiled_map.filename != "":
-            PythonBoilerplateDialog(self.root, self._tiled_map, os.path.dirname(os.path.dirname(__file__)) if resources_prefix.STARTED_FROM_ZIP else None)
+            PythonBoilerplateDialog(self.root, self._tiled_map, os.path.dirname(os.path.dirname(__file__)) if resources_prefix.STARTED_FROM_ZIP else None, self._update_run_state)
         else:
             tk.messagebox.showerror(title="Error", message=f"You must save the map first")
 
