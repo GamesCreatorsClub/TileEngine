@@ -1432,13 +1432,16 @@ class TiledTileset(TiledElement):
                         colliders = props["colliders"]
                         del props["colliders"]
 
+                    tile_close_tag = True
                     if len(props) > 0:
-                        close_tag = self._write_xml_properties(stream, indent + 2, close_tag, props)
+                        tile_close_tag = self._write_xml_properties(stream, indent + 2, tile_close_tag, props)
 
                     if colliders is not None:
                         props["colliders"] = colliders
 
                     if tile.objectgroup is not None:
+                        self._close_tag(stream, tile_close_tag)
+
                         tile.objectgroup._save(stream, indent + 1)
 
                     stream.write(" " * indent)

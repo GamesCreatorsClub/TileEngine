@@ -37,10 +37,20 @@ Let's add player to the map:
 
 ![Player Object](getting-started-5.gif "Player Object")
 
+Here we have added object and named it 'player'. For TileEngine to work it must have one and
+only one object called 'player'.
+
 Now we can ask TileEngine editor to create a boilerplate python game and run it for us:
 
 ![Create and Start Game](getting-started-6.gif "Create and Start Game")
 
-This will add property called 'python_file' to the map itself:
+You can see it created folders 'game' and 'engine' along with 'my_platformer.py' and 'my_platformer_context.py'
+python files. File 'my_platformer.py' is main file and as long as you have 'pygame' in installed in
+Python environment you can run it.
+
+That process will also add property called 'python_file' to the map itself so it knows which
+file to run:
 
 ![python_file](python_file_property.png "python_file")
+
+That file is only a helper for the editor itself - it is not used in the engine anywhere.

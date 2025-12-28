@@ -3,6 +3,7 @@
  <properties>
   <property name="level_context" value="game.G24ImpossibleLevelContext"/>
   <property name="viewport" value="10, 330, 1004, 288"/>
+  <property name="gravity" value="0, 2"/>
  </properties>
  <tileset firstgid="1" source="tilemap/tileset-tiles.tsx"/>
  <tileset firstgid="181" source="tilemap/tileset-characters.tsx"/>

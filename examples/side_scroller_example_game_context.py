@@ -5,21 +5,23 @@ from typing import Union
 from pygame.key import ScancodeWrapper
 
 from engine.level import Level
-from game.side_scroller_game_context import SideScrollerGameContext
+from game.text_game_context import TextGameContext
 
 
-class SideScrollerExampleGameContext(SideScrollerGameContext):
-    def __init__(self, levels: dict[Union[str, int], Level]) -> None:
-        super().__init__(levels)
+class SideScrollerExampleGameContext(TextGameContext):
+    def __init__(self, levels: dict[Union[str, int], Level],
+                 font: Font, small_font: Font,
+                 **kwargs) -> None:
+        super().__init__(levels, font, small_font, **kwargs)
 
     def process_keys(self, previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
         super().process_keys(previous_keys, current_keys)
 
-    def before_map(self, screen: Surface) -> None:
-        pass
+    def draw_before_map(self, screen: Surface) -> None:
+        super().draw_before_map(screen)
 
-    def after_map(self, screen: Surface) -> None:
-        pass
+    def draw_after_map(self, screen: Surface) -> None:
+        super().draw_after_map(screen)
 
     # @property
     # def screen_size(self) -> Optional[Size]:

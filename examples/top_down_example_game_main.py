@@ -35,10 +35,10 @@ game_context.screen_size = screen_size
 game = Game(screen, game_context, framerate=60, debug=True)
 
 # Method to be called before the map is drawn on screen with signature def xxx(surface: Surface)
-game.before_map = game_context.before_map
+game.draw_before_map = game_context.draw_before_map
 
 # Method to be called after the map is drawn on screen with signature def xxx(surface: Surface)
-game.after_map = game_context.after_map
+game.draw_after_map = game_context.draw_after_map
 
 # Main game loop - see context for key processing
 game.main_loop()

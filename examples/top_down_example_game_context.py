@@ -5,10 +5,12 @@ from pygame.font import Font
 import pygame
 from engine.level import Level
 from engine.tmx import TiledObject
-from game.rpg_game_context import RPGGameContext
+from engine.utils import Size
+from game.overlays.inventory import Inventory
 from pygame import Surface, Rect
 
 from engine.game_context import in_context
+from game.text_game_context import TextGameContext
 
 COLOUR_WHITE = pygame.Color("white")
 COLOUR_BLACK = pygame.Color("black")
@@ -21,15 +23,62 @@ def sgn(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     return -1 if d < 0 else (1 if d > 0 else 0)
 
 
-class TopDownExampleGameContext(RPGGameContext):
-    def __init__(self, levels: dict[Union[str, int], Level], font: Font, small_font: Font) -> None:
-        super().__init__(levels, font, small_font)
+class TopDownExampleGameContext(TextGameContext):
+    def __init__(self, levels: dict[Union[str, int], Level],
+                 font: Font, small_font: Font,
+                 **kwargs) -> None:
+        super().__init__(levels, font, small_font, **kwargs)
+        self.inventory_visible = True
+        self._inventory = Inventory(self, small_font)
+        self.hello = "hello"
+        self._add_attribute_name("hello")
 
-    def before_map(self, screen: Surface) -> None:
-        pass
+    def set_level(self, level: Level) -> None:
+        super().set_level(level)
 
-    def after_map(self, screen: Surface) -> None:
-        self.text_area.draw(screen)
+        tiled_map = self.level.map
+
+        width = max(tiled_map.images[gid].get_rect().width + 1 for gid in range(tiled_map.maxgid) if tiled_map.images[gid]) + 8
+        height = max(tiled_map.images[gid].get_rect().width + 1 for gid in range(tiled_map.maxgid) if tiled_map.images[gid]) + 8
+
+        self._inventory.set_size(Size(width, height))
+
+    @in_context
+    @property
+    def inventory(self) -> Inventory:
+        return self._inventory
+
+    @in_context
+    def add_coins(self, coins: int) -> None:
+        if "coin" in self._inventory:
+            coin_obj = self._inventory["coin"]
+            for _ in range(coins):
+                self._inventory["coin"] = coin_obj
+
+    @in_context
+    def add_object_to_inventory(self, obj: TiledObject) -> None:
+        self.remove_object(obj)
+        k = obj.name
+        self.inventory[k] = obj
+        self.prevent_colliding()
+
+    @in_context
+    def give_object(self, obj_name: str) -> None:
+        for o in self.level.objects:
+            if o.name == obj_name:
+                self.remove_object(o)
+                self.add_object_to_inventory(o)
+                return
+
+    @in_context
+    def set_inventory_visibility(self, visible: bool) -> None:
+        self.inventory_visible = visible
+
+    def draw_before_map(self, screen: Surface) -> None:
+        super().draw_before_map(screen)
+
+    def draw_after_map(self, screen: Surface) -> None:
+        super().draw_after_map(screen)
         box_size = self._inventory.image_size
         rect = Rect(screen.get_rect().right - box_size[0] - 2, 50, box_size[0], box_size[1] * 10)
         self._inventory.draw(screen, rect)

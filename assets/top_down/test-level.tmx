@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.11" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-up" width="100" height="100" tilewidth="16" tileheight="15" infinite="0" nextlayerid="5" nextobjectid="8">
  <properties>
-  <property name="on_show">say(&quot;Hello! This is example game&quot;)
+  <property name="on_show">say(&quot;Hello! This is example game&quot;, expires_in=10)
 game.level.update_map_position((0, 0))
 
 target = game.level.objects_by_name[&quot;start_target&quot;]

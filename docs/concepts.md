@@ -142,8 +142,8 @@ game = Game(
     game_context,
     framerate=60, debug=True)
 
-game.before_map = None
-game.after_map = game_context.after_map
+game.drew_before_map = None
+game.drew_after_map = game_context.drew_after_map
 
 game.main_loop()
 ```
@@ -167,10 +167,10 @@ in the inventory overlay.
 Text area is displaying lines of text added to it by using `say` or `say_once` methods.
 Examples how they are used are in [`TopDownExampleGameContext` class](../examples/top_down_example_game_context.py).
 Observe that `Game` object in [top_down_main.py](../examples/top_down_main.py) is configured
-with 'after_map' prooperty - a method to be called (and allow more things displayed on screen)
+with 'drew_after_map' prooperty - a method to be called (and allow more things displayed on screen)
 after main map is rendered on screen:
 
 ```python
-game.before_map = None
-game.after_map = game_context.after_map
+game.drew_before_map = None
+game.drew_after_map = game_context.drew_after_map
 ```

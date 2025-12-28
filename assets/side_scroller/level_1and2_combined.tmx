@@ -5,6 +5,7 @@
  <group id="6" name="group_1">
   <properties>
    <property name="viewport" value="220, 180, 604, 288"/>
+   <property name="gravity" value="0, 2"/>
   </properties>
   <layer id="2" name="background_1" width="64" height="16">
    <data encoding="base64">

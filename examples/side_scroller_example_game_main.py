@@ -18,6 +18,8 @@ screen_size = (1024, 640)
 pygame.init()
 pygame.font.init()
 
+small_font = pygame.font.SysFont("apple casual", 16)
+font = pygame.font.SysFont("apple casual", 36)
 
 screen = pygame.display.set_mode(screen_size)
 
@@ -27,7 +29,7 @@ levels = Level.load_levels(
     "assets/side_scroller/level1.tmx",
     "assets/side_scroller/level2.tmx")
 
-game_context = SideScrollerExampleGameContext(levels)
+game_context = SideScrollerExampleGameContext(levels, font, small_font, up_keys={}, jump_keys={pygame.K_w, pygame.K_UP, pygame.K_SPACE})
 # Starting/first level
 game_context.set_level(levels["level1"])
 game_context.screen_size = screen_size
@@ -35,10 +37,10 @@ game_context.screen_size = screen_size
 game = Game(screen, game_context, framerate=60, debug=True)
 
 # Method to be called before the map is drawn on screen with signature def xxx(surface: Surface)
-game.before_map = game_context.before_map
+game.draw_before_map = game_context.draw_before_map
 
 # Method to be called after the map is drawn on screen with signature def xxx(surface: Surface)
-game.after_map = game_context.after_map
+game.draw_after_map = game_context.draw_after_map
 
 # Main game loop - see context for key processing
 game.main_loop()

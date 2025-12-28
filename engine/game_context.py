@@ -1,6 +1,7 @@
 import importlib
 import math
-from abc import ABC, abstractmethod
+import pygame
+from abc import ABC
 from itertools import chain
 from typing import Optional, Union, cast, Callable, Any, ChainMap
 
@@ -18,7 +19,6 @@ from engine.transitions.render_direct import RenderDirect
 from engine.utils import is_close, Size
 from engine.tmx import TiledObject
 
-
 PlayerOrObject = Union[Player, TiledObject]
 
 
@@ -31,7 +31,16 @@ def in_context(target: Union[Callable, property]) -> Callable:
 
 
 class GameContext(ABC):
-    def __init__(self, levels: dict[Union[str, int], Level]) -> None:
+    def __init__(self,
+                 levels: dict[Union[str, int], Level],
+                 left_keys: set = frozenset({pygame.K_LEFT, pygame.K_a}),
+                 right_keys: set = frozenset({pygame.K_RIGHT, pygame.K_d}),
+                 up_keys: set = frozenset({pygame.K_UP, pygame.K_w}),
+                 down_keys: set = frozenset({pygame.K_DOWN, pygame.K_s}),
+                 jump_keys: set = frozenset(),
+                 gravity_x: float = 0.0,
+                 gravity_y: float = 0.0) -> None:
+
         self._closure_objects_attribute_names = []
         self.visible_levels: dict[Level, LevelTransition] = {}
         self.player = Player()
@@ -43,6 +52,15 @@ class GameContext(ABC):
         self.allow_colliding = True
         self.player_input_allowed = True
         self.properties: dict[str, Any] = {}
+
+        self.gravity_x = gravity_x
+        self.gravity_y = gravity_y
+
+        self.up_keys = up_keys
+        self.down_keys = down_keys
+        self.left_keys = left_keys
+        self.right_keys = right_keys
+        self.jump_keys = jump_keys  # {pygame.K_SPACE}
 
         self.mouse_pressed_pos: Optional[tuple] = None
 
@@ -57,6 +75,7 @@ class GameContext(ABC):
             "game": self,
             "player": self.player,
             "math": math,
+            "pygame": pygame,
         }
 
         self.closure = self.base_closure
@@ -110,9 +129,77 @@ class GameContext(ABC):
             **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
         }
 
-    @abstractmethod
     def process_keys(self, _previous_keys: ScancodeWrapper, current_keys: ScancodeWrapper) -> None:
-        pass
+        if self.player_input_allowed:
+            player = self.player
+            walking_animation = player["walking_animation"]
+            player_moved_horizontally = False
+
+            left = any(current_keys[k] for k in self.left_keys)
+            right = any(current_keys[k] for k in self.right_keys)
+            if left and right:
+                player.vx = 0
+            elif left:
+                walking_animation.turn_left()
+                player.vx = -player.speed
+            elif right:
+                walking_animation.turn_right()
+                player.vx = player.speed
+            else:
+                if self.gravity_x == 0:
+                    player.vx = 0
+
+            if player.vx != 0:
+                player_moved_horizontally = self.move_object(player, player.vx, 0, test_collisions=True)
+
+            # Normal movement along Y axis
+            player_moved_vertically = False
+            up = any(current_keys[k] for k in self.up_keys)
+            down = any(current_keys[k] for k in self.down_keys)
+            jump = any(current_keys[k] for k in self.jump_keys)
+            if (jump or up) and down:
+                player.vy = 0
+                player.jump = 0
+            elif jump:
+                if (player.jump == 0 and player.on_the_ground) or 0 < player.jump <= player.jump_threshold:
+                    player.jump += 1
+                    player.vy += -player.jump_strength + 4 * player.jump / player.jump_threshold
+                    walking_animation.turn_up()  # TODO turn_jump??
+            elif up:
+                walking_animation.turn_up()
+                player.vy = -player.speed
+            elif down:
+                walking_animation.turn_down()
+                player.vy = player.speed
+                player.jump = 0
+            else:
+                player.jump = 0
+                if self.gravity_y == 0:
+                    player.vy = 0
+
+            if player.vy != 0:
+                player_moved_vertically = self.move_object(player, 0, player.vy, test_collisions=True)
+
+            if len(self.jump_keys):
+                if player_moved_vertically:
+                    if player.vy < 0:
+                        player.on_the_ground = False
+                elif player.vy > 0:
+                    player.on_the_ground = not player_moved_vertically
+                    if not player_moved_vertically:
+                        player.hit_velocity = player.vy
+                        player.vy = 0
+
+            player.vx = player.vx + self.gravity_x
+            player.vy = player.vy + self.gravity_y
+
+            player_moved = player_moved_horizontally or player_moved_vertically
+            if player_moved:
+                walking_animation.animate_walk()
+                self.level.update_map_position(self.player.rect.center)
+                self.level.invalidated = True
+            else:
+                walking_animation.stop_walk()
 
     def process_mouse_down(self, pos: tuple) -> None:
         self.mouse_pressed_pos = pos
@@ -177,6 +264,15 @@ class GameContext(ABC):
                 self._execute_script(obj.properties["on_create"], {"obj": obj, "level": level})
             if obj.has_create_image():
                 obj.create_image_from_property_value()
+
+        if "gravity" in level.map.properties:
+            gravity_string = level.map.properties["gravity"]
+            if "," in gravity_string:
+                x_s, y_s = [s.strip() for s in gravity_string.split(",")]
+                self.gravity_x = float(x_s)
+                self.gravity_y = float(y_s)
+            else:
+                self.gravity_y = float(gravity_string)
 
     def show_level(self, level: Level, level_transition: Optional[LevelTransition] = None, activate: bool = False) -> None:
         if level not in self.visible_levels:
@@ -243,7 +339,7 @@ class GameContext(ABC):
     def test_collisions_with_objects(self, next_rect: Rect, obj: PlayerOrObject, with_objects: dict[TiledObject, Rect]) -> bool:
         object_has_moved = True
 
-        collisions = next_rect.collidedictall(with_objects, 1)
+        collisions = next_rect.collidedictall(with_objects, values=1)
 
         obj_collisions = set(obj.collisions)
         for collision in collisions:
@@ -352,8 +448,8 @@ class GameContext(ABC):
 
     def animate(self, elapsed_ms: int) -> None:
         for obj in self.level.on_animate_objects:
-            scriplet = obj.properties["on_animate"]
-            self._execute_script(scriplet, {"elapsed_ms": elapsed_ms, "this": obj, "obj": obj})
+            scriptlet = obj.properties["on_animate"]
+            self._execute_script(scriptlet, {"elapsed_ms": elapsed_ms, "this": obj, "obj": obj})
 
     def on_tile_collision(self, tile_properties, tile_rect: Rect, obj: PlayerOrObject, next_rect: Rect) -> None:
         try:
