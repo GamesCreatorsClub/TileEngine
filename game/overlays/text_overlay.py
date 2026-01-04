@@ -11,8 +11,8 @@ from engine.utils import Size, Position
 
 
 class Placement(Enum):
+    NONE = -1
     CENTRE = 0
-    NONE = 0
     LEFT = -1
     TOP = -1
     RIGHT = 1
@@ -51,10 +51,12 @@ class LayoutPosition(Enum):
 class Text:
     def __init__(self,
                  text: Union[str, Surface],
+                 colour: Optional[Color] = None,
                  expires_in: float = 0,
                  order: int = 0) -> None:
 
         self.text = text if isinstance(text, str) else ""
+        self.colour = colour
         self.expires_at = (time.time() + expires_in) if expires_in > 0 else 0
         self.surface: Optional[Surface] = text if isinstance(text, Surface) else None
         self.order = order
@@ -397,7 +399,7 @@ class TextArea:
         y = place.y
         for say_thing in self.say_things:
             if say_thing.surface is None:
-                say_thing.draw_outline(self.font, width=place.width, outline_size=2, outline_colour=self.outline_color)
+                say_thing.draw_outline(self.font, colour=self.font_colour if say_thing.colour is None else say_thing.colour, width=place.width, outline_size=2, outline_colour=self.outline_color)
             screen.blit(say_thing.surface, (10, y))
             y += self.line_height
         for i in range(len(self.say_things) - 1, -1, -1):
@@ -409,13 +411,14 @@ class TextArea:
             del self.say_things[0]
 
     def say(self, text: str, colour: Optional[Color] = None, expires_in: float = 0.0) -> None:
-        self.say_things.append(Text(text, colour=self.font_colour if colour is None else colour, expires_in=expires_in))
+        colour = self.font_colour if colour is None else colour
+        self.say_things.append(Text(text, expires_in=expires_in, colour=colour))
         self._trim()
 
     def say_once(self, text: str, colour: Optional[Color] = None, expires_in: float = 0.0) -> None:
         colour = self.font_colour if colour is None else colour
         if len(self.say_things) == 0 or self.say_things[-1].text != text:
-            self.say_things.append(Text(text, colour=colour, expires_in=expires_in))
+            self.say_things.append(Text(text, expires_in=expires_in, colour=colour))
         elif self.say_things[-1].colour != colour:
             self.say_things[-1].colour = colour
             self.say_things[-1].invalidate()

@@ -4,7 +4,6 @@ import pygame.draw
 from pygame import Rect, Surface
 
 from editor.actions_controller import ActionsController
-from editor.properties import Properties
 from editor.pygame_components import ScrollableCanvas
 from editor.toolbar_panel import ToolbarPanel
 from engine.tmx import TiledTileset
@@ -96,8 +95,8 @@ class TilesetController(ScrollableCanvas):
         else:
             self.v_scrollbar.visible = True
             self.h_scrollbar.visible = True
-            self.h_scrollbar.width = tileset.width * tileset.tilewidth
-            self.v_scrollbar.width = tileset.height * tileset.tileheight
+            self.h_scrollbar.width = tileset.width * (tileset.tilewidth + tileset.spacing) + tileset.margin
+            self.v_scrollbar.width = tileset.height * (tileset.tileheight + tileset.spacing) + tileset.margin
 
             if new_tileset:
                 self._selection_rect = Rect(0, 0, 1, 1)
