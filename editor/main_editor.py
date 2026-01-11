@@ -568,6 +568,21 @@ class Editor:
             elif isinstance(self._current_element, Tile):
                 cast(Tile, self._current_element).tiledset.dirty_data = True
 
+    @handle_exception_tk
+    def _about_dialog(self, _event=None) -> None:
+        version_file = Path(resources_prefix.RESOURCES_PREFIX) / "VERSION"
+        if version_file.exists():
+            with open(version_file, "rt") as f:
+                full_version = f.read()
+                split_version = full_version.split("-")
+                if len(split_version) == 2:
+                    version = f"Version: {split_version[0]}\nTimestamp: {split_version[1]}"
+                else:
+                    version = f"Dev Version {full_version}"
+        else:
+            version = "Dev version"
+        messagebox.showinfo("About", f"This is Games Creators Club Tiled Editor.\n{version}")
+
     @staticmethod
     def _do_nothing_action(_event=None) -> None:
         print("Do nothing!")
@@ -744,7 +759,7 @@ class Editor:
 
         self.help_menu = tk.Menu(menu, tearoff=0)
         self.help_menu.add_command(label="Help Index", command=self._do_nothing_action, state="disabled")
-        self.help_menu.add_command(label="About...", command=self._do_nothing_action, state="disabled")
+        self.help_menu.add_command(label="About...", command=self._about_dialog)
         menu.add_cascade(label="Help", menu=self.help_menu)
         # root.config(menu=menu)
 
@@ -1039,7 +1054,8 @@ def prepare_resources() -> None:
             if name.startswith("editor/images/") or name in [
                 "editor/test_fixed.otf",
                 "editor/icons.png",
-                "editor/arrows-small.png"
+                "editor/arrows-small.png",
+                "VERSION"
             ]:
                 filename = os.path.join(temp_dir, name)
                 with open(filename, "wb") as f:

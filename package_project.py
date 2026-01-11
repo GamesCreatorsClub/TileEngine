@@ -93,7 +93,7 @@ def update_build_version(version_file, target_templates_path):
         ensure_empty_dir(target_templates_path)
         with open(version_file, 'r') as in_file:
             lines = in_file.readlines()
-            lines[0] = lines[0] + datetime.datetime.now().strftime('-%Y%m%d%H%M%S')
+            lines[0] = lines[0].strip() + datetime.datetime.now().strftime('-%Y%m%d%H%M%S')
             with open(os.path.join(target_templates_path, os.path.split(version_file)[1]), 'w') as out_file:
                 out_file.write("\n".join(lines) + "\n")
 
@@ -214,4 +214,4 @@ if __name__ == "__main__":
         f.write(START_PYTHON_2)
         f.write("\n# EOF\n")
 
-    os.system(f"chmod u+x '{result_executable}'")
+    # os.system(f"chmod u+x '{result_executable}'")

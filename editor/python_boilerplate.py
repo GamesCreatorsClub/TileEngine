@@ -94,15 +94,20 @@ class PythonBoilerplateDialog(tk.Toplevel):
                 map_path = full_map_filename.parent
                 game_path = map_path.parent if map_path.name.endswith("assets") else map_path
 
-            try:
-                map_filename = full_map_filename.relative_to(game_path)
-            except ValueError:
+            if game_path.is_absolute():
+                try:
+                    map_filename = full_map_filename.relative_to(game_path)
+                except ValueError:
+                    map_filename = full_map_filename
+            else:
                 map_filename = full_map_filename
+                if full_map_filename.is_absolute():
+                    game_path = (full_map_filename.parent / game_path).resolve()
 
             level_name = map_filename.name
             level_name = level_name[:-4] if level_name.endswith(".tmx") else level_name
 
-            self.prepare_game_resources(game_path)
+            self.prepare_game_resources(str(game_path))
 
             read_prefix = self.top_down_var.get()
 
