@@ -1,5 +1,3 @@
-from game.rpg_game_context import RPGGameContext
-
 # Concepts
 
 The main idea is that a game can be made using the engine provided here along with small number of
