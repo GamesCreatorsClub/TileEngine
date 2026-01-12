@@ -29,7 +29,7 @@ from editor.mini_map_controller import MiniMap
 from editor.new_tileset_popup import NewTilesetPopup
 from editor.properties import Properties
 from editor.map_controller import MapController
-from editor.python_boilerplate import PythonBoilerplateDialog, PYTHON_FILE_PROPERTY
+from editor.python_boilerplate import PythonBoilerplateDialog, PYTHON_FILE_PROPERTY, PythonBoilerplate
 from editor.tileset_controller import TilesetController, TilesetActionsPanel
 from editor.tooltip import ToolTip
 from editor import resources_prefix
@@ -225,6 +225,7 @@ class Editor:
         self.map_menu.entryconfig("Add Tileset", state="normal")
         self.map_menu.entryconfig("Update Animations", state="normal")
         self.run_menu.entryconfig("Create Game", state="normal")
+        self.run_menu.entryconfig("Update Engine", state="normal")
 
         self.main_window.map_controller.set_action_panel_visibility(True)
         self.hierarchy_view.set_map(tiled_map)
@@ -508,6 +509,11 @@ class Editor:
         self.create_boilerplate_map()
 
     @handle_exception_tk
+    def _update_boilerplate_engine_action(self, _event=None) -> None:
+        python_boilerplate = PythonBoilerplate(self._tiled_map, os.path.dirname(os.path.dirname(__file__)) if resources_prefix.STARTED_FROM_ZIP else None)
+        python_boilerplate.update_engine()
+
+    @handle_exception_tk
     def _update_animations(self, _event=None) -> None:
         for tiled_tileset in self._tiled_map.tilesets:
             tiled_tileset.update_animations()
@@ -752,8 +758,9 @@ class Editor:
         menu.add_cascade(label="Map", menu=self.map_menu)
 
         self.run_menu = tk.Menu(menu, tearoff=0)
-        self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator="{self.control_modifier}+R")
+        self.run_menu.add_command(label="Run", command=self._run_map_action, state="disabled", accelerator=f"{self.tk_control_modifier}+R")
         self.run_menu.add_command(label="Create Game", command=self._create_boilerplate_map_action, state="disabled")
+        self.run_menu.add_command(label="Update Engine", command=self._update_boilerplate_engine_action, state="disabled")
 
         menu.add_cascade(label="Run", menu=self.run_menu)
 

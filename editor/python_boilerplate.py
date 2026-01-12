@@ -27,160 +27,102 @@ def process_context_file(content: str, class_name: str, top_down: bool) -> str:
     return content
 
 
-class PythonBoilerplateDialog(tk.Toplevel):
-    def __init__(self, root: Union[tk.Widget, tk.Tk],
+class PythonBoilerplate:
+    def __init__(self,
                  tiled_map: TiledMap,
-                 this_zip_file: Optional[str],
-                 boilerplate_created_callback: Optional[Callable[[], None]]) -> None:
-        super().__init__(root)
-        self.root = root
-        self.boilerplate_created_callback = boilerplate_created_callback
+                 this_zip_file: Optional[str]) -> None:
         self.tiled_map = tiled_map
         self.this_zip_file = this_zip_file
 
-        self.title(f"Create Python Code")
-        self.protocol("WM_DELETE_WINDOW", self.close)
-        self.transient(root)
-        self.wait_visibility()
-        self.grab_set()
-
-        self.top_down_var = tk.StringVar(self)
-        self.top_down_var.set("top_down")
-
-        self.frame = tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5)
-        self.top_down_radio_button = pack(tk.Radiobutton(self, text="Top Down", variable=self.top_down_var, value="top_down"), anchor=W)
-        self.side_radio_button = pack(tk.Radiobutton(self, text="Side Scroller", variable=self.top_down_var, value="side_scroller"), anchor=W)
-
-        self.entry_frame = pack(tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5), fill=X)
-
-        # self.button = pack(tk.Label(self.entry_frame, text="..."), side=RIGHT)
-        # self.button.bind("<Button-1>", self.stop_and_open_text_editor)
-
-        python_name = ""
-        if PYTHON_FILE_PROPERTY in self.tiled_map:
-            python_name = os.path.split(self.tiled_map[PYTHON_FILE_PROPERTY])[1]
-            python_name = python_name[:-3] if python_name.endswith(".py") else python_name
-            python_name = self.to_python_class_name(python_name)
-
-        self.entry = pack(tk.Entry(self.entry_frame, bd=0, highlightthickness=0), fill=X, padx=5)
-        cast(tk.Entry, self.entry).insert(0, python_name)
-        self.entry["exportselection"] = False
-
-        self.frame.pack(side=TOP, fill=BOTH, expand=True)
-        self.buttons_frame = tk.Frame(self, highlightthickness=0, bd=0)
-        self.buttons_frame.pack(side=BOTTOM, fill=X)
-        self.ok_btn = pack(tk.Button(self.buttons_frame, text="OK", command=self.ok, width=5), padx=5, pady=10, side=RIGHT)
-        self.cancel_btn = pack(tk.Button(self.buttons_frame, text="Cancel", command=self.close, width=5), padx=5, pady=10, side=RIGHT)
-        self.bind("<Escape>", self.close)
-
-    def ok(self, _event=None) -> None:
-        name = cast(tk.Entry, self.entry).get()
-
+    def calcualte_paths(self) -> tuple[Path, Path]:
         full_map_filename = Path(self.tiled_map.filename)
 
-        if name == "":
-            tk.messagebox.showerror(title="Error", message=f"You must enter game name")
-        else:
-            name = name.replace(" ", "_")
+        game_path: Optional[Path] = None
+        if PYTHON_FILE_PROPERTY in self.tiled_map:
+            game_file = Path(self.tiled_map[PYTHON_FILE_PROPERTY])
+            game_path = game_file.parent
+            if str(game_path) == ".":
+                game_path = None
 
-            game_path: Optional[Path] = None
-            if PYTHON_FILE_PROPERTY in self.tiled_map:
-                game_file = Path(self.tiled_map[PYTHON_FILE_PROPERTY])
-                game_path = game_file.parent
-                if str(game_path) == ".":
-                    game_path = None
+        if game_path is None:
+            map_path = full_map_filename.parent
+            game_path = map_path.parent if map_path.name.endswith("assets") else map_path
 
-            if game_path is None:
-                map_path = full_map_filename.parent
-                game_path = map_path.parent if map_path.name.endswith("assets") else map_path
-
-            if game_path.is_absolute():
-                try:
-                    map_filename = full_map_filename.relative_to(game_path)
-                except ValueError:
-                    map_filename = full_map_filename
-            else:
+        if game_path.is_absolute():
+            try:
+                map_filename = full_map_filename.relative_to(game_path)
+            except ValueError:
                 map_filename = full_map_filename
-                if full_map_filename.is_absolute():
-                    game_path = (full_map_filename.parent / game_path).resolve()
+        else:
+            map_filename = full_map_filename
+            if not full_map_filename.is_absolute():
+                game_path = (full_map_filename.absolute().parent / game_path).resolve()
+            else:
+                game_path = (full_map_filename.parent / game_path).resolve()
 
-            level_name = map_filename.name
-            level_name = level_name[:-4] if level_name.endswith(".tmx") else level_name
+        return game_path, map_filename
 
-            self.prepare_game_resources(str(game_path))
+    def update_engine(self) -> None:
+        game_path, _ = self.calcualte_paths()
 
-            read_prefix = self.top_down_var.get()
+        self.prepare_game_resources(str(game_path))
 
-            main_class_name = self.to_python_class_name(name)
-            main_full_filename = os.path.join(game_path, self.to_python_filename(name))
-            context_class_name = self.to_python_class_name(name) + "Context"
-            context_filename = self.to_python_filename(name + "_context")
-            context_full_filename = os.path.join(game_path, context_filename)
+    def create(self, name: str, read_prefix: str) -> None:
 
-            print(f"Creating {main_class_name} in {main_full_filename}")
-            main_content = self.read_content(f"examples/{read_prefix}_example_game_main.py")
+        game_path, map_filename = self.calcualte_paths()
 
-            print(f"Creating {context_class_name} in {context_full_filename}")
-            context_content = self.read_content(f"examples/{read_prefix}_example_game_context.py")
+        self.prepare_game_resources(str(game_path))
 
-            proceed = True
-            if os.path.exists(main_full_filename) or os.path.exists(context_full_filename):
-                message = ""
-                title = ""
-                if os.path.exists(main_full_filename):
-                    title = f"File {main_full_filename}"
-                    message = f"File {main_full_filename} already exists"
-                if os.path.exists(context_full_filename):
-                    if len(message) > 0:
-                        message += " and "
-                        title += " and "
-                    title += f"File {context_full_filename}"
-                    message += f"File {context_full_filename} already exists"
+        level_name = map_filename.name
+        level_name = level_name[:-4] if level_name.endswith(".tmx") else level_name
 
-                message += " Do you want to overwrite it?"
+        main_class_name = self.to_python_class_name(name)
+        main_full_filename = os.path.join(game_path, self.to_python_filename(name))
+        context_class_name = self.to_python_class_name(name) + "Context"
+        context_filename = self.to_python_filename(name + "_context")
+        context_full_filename = os.path.join(game_path, context_filename)
 
-                proceed = askyesno(title=f"File {main_full_filename}",
-                                   message=message)
+        print(f"Creating {main_class_name} in {main_full_filename}")
+        main_content = self.read_content(f"examples/{read_prefix}_example_game_main.py")
 
-            if proceed:
-                self.write_content(main_full_filename, self.process_main_file(
-                    main_content,
-                    context_filename, context_class_name,
-                    map_filename,
-                    level_name,
+        print(f"Creating {context_class_name} in {context_full_filename}")
+        context_content = self.read_content(f"examples/{read_prefix}_example_game_context.py")
+
+        proceed = True
+        if os.path.exists(main_full_filename) or os.path.exists(context_full_filename):
+            message = ""
+            title = ""
+            if os.path.exists(main_full_filename):
+                title = f"File {main_full_filename}"
+                message = f"File {main_full_filename} already exists"
+            if os.path.exists(context_full_filename):
+                if len(message) > 0:
+                    message += " and "
+                    title += " and "
+                title += f"File {context_full_filename}"
+                message += f"File {context_full_filename} already exists"
+
+            message += " Do you want to overwrite it?"
+
+            proceed = askyesno(title=f"File {main_full_filename}",
+                               message=message)
+
+        if proceed:
+            self.write_content(main_full_filename, self.process_main_file(
+                main_content,
+                context_filename, context_class_name,
+                str(map_filename),
+                level_name,
+                read_prefix == "top_down"))
+
+            self.write_content(
+                context_full_filename,
+                process_context_file(
+                    context_content,
+                    context_class_name,
                     read_prefix == "top_down"))
 
-                self.write_content(
-                    context_full_filename,
-                    process_context_file(
-                        context_content,
-                        context_class_name,
-                        read_prefix == "top_down"))
-
-            self.tiled_map[PYTHON_FILE_PROPERTY] = self.relative_python_file(Path(self.tiled_map.filename).parent if self.tiled_map.filename is not None else None, main_full_filename)
-            if self.boilerplate_created_callback is not None:
-                self.boilerplate_created_callback()
-
-        self.destroy()
-
-    def close(self, _event=None) -> None:
-        self.destroy()
-
-    def prepare_resources(self) -> None:
-        pass
-
-    @staticmethod
-    def underscore_camel_case_split(s: str) -> list[str]:
-        return reduce(
-            lambda a, b: a + b,
-            ([m.group(0).lower() for m in finditer('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)', k)] for k in s.split("_")),
-            [])
-
-    def to_python_class_name(self, s: str) -> str:
-        return "".join((s[0].upper() + ("" if len(s) < 2 else s[1:])) for s in self.underscore_camel_case_split(s))
-
-    def to_python_filename(self, s: str) -> str:
-        return "_".join((s for s in self.underscore_camel_case_split(s))) + ".py"
+        self.tiled_map[PYTHON_FILE_PROPERTY] = self.relative_python_file(Path(self.tiled_map.filename).parent if self.tiled_map.filename is not None else None, main_full_filename)
 
     def prepare_game_resources(self, game_path: str) -> None:
         print(f"Game path is {game_path}")
@@ -188,6 +130,12 @@ class PythonBoilerplateDialog(tk.Toplevel):
         def process_file(name: str, copier: Callable[[str, str], None]) -> None:
             if name.startswith("engine") or name.startswith("game"):
                 filename = os.path.join(game_path, name)
+                path = os.path.dirname(filename)
+                if not os.path.exists(path):
+                    os.makedirs(path, exist_ok=True)
+                copier(name, filename)
+            elif name == "VERSION":
+                filename = os.path.join(game_path, "engine", name)
                 path = os.path.dirname(filename)
                 if not os.path.exists(path):
                     os.makedirs(path, exist_ok=True)
@@ -225,6 +173,20 @@ class PythonBoilerplateDialog(tk.Toplevel):
 
             for name in collect_names(source_dir, ""):
                 process_file(name, file_copier)
+
+    @staticmethod
+    def underscore_camel_case_split(s: str) -> list[str]:
+        return reduce(
+            lambda a, b: a + b,
+            ([m.group(0).lower() for m in finditer('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)', k)] for k in s.split("_")),
+            [])
+
+    @staticmethod
+    def to_python_class_name(s: str) -> str:
+        return "".join((s[0].upper() + ("" if len(s) < 2 else s[1:])) for s in PythonBoilerplate.underscore_camel_case_split(s))
+
+    def to_python_filename(self, s: str) -> str:
+        return "_".join((s for s in self.underscore_camel_case_split(s))) + ".py"
 
     @staticmethod
     def process_main_file(content: str,
@@ -280,3 +242,65 @@ sys.path.append(os.getcwd())
                 return str(Path(os.path.pathsep.join(".." for _ in range(len(relative_path.parts)))) / Path(filename).name)
             except ValueError:
                 return filename
+
+
+class PythonBoilerplateDialog(tk.Toplevel):
+    def __init__(self, root: Union[tk.Widget, tk.Tk],
+                 tiled_map: TiledMap,
+                 this_zip_file: Optional[str],
+                 boilerplate_created_callback: Optional[Callable[[], None]]) -> None:
+        super().__init__(root)
+        self.root = root
+        self.boilerplate_created_callback = boilerplate_created_callback
+        self.python_boilerplate = PythonBoilerplate(tiled_map, this_zip_file)
+
+        self.title(f"Create Python Code")
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.transient(root)
+        self.wait_visibility()
+        self.grab_set()
+
+        self.top_down_var = tk.StringVar(self)
+        self.top_down_var.set("top_down")
+
+        self.frame = tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5)
+        self.top_down_radio_button = pack(tk.Radiobutton(self, text="Top Down", variable=self.top_down_var, value="top_down"), anchor=W)
+        self.side_radio_button = pack(tk.Radiobutton(self, text="Side Scroller", variable=self.top_down_var, value="side_scroller"), anchor=W)
+
+        self.entry_frame = pack(tk.Frame(self, highlightthickness=0, bd=0, padx=5, pady=5), fill=X)
+
+        # self.button = pack(tk.Label(self.entry_frame, text="..."), side=RIGHT)
+        # self.button.bind("<Button-1>", self.stop_and_open_text_editor)
+
+        python_name = ""
+        if PYTHON_FILE_PROPERTY in tiled_map:
+            python_name = os.path.split(tiled_map[PYTHON_FILE_PROPERTY])[1]
+            python_name = python_name[:-3] if python_name.endswith(".py") else python_name
+            python_name = PythonBoilerplate.to_python_class_name(python_name)
+
+        self.entry = pack(tk.Entry(self.entry_frame, bd=0, highlightthickness=0), fill=X, padx=5)
+        cast(tk.Entry, self.entry).insert(0, python_name)
+        self.entry["exportselection"] = False
+
+        self.frame.pack(side=TOP, fill=BOTH, expand=True)
+        self.buttons_frame = tk.Frame(self, highlightthickness=0, bd=0)
+        self.buttons_frame.pack(side=BOTTOM, fill=X)
+        self.ok_btn = pack(tk.Button(self.buttons_frame, text="OK", command=self.ok, width=5), padx=5, pady=10, side=RIGHT)
+        self.cancel_btn = pack(tk.Button(self.buttons_frame, text="Cancel", command=self.close, width=5), padx=5, pady=10, side=RIGHT)
+        self.bind("<Escape>", self.close)
+
+    def ok(self, _event=None) -> None:
+        name = cast(tk.Entry, self.entry).get()
+        read_prefix = self.top_down_var.get()
+
+        if name == "":
+            tk.messagebox.showerror(title="Error", message=f"You must enter game name")
+        else:
+            self.python_boilerplate.create(name, read_prefix)
+            if self.boilerplate_created_callback is not None:
+                self.boilerplate_created_callback()
+
+        self.destroy()
+
+    def close(self, _event=None) -> None:
+        self.destroy()
