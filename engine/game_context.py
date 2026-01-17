@@ -73,9 +73,12 @@ class GameContext(ABC):
             "context": self,
             "properties": self.properties,
             "game": self,
+            "level": self.level,
             "player": self.player,
             "math": math,
             "pygame": pygame,
+            "objects": self.level.objects_by_name,
+            "objs": self.level.objects_by_name
         }
 
         self.closure = self.base_closure
