@@ -690,6 +690,7 @@ class TiledObject(TiledSubElement):
         self.speed = 0.0
 
         self._image: Optional[Surface] = None
+        self._animated: bool = False
 
     @property
     def x(self) -> float: return self.rect.x
@@ -767,6 +768,12 @@ class TiledObject(TiledSubElement):
             if gid in self.map.tile_animations:
                 time_ms = int(time.time() * 1000)
                 gid = self.map.tile_animations[gid].get_gid(time_ms)
+                self._animated = True
+            self._image = self.map.images[gid]
+        elif self._animated:
+            time_ms = int(time.time() * 1000)
+            gid = self._gid
+            gid = self.map.tile_animations[gid].get_gid(time_ms)
             self._image = self.map.images[gid]
         return self._image
 
