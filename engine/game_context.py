@@ -73,12 +73,12 @@ class GameContext(ABC):
             "context": self,
             "properties": self.properties,
             "game": self,
-            "level": self.level,
             "player": self.player,
             "math": math,
             "pygame": pygame,
-            "objects": self.level.objects_by_name,
-            "objs": self.level.objects_by_name
+            "level": self.level,
+            "objects": {},
+            "objs": {}
         }
 
         self.closure = self.base_closure
@@ -127,6 +127,8 @@ class GameContext(ABC):
         }
         return {
             "level": level,
+            "objects": level.objects_by_name,
+            "objs": level.objects_by_name,
             **self.base_closure,
             **closure_objects,
             **({name: getattr(level.level_context, name) for name in dir(level.level_context) if hasattr(getattr(level.level_context, name), "context_object")} if level.level_context is not None else {})
@@ -169,8 +171,9 @@ class GameContext(ABC):
                     player.vy += -player.jump_strength + 4 * player.jump / player.jump_threshold
                     walking_animation.turn_up()  # TODO turn_jump??
             elif up:
-                walking_animation.turn_up()
-                player.vy = -player.speed
+                if self.gravity_y == 0:
+                    walking_animation.turn_up()
+                    player.vy = -player.speed
             elif down:
                 walking_animation.turn_down()
                 player.vy = player.speed
@@ -191,7 +194,7 @@ class GameContext(ABC):
                     player.on_the_ground = not player_moved_vertically
                     if not player_moved_vertically:
                         player.hit_velocity = player.vy
-                        player.vy = 0
+                        player.vy = 0.0
 
             player.vx = player.vx + self.gravity_x
             player.vy = player.vy + self.gravity_y
