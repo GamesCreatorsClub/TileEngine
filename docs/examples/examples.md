@@ -133,3 +133,35 @@ Here in `on_enter` we propel player up by using `player.vy` value and set it to 
 At the same time we change spring's tile to compressed tile and then set object's 'count_down' property
 to 20 (frames). In `on_animate` we get this 'count_down' value and if it is bigger than 0 start
 count down. The moment it reaches back to '0' we 'decompress' the sprint.
+
+
+## Ladders
+
+This is how you can make ladders in side scroller game.
+First use images for ladders in background layer:
+
+![Ladders](ladder-1.gif "Ladders")
+
+Next is to create 'ladder' object over the background image so we can
+augument it:
+
+![Ladder object](ladder-2.png "Ladder object")
+
+That object will need following properties:
+
+`on_enter` where we will stop gravity affecting player:
+
+```python
+context.gravity_y = 0
+```
+
+`on_leave` where we will re-enable it again:
+
+```python
+context.gravity_y = 2
+```
+
+
+## Coins
+
+See here [coins](coins.md).
