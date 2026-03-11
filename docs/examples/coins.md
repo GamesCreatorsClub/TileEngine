@@ -24,7 +24,7 @@ player["add_coin"] = add_coin
 Here we utilise ability to add overlay (text and image) to the screen. We create 'text' object
 (`text_outline` just creates 'outlined text') to put in the middle of screen for 5 seconds.
 Then add overlay image on top left corner - NNW (actually next to it in the top left corner along the top side of the screen).
-The image is tile image of tile with ID 152 which is scaled up to 24x24 pixels. Last two 
+The image is tile image of tile with ID 152 which is scaled up to 24x24 pixels. Last two
 arguments 0 and 0 are for length of time it is displayed on screen (first 0 is for indefinite) and
 position in the row from left to right. So, we have indefinite image at position 0.
 

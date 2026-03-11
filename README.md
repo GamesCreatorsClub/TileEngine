@@ -43,7 +43,7 @@ For more documentation check following:
 - [Concepts](docs/concepts.md)
 - [Setting up project](docs/project-setup.md)
 - [Available methods and variables in scriptles](docs/reference.md)
-- [Recipes](docs/recipes.md)
+- [Examples](docs/examples.md) (including [Coins](docs/coins.md))
 
 ## Editor
 
